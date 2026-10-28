@@ -287,6 +287,7 @@ spikes/rslib-26.09.3/scripts/build-frb-host.sh
 spikes/rslib-26.09.3/scripts/test-dart-host.sh
 spikes/rslib-26.09.3/scripts/build-android.sh arm64-v8a
 spikes/rslib-26.09.3/scripts/build-android.sh x86_64
+spikes/rslib-26.09.3/scripts/run-fidelity.sh
 ```
 
 필요 도구: Rust 1.97.1(스크립트가 `rust-toolchain.toml`로 선택), protoc, zstd, Node 22, Flutter 3.47.x, Android NDK 29.0.14206865, cargo-ndk 4.1.2. Dart protobuf는 `scripts/gen-dart-proto.sh`(protoc-gen-dart 25.1.0). 받아 온 트리의 `rslib/`와 `proto/`는 빌드 전후에 diff가 없어야 한다.
