@@ -1,0 +1,17 @@
+{
+  "abi": "x86_64",
+  "target": "x86_64-linux-android",
+  "elapsed_sec": 101,
+  "so_bytes": 36676104,
+  "load_align": [
+    "0x4000",
+    "0x4000",
+    "0x4000"
+  ],
+  "needed": [
+    "0x0000000000000001 (NEEDED)             Shared library: [libdl.so]",
+    "0x0000000000000001 (NEEDED)             Shared library: [libm.so]",
+    "0x0000000000000001 (NEEDED)             Shared library: [libc.so]"
+  ],
+  "page_16k": true
+}

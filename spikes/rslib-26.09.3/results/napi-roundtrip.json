@@ -1,0 +1,392 @@
+{
+  "work": "/tmp/hatto-napi-csR02y",
+  "scenarios": [
+    {
+      "name": "import-export-roundtrip",
+      "status": "pass",
+      "detail": {
+        "exportedNotes": 2,
+        "counts": {
+          "foundNotes": 2,
+          "new": 2,
+          "updated": 0,
+          "duplicate": 0,
+          "conflicting": 0
+        },
+        "fields": [
+          "alpha / beta",
+          "hello / world"
+        ],
+        "schema": 18,
+        "entries": [
+          "meta",
+          "collection.anki21b",
+          "collection.anki2",
+          "media"
+        ]
+      }
+    },
+    {
+      "name": "same-guid-reimport",
+      "status": "pass",
+      "detail": {
+        "steps": [
+          {
+            "label": "import older",
+            "counts": {
+              "foundNotes": 1,
+              "new": 1,
+              "updated": 0,
+              "duplicate": 0,
+              "conflicting": 0
+            },
+            "sampleFields": [
+              "hello",
+              "world"
+            ]
+          },
+          {
+            "label": "import newer if_newer",
+            "counts": {
+              "foundNotes": 1,
+              "new": 0,
+              "updated": 1,
+              "duplicate": 0,
+              "conflicting": 0
+            },
+            "sampleFields": [
+              "goodbye",
+              "world"
+            ]
+          },
+          {
+            "label": "reimport older if_newer",
+            "counts": {
+              "foundNotes": 1,
+              "new": 0,
+              "updated": 0,
+              "duplicate": 1,
+              "conflicting": 0
+            },
+            "sampleFields": [
+              "hello",
+              "world"
+            ]
+          },
+          {
+            "label": "reimport older always",
+            "counts": {
+              "foundNotes": 1,
+              "new": 0,
+              "updated": 1,
+              "duplicate": 0,
+              "conflicting": 0
+            },
+            "sampleFields": [
+              "hello",
+              "world"
+            ]
+          },
+          {
+            "label": "reimport newer never",
+            "counts": {
+              "foundNotes": 1,
+              "new": 0,
+              "updated": 0,
+              "duplicate": 1,
+              "conflicting": 0
+            },
+            "sampleFields": [
+              "goodbye",
+              "world"
+            ]
+          },
+          {
+            "label": "stored after never",
+            "fields": [
+              "hello",
+              "world"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "scheduling-exclusion-and-answer",
+      "status": "pass",
+      "detail": {
+        "studyBefore": {
+          "id": "1793195392038",
+          "noteId": "1793195392038",
+          "deckId": "1",
+          "templateIdx": 0,
+          "mtimeSecs": "1793195392",
+          "usn": 0,
+          "ctype": 0,
+          "queue": 0,
+          "due": 1,
+          "interval": 0,
+          "easeFactor": 0,
+          "reps": 0,
+          "lapses": 0,
+          "remainingSteps": 0,
+          "originalDue": 0,
+          "originalDeckId": "0",
+          "flags": 0,
+          "customData": ""
+        },
+        "studyAfter": {
+          "id": "1793195392038",
+          "noteId": "1793195392038",
+          "deckId": "1",
+          "templateIdx": 0,
+          "mtimeSecs": "1793195392",
+          "usn": 0,
+          "ctype": 1,
+          "queue": 1,
+          "due": 1793195998,
+          "interval": 0,
+          "easeFactor": 0,
+          "reps": 1,
+          "lapses": 0,
+          "remainingSteps": 1,
+          "originalDue": 0,
+          "originalDeckId": "0",
+          "flags": 0,
+          "customData": "",
+          "originalPosition": 1,
+          "lastReviewTimeSecs": "1793195392"
+        },
+        "withSchedulingFile": {
+          "entries": [
+            "meta",
+            "collection.anki21b",
+            "collection.anki2",
+            "media"
+          ],
+          "collection": "collection.anki21b",
+          "schema": 18,
+          "revlog_count": 1,
+          "deck_config_count": 1,
+          "notes": [
+            {
+              "guid": ">1YIKHq/2",
+              "flds": [
+                "study",
+                "card"
+              ]
+            }
+          ],
+          "cards": [
+            {
+              "type": 1,
+              "queue": 1,
+              "due": 1793195998,
+              "ivl": 0,
+              "factor": 0,
+              "reps": 1,
+              "lapses": 0,
+              "left": 1,
+              "data": "{\"pos\":1,\"lrt\":1793195392}"
+            }
+          ]
+        },
+        "withoutSchedulingFile": {
+          "entries": [
+            "meta",
+            "collection.anki21b",
+            "collection.anki2",
+            "media"
+          ],
+          "collection": "collection.anki21b",
+          "schema": 18,
+          "revlog_count": 0,
+          "deck_config_count": 1,
+          "notes": [
+            {
+              "guid": ">1YIKHq/2",
+              "flds": [
+                "study",
+                "card"
+              ]
+            }
+          ],
+          "cards": [
+            {
+              "type": 0,
+              "queue": 0,
+              "due": 1,
+              "ivl": 0,
+              "factor": 0,
+              "reps": 0,
+              "lapses": 0,
+              "left": 1,
+              "data": "{\"lrt\":1793195392}"
+            }
+          ]
+        },
+        "importWithSchedulingFalse": {
+          "counts": {
+            "foundNotes": 1,
+            "new": 1,
+            "updated": 0,
+            "duplicate": 0,
+            "conflicting": 0
+          },
+          "card": {
+            "id": "1793195392038",
+            "noteId": "1793195392038",
+            "deckId": "1",
+            "templateIdx": 0,
+            "mtimeSecs": "1793195392",
+            "usn": 0,
+            "ctype": 0,
+            "queue": 0,
+            "due": 1,
+            "interval": 0,
+            "easeFactor": 0,
+            "reps": 0,
+            "lapses": 0,
+            "remainingSteps": 1,
+            "originalDue": 0,
+            "originalDeckId": "0",
+            "flags": 0,
+            "customData": "",
+            "lastReviewTimeSecs": "1793195392"
+          },
+          "reexportRevlog": 0,
+          "reexportCard": {
+            "type": 0,
+            "queue": 0,
+            "due": 1,
+            "ivl": 0,
+            "factor": 0,
+            "reps": 0,
+            "lapses": 0,
+            "left": 1,
+            "data": "{\"lrt\":1793195392}"
+          }
+        },
+        "importWithSchedulingTrue": {
+          "counts": {
+            "foundNotes": 1,
+            "new": 1,
+            "updated": 0,
+            "duplicate": 0,
+            "conflicting": 0
+          },
+          "card": {
+            "id": "1793195392038",
+            "noteId": "1793195392038",
+            "deckId": "1",
+            "templateIdx": 0,
+            "mtimeSecs": "1793195392",
+            "usn": 0,
+            "ctype": 1,
+            "queue": 1,
+            "due": 1793195998,
+            "interval": 0,
+            "easeFactor": 0,
+            "reps": 1,
+            "lapses": 0,
+            "remainingSteps": 1,
+            "originalDue": 0,
+            "originalDeckId": "0",
+            "flags": 0,
+            "customData": "",
+            "originalPosition": 1,
+            "lastReviewTimeSecs": "1793195392"
+          }
+        }
+      }
+    },
+    {
+      "name": "same-collection-path-concurrent",
+      "status": "pass",
+      "detail": {
+        "success": 1,
+        "failures": [
+          {
+            "message": "BackendError kind=5 message=Anki already open, or media currently syncing. context= bytes_hex=0a2e416e6b6920616c7265616479206f70656e2c206f72206d656469612063757272656e746c792073796e63696e672e1005",
+            "decoded": {
+              "message": "Anki already open, or media currently syncing.",
+              "kind": "DB_ERROR",
+              "context": "",
+              "backtrace": ""
+            }
+          },
+          {
+            "message": "BackendError kind=5 message=Anki already open, or media currently syncing. context= bytes_hex=0a2e416e6b6920616c7265616479206f70656e2c206f72206d656469612063757272656e746c792073796e63696e672e1005",
+            "decoded": {
+              "message": "Anki already open, or media currently syncing.",
+              "kind": "DB_ERROR",
+              "context": "",
+              "backtrace": ""
+            }
+          },
+          {
+            "message": "BackendError kind=5 message=Anki already open, or media currently syncing. context= bytes_hex=0a2e416e6b6920616c7265616479206f70656e2c206f72206d656469612063757272656e746c792073796e63696e672e1005",
+            "decoded": {
+              "message": "Anki already open, or media currently syncing.",
+              "kind": "DB_ERROR",
+              "context": "",
+              "backtrace": ""
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "different-collections-concurrent",
+      "status": "pass",
+      "detail": {
+        "counts": [
+          {
+            "foundNotes": 1,
+            "new": 1,
+            "updated": 0,
+            "duplicate": 0,
+            "conflicting": 0
+          },
+          {
+            "foundNotes": 1,
+            "new": 1,
+            "updated": 0,
+            "duplicate": 0,
+            "conflicting": 0
+          },
+          {
+            "foundNotes": 1,
+            "new": 1,
+            "updated": 0,
+            "duplicate": 0,
+            "conflicting": 0
+          },
+          {
+            "foundNotes": 1,
+            "new": 1,
+            "updated": 0,
+            "duplicate": 0,
+            "conflicting": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "event-loop-during-import",
+      "status": "pass",
+      "detail": {
+        "notes": 300,
+        "elapsedMs": 15,
+        "maxTimerGapMs": 10,
+        "counts": {
+          "foundNotes": 300,
+          "new": 300,
+          "updated": 0,
+          "duplicate": 0,
+          "conflicting": 0
+        }
+      }
+    }
+  ]
+}

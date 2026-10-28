@@ -1,0 +1,15 @@
+[workspace]
+resolver = "2"
+members = ["bridge", "napi", "mobile/rust"]
+# The fetched Anki checkout has its own workspace. It must not be treated as a
+# member of this spike, and rslib itself is not edited.
+exclude = ["vendor"]
+# mobile/rust is added to this list by scripts/ensure-frb-member.sh after
+# flutter_rust_bridge codegen, so `cargo build -p hatto-rslib-napi` does not
+# need the generated FRB sources.
+
+[workspace.package]
+version = "0.0.0"
+edition = "2021"
+license = "AGPL-3.0-or-later"
+publish = false

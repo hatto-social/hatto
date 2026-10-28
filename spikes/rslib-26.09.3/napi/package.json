@@ -1,0 +1,10 @@
+{
+  "name": "@hatto/rslib-napi-spike",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Node tests for the rslib protobuf napi spike. The .node file is built by scripts/build-napi.sh and is not published.",
+  "dependencies": {
+    "protobufjs": "7.5.4"
+  }
+}

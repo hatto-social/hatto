@@ -1,0 +1,17 @@
+[package]
+name = "hatto-rslib-napi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "napi-rs spike: async open/run/close over the rslib protobuf bridge"
+
+[lib]
+crate-type = ["cdylib"]
+name = "hatto_rslib_napi"
+
+[dependencies]
+hatto-rslib-bridge = { path = "../bridge" }
+napi = { version = "2.16", default-features = false, features = ["napi8", "async", "tokio_rt"] }
+napi-derive = "2.16"
+tokio = { version = "1.45", features = ["rt-multi-thread"] }
