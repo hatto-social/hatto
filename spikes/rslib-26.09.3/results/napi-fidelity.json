@@ -1,0 +1,4547 @@
+{
+  "work": "/tmp/hatto-fidelity",
+  "manifest": {
+    "guids": {
+      "hd[RQ+(^+k": {
+        "fields": [
+          "hello",
+          "world"
+        ],
+        "tags": [
+          "custom",
+          "custom::child"
+        ],
+        "notetypeId": "1793199529316"
+      },
+      "xFz[Sb-!B!": {
+        "fields": [
+          "한글 日本語 café 🇺🇸 <b>bold</b> &amp;",
+          "עברית <script>no</script>"
+        ],
+        "tags": [
+          "leech",
+          "marked",
+          "유니코드"
+        ],
+        "notetypeId": "1793199529316"
+      },
+      "nK>9-p8OR8": {
+        "fields": [
+          "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가<b>end</b>",
+          "tail"
+        ],
+        "tags": [],
+        "notetypeId": "1793199529316"
+      },
+      "odd guid 한글 \"quote\" \\": {
+        "fields": [
+          "odd-guid",
+          "kept"
+        ],
+        "tags": [],
+        "notetypeId": "1793199529316"
+      },
+      "ECq*zZZh:)": {
+        "fields": [
+          "front-rev",
+          "back-rev"
+        ],
+        "tags": [
+          "reversed"
+        ],
+        "notetypeId": "1793199529317"
+      },
+      "Mf7/@t8g_#": {
+        "fields": [
+          "{{c1::숨김}} 그리고 {{c2::둘째}}",
+          "extra"
+        ],
+        "tags": [
+          "cloze"
+        ],
+        "notetypeId": "1793199529320"
+      },
+      "njc_^>.:-n": {
+        "fields": [
+          "<img src=\"pixel.png\">",
+          "[sound:beep.wav]"
+        ],
+        "tags": [
+          "media"
+        ],
+        "notetypeId": "1793199529316"
+      },
+      "kI&!]^1KNI": {
+        "fields": [
+          "has-extra",
+          "back",
+          "third"
+        ],
+        "tags": [
+          "extra-field"
+        ],
+        "notetypeId": "1793199529355"
+      }
+    },
+    "notetypes": {
+      "basic": "1793199529316",
+      "reversed": {
+        "id": "1793199529317",
+        "templates": [
+          "Card 1",
+          "Card 2"
+        ],
+        "kind": "KIND_NORMAL"
+      },
+      "cloze": {
+        "id": "1793199529320",
+        "templates": [
+          "Cloze"
+        ],
+        "fields": [
+          "Text",
+          "Back Extra"
+        ],
+        "kind": "KIND_CLOZE"
+      },
+      "hatto": "1793199529355"
+    },
+    "media": {
+      "imageName": "pixel.png",
+      "audioName": "beep.wav"
+    },
+    "decks": {
+      "korean": "1793199529332",
+      "child": "1793199529333"
+    },
+    "noteCount": 8
+  },
+  "rounds": [
+    {
+      "apkg": "rich.apkg",
+      "name": "rich__hatto",
+      "flags": {
+        "withScheduling": false,
+        "withDeckConfigs": false,
+        "withMedia": true,
+        "legacy": false
+      },
+      "importLog": {
+        "foundNotes": 8,
+        "new": 8,
+        "updated": 0,
+        "duplicate": 0,
+        "conflicting": 0,
+        "newGuids": [
+          [
+            "hello",
+            "world"
+          ],
+          [
+            "한글 日本語 café 🇺🇸 bold &",
+            "עברית "
+          ],
+          [
+            "가가가가가가가가가가가가가가가가가가가가가가가가가가",
+            "tail"
+          ],
+          [
+            "odd-guid",
+            "kept"
+          ],
+          [
+            "front-rev",
+            "back-rev"
+          ],
+          [
+            "{{c1::숨김}} 그리고 {{c2::둘째}}",
+            "extra"
+          ],
+          [
+            " pixel.png ",
+            "[sound:beep.wav]"
+          ],
+          [
+            "has-extra",
+            "back",
+            "third"
+          ]
+        ],
+        "updatedFields": []
+      },
+      "schema": {
+        "src": 18,
+        "dst": 18
+      },
+      "summary": {
+        "notes": "8/8",
+        "missing": [],
+        "extra": [],
+        "fieldMismatch": 0,
+        "tagMismatch": 0,
+        "noteIdChanged": 0,
+        "midChanged": 0,
+        "mtimeChanged": 0,
+        "usnChanged": 0,
+        "csumChanged": 0,
+        "sfldChanged": 0,
+        "cardMissing": 0,
+        "cardExtra": 0,
+        "cardIdChanged": 0,
+        "cardDeckChanged": 4,
+        "scheduleDiffs": 0,
+        "notetypeMissing": [
+          "Basic",
+          "Basic (and reversed card)",
+          "Cloze"
+        ],
+        "notetypeExtra": [
+          "Basic (and reversed card)+",
+          "Basic+",
+          "Cloze+"
+        ],
+        "notetypeIdChanged": [],
+        "notetypeSchema": 0,
+        "deckMissing": [],
+        "deckExtra": [],
+        "deckIdChanged": [
+          "Languages",
+          "Languages\u001f한국어",
+          "Languages\u001f한국어\u001fHangul"
+        ],
+        "mediaMissing": [],
+        "mediaExtra": [],
+        "mediaHash": 0,
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        }
+      },
+      "diff": {
+        "notes": {
+          "src": 8,
+          "dst": 8,
+          "missing_guids": [],
+          "extra_guids": [],
+          "field_mismatch": [],
+          "tag_mismatch": [],
+          "id_changed": [],
+          "mid_changed": [],
+          "mtime_changed": [],
+          "usn_changed": [],
+          "csum_changed": [],
+          "sfld_changed": []
+        },
+        "cards": {
+          "src": 10,
+          "dst": 10,
+          "missing": [],
+          "extra": [],
+          "id_changed": [],
+          "ord_mismatch": [],
+          "deck_id_changed": [
+            {
+              "key": [
+                "ECq*zZZh:)",
+                0
+              ],
+              "src": 1793199529332,
+              "dst": 1793199529419
+            },
+            {
+              "key": [
+                "ECq*zZZh:)",
+                1
+              ],
+              "src": 1793199529332,
+              "dst": 1793199529419
+            },
+            {
+              "key": [
+                "Mf7/@t8g_#",
+                0
+              ],
+              "src": 1793199529333,
+              "dst": 1793199529420
+            },
+            {
+              "key": [
+                "Mf7/@t8g_#",
+                1
+              ],
+              "src": 1793199529333,
+              "dst": 1793199529420
+            }
+          ],
+          "schedule_or_state_diff": []
+        },
+        "notetypes": {
+          "missing": [
+            "Basic",
+            "Basic (and reversed card)",
+            "Cloze"
+          ],
+          "extra": [
+            "Basic (and reversed card)+",
+            "Basic+",
+            "Cloze+"
+          ],
+          "id_changed": [],
+          "schema_mismatch": []
+        },
+        "decks": {
+          "missing": [],
+          "extra": [],
+          "id_changed": [
+            {
+              "name": "Languages",
+              "src": 1793199529331,
+              "dst": 1793199529418
+            },
+            {
+              "name": "Languages\u001f한국어",
+              "src": 1793199529332,
+              "dst": 1793199529419
+            },
+            {
+              "name": "Languages\u001f한국어\u001fHangul",
+              "src": 1793199529333,
+              "dst": 1793199529420
+            }
+          ]
+        },
+        "media": {
+          "missing": [],
+          "extra": [],
+          "hash_mismatch": [],
+          "src_names": [
+            "beep.wav",
+            "pixel.png"
+          ],
+          "dst_names": [
+            "beep.wav",
+            "pixel.png"
+          ]
+        },
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        },
+        "deck_config_count": {
+          "src": 1,
+          "dst": 1
+        }
+      }
+    },
+    {
+      "apkg": "rich.apkg",
+      "name": "rich__no-media",
+      "flags": {
+        "withScheduling": false,
+        "withDeckConfigs": false,
+        "withMedia": false,
+        "legacy": false
+      },
+      "importLog": {
+        "foundNotes": 8,
+        "new": 8,
+        "updated": 0,
+        "duplicate": 0,
+        "conflicting": 0,
+        "newGuids": [
+          [
+            "hello",
+            "world"
+          ],
+          [
+            "한글 日本語 café 🇺🇸 bold &",
+            "עברית "
+          ],
+          [
+            "가가가가가가가가가가가가가가가가가가가가가가가가가가",
+            "tail"
+          ],
+          [
+            "odd-guid",
+            "kept"
+          ],
+          [
+            "front-rev",
+            "back-rev"
+          ],
+          [
+            "{{c1::숨김}} 그리고 {{c2::둘째}}",
+            "extra"
+          ],
+          [
+            " pixel.png ",
+            "[sound:beep.wav]"
+          ],
+          [
+            "has-extra",
+            "back",
+            "third"
+          ]
+        ],
+        "updatedFields": []
+      },
+      "schema": {
+        "src": 18,
+        "dst": 18
+      },
+      "summary": {
+        "notes": "8/8",
+        "missing": [],
+        "extra": [],
+        "fieldMismatch": 0,
+        "tagMismatch": 0,
+        "noteIdChanged": 0,
+        "midChanged": 0,
+        "mtimeChanged": 0,
+        "usnChanged": 0,
+        "csumChanged": 0,
+        "sfldChanged": 0,
+        "cardMissing": 0,
+        "cardExtra": 0,
+        "cardIdChanged": 0,
+        "cardDeckChanged": 4,
+        "scheduleDiffs": 0,
+        "notetypeMissing": [
+          "Basic",
+          "Basic (and reversed card)",
+          "Cloze"
+        ],
+        "notetypeExtra": [
+          "Basic (and reversed card)+",
+          "Basic+",
+          "Cloze+"
+        ],
+        "notetypeIdChanged": [],
+        "notetypeSchema": 0,
+        "deckMissing": [],
+        "deckExtra": [],
+        "deckIdChanged": [
+          "Languages",
+          "Languages\u001f한국어",
+          "Languages\u001f한국어\u001fHangul"
+        ],
+        "mediaMissing": [
+          "beep.wav",
+          "pixel.png"
+        ],
+        "mediaExtra": [],
+        "mediaHash": 0,
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        }
+      },
+      "diff": {
+        "notes": {
+          "src": 8,
+          "dst": 8,
+          "missing_guids": [],
+          "extra_guids": [],
+          "field_mismatch": [],
+          "tag_mismatch": [],
+          "id_changed": [],
+          "mid_changed": [],
+          "mtime_changed": [],
+          "usn_changed": [],
+          "csum_changed": [],
+          "sfld_changed": []
+        },
+        "cards": {
+          "src": 10,
+          "dst": 10,
+          "missing": [],
+          "extra": [],
+          "id_changed": [],
+          "ord_mismatch": [],
+          "deck_id_changed": [
+            {
+              "key": [
+                "ECq*zZZh:)",
+                0
+              ],
+              "src": 1793199529332,
+              "dst": 1793199529572
+            },
+            {
+              "key": [
+                "ECq*zZZh:)",
+                1
+              ],
+              "src": 1793199529332,
+              "dst": 1793199529572
+            },
+            {
+              "key": [
+                "Mf7/@t8g_#",
+                0
+              ],
+              "src": 1793199529333,
+              "dst": 1793199529573
+            },
+            {
+              "key": [
+                "Mf7/@t8g_#",
+                1
+              ],
+              "src": 1793199529333,
+              "dst": 1793199529573
+            }
+          ],
+          "schedule_or_state_diff": []
+        },
+        "notetypes": {
+          "missing": [
+            "Basic",
+            "Basic (and reversed card)",
+            "Cloze"
+          ],
+          "extra": [
+            "Basic (and reversed card)+",
+            "Basic+",
+            "Cloze+"
+          ],
+          "id_changed": [],
+          "schema_mismatch": []
+        },
+        "decks": {
+          "missing": [],
+          "extra": [],
+          "id_changed": [
+            {
+              "name": "Languages",
+              "src": 1793199529331,
+              "dst": 1793199529571
+            },
+            {
+              "name": "Languages\u001f한국어",
+              "src": 1793199529332,
+              "dst": 1793199529572
+            },
+            {
+              "name": "Languages\u001f한국어\u001fHangul",
+              "src": 1793199529333,
+              "dst": 1793199529573
+            }
+          ]
+        },
+        "media": {
+          "missing": [
+            "beep.wav",
+            "pixel.png"
+          ],
+          "extra": [],
+          "hash_mismatch": [],
+          "src_names": [
+            "beep.wav",
+            "pixel.png"
+          ],
+          "dst_names": []
+        },
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        },
+        "deck_config_count": {
+          "src": 1,
+          "dst": 1
+        }
+      }
+    },
+    {
+      "apkg": "rich.apkg",
+      "name": "rich__with-scheduling",
+      "flags": {
+        "withScheduling": true,
+        "withDeckConfigs": true,
+        "withMedia": true,
+        "legacy": false
+      },
+      "importLog": {
+        "foundNotes": 8,
+        "new": 8,
+        "updated": 0,
+        "duplicate": 0,
+        "conflicting": 0,
+        "newGuids": [
+          [
+            "hello",
+            "world"
+          ],
+          [
+            "한글 日本語 café 🇺🇸 bold &",
+            "עברית "
+          ],
+          [
+            "가가가가가가가가가가가가가가가가가가가가가가가가가가",
+            "tail"
+          ],
+          [
+            "odd-guid",
+            "kept"
+          ],
+          [
+            "front-rev",
+            "back-rev"
+          ],
+          [
+            "{{c1::숨김}} 그리고 {{c2::둘째}}",
+            "extra"
+          ],
+          [
+            " pixel.png ",
+            "[sound:beep.wav]"
+          ],
+          [
+            "has-extra",
+            "back",
+            "third"
+          ]
+        ],
+        "updatedFields": []
+      },
+      "schema": {
+        "src": 18,
+        "dst": 18
+      },
+      "summary": {
+        "notes": "8/8",
+        "missing": [],
+        "extra": [],
+        "fieldMismatch": 0,
+        "tagMismatch": 0,
+        "noteIdChanged": 0,
+        "midChanged": 0,
+        "mtimeChanged": 0,
+        "usnChanged": 0,
+        "csumChanged": 0,
+        "sfldChanged": 0,
+        "cardMissing": 0,
+        "cardExtra": 0,
+        "cardIdChanged": 0,
+        "cardDeckChanged": 4,
+        "scheduleDiffs": 0,
+        "notetypeMissing": [
+          "Basic",
+          "Basic (and reversed card)",
+          "Cloze"
+        ],
+        "notetypeExtra": [
+          "Basic (and reversed card)+",
+          "Basic+",
+          "Cloze+"
+        ],
+        "notetypeIdChanged": [],
+        "notetypeSchema": 0,
+        "deckMissing": [],
+        "deckExtra": [],
+        "deckIdChanged": [
+          "Languages",
+          "Languages\u001f한국어",
+          "Languages\u001f한국어\u001fHangul"
+        ],
+        "mediaMissing": [],
+        "mediaExtra": [],
+        "mediaHash": 0,
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        }
+      },
+      "diff": {
+        "notes": {
+          "src": 8,
+          "dst": 8,
+          "missing_guids": [],
+          "extra_guids": [],
+          "field_mismatch": [],
+          "tag_mismatch": [],
+          "id_changed": [],
+          "mid_changed": [],
+          "mtime_changed": [],
+          "usn_changed": [],
+          "csum_changed": [],
+          "sfld_changed": []
+        },
+        "cards": {
+          "src": 10,
+          "dst": 10,
+          "missing": [],
+          "extra": [],
+          "id_changed": [],
+          "ord_mismatch": [],
+          "deck_id_changed": [
+            {
+              "key": [
+                "ECq*zZZh:)",
+                0
+              ],
+              "src": 1793199529332,
+              "dst": 1793199529708
+            },
+            {
+              "key": [
+                "ECq*zZZh:)",
+                1
+              ],
+              "src": 1793199529332,
+              "dst": 1793199529708
+            },
+            {
+              "key": [
+                "Mf7/@t8g_#",
+                0
+              ],
+              "src": 1793199529333,
+              "dst": 1793199529709
+            },
+            {
+              "key": [
+                "Mf7/@t8g_#",
+                1
+              ],
+              "src": 1793199529333,
+              "dst": 1793199529709
+            }
+          ],
+          "schedule_or_state_diff": []
+        },
+        "notetypes": {
+          "missing": [
+            "Basic",
+            "Basic (and reversed card)",
+            "Cloze"
+          ],
+          "extra": [
+            "Basic (and reversed card)+",
+            "Basic+",
+            "Cloze+"
+          ],
+          "id_changed": [],
+          "schema_mismatch": []
+        },
+        "decks": {
+          "missing": [],
+          "extra": [],
+          "id_changed": [
+            {
+              "name": "Languages",
+              "src": 1793199529331,
+              "dst": 1793199529707
+            },
+            {
+              "name": "Languages\u001f한국어",
+              "src": 1793199529332,
+              "dst": 1793199529708
+            },
+            {
+              "name": "Languages\u001f한국어\u001fHangul",
+              "src": 1793199529333,
+              "dst": 1793199529709
+            }
+          ]
+        },
+        "media": {
+          "missing": [],
+          "extra": [],
+          "hash_mismatch": [],
+          "src_names": [
+            "beep.wav",
+            "pixel.png"
+          ],
+          "dst_names": [
+            "beep.wav",
+            "pixel.png"
+          ]
+        },
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        },
+        "deck_config_count": {
+          "src": 1,
+          "dst": 1
+        }
+      }
+    },
+    {
+      "apkg": "rich.apkg",
+      "name": "rich__legacy",
+      "flags": {
+        "withScheduling": false,
+        "withDeckConfigs": false,
+        "withMedia": true,
+        "legacy": true
+      },
+      "importLog": {
+        "foundNotes": 8,
+        "new": 8,
+        "updated": 0,
+        "duplicate": 0,
+        "conflicting": 0,
+        "newGuids": [
+          [
+            "hello",
+            "world"
+          ],
+          [
+            "한글 日本語 café 🇺🇸 bold &",
+            "עברית "
+          ],
+          [
+            "가가가가가가가가가가가가가가가가가가가가가가가가가가",
+            "tail"
+          ],
+          [
+            "odd-guid",
+            "kept"
+          ],
+          [
+            "front-rev",
+            "back-rev"
+          ],
+          [
+            "{{c1::숨김}} 그리고 {{c2::둘째}}",
+            "extra"
+          ],
+          [
+            " pixel.png ",
+            "[sound:beep.wav]"
+          ],
+          [
+            "has-extra",
+            "back",
+            "third"
+          ]
+        ],
+        "updatedFields": []
+      },
+      "schema": {
+        "src": 18,
+        "dst": 11
+      },
+      "summary": {
+        "notes": "8/8",
+        "missing": [],
+        "extra": [],
+        "fieldMismatch": 0,
+        "tagMismatch": 0,
+        "noteIdChanged": 0,
+        "midChanged": 0,
+        "mtimeChanged": 0,
+        "usnChanged": 0,
+        "csumChanged": 0,
+        "sfldChanged": 0,
+        "cardMissing": 0,
+        "cardExtra": 0,
+        "cardIdChanged": 0,
+        "cardDeckChanged": 4,
+        "scheduleDiffs": 0,
+        "notetypeMissing": [
+          "Basic",
+          "Basic (and reversed card)",
+          "Cloze",
+          "Hatto"
+        ],
+        "notetypeExtra": [],
+        "notetypeIdChanged": [],
+        "notetypeSchema": 0,
+        "deckMissing": [
+          "Default",
+          "Languages",
+          "Languages\u001f한국어",
+          "Languages\u001f한국어\u001fHangul"
+        ],
+        "deckExtra": [],
+        "deckIdChanged": [],
+        "mediaMissing": [],
+        "mediaExtra": [],
+        "mediaHash": 0,
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        }
+      },
+      "diff": {
+        "notes": {
+          "src": 8,
+          "dst": 8,
+          "missing_guids": [],
+          "extra_guids": [],
+          "field_mismatch": [],
+          "tag_mismatch": [],
+          "id_changed": [],
+          "mid_changed": [],
+          "mtime_changed": [],
+          "usn_changed": [],
+          "csum_changed": [],
+          "sfld_changed": []
+        },
+        "cards": {
+          "src": 10,
+          "dst": 10,
+          "missing": [],
+          "extra": [],
+          "id_changed": [],
+          "ord_mismatch": [],
+          "deck_id_changed": [
+            {
+              "key": [
+                "ECq*zZZh:)",
+                0
+              ],
+              "src": 1793199529332,
+              "dst": 1793199529855
+            },
+            {
+              "key": [
+                "ECq*zZZh:)",
+                1
+              ],
+              "src": 1793199529332,
+              "dst": 1793199529855
+            },
+            {
+              "key": [
+                "Mf7/@t8g_#",
+                0
+              ],
+              "src": 1793199529333,
+              "dst": 1793199529856
+            },
+            {
+              "key": [
+                "Mf7/@t8g_#",
+                1
+              ],
+              "src": 1793199529333,
+              "dst": 1793199529856
+            }
+          ],
+          "schedule_or_state_diff": []
+        },
+        "notetypes": {
+          "missing": [
+            "Basic",
+            "Basic (and reversed card)",
+            "Cloze",
+            "Hatto"
+          ],
+          "extra": [],
+          "id_changed": [],
+          "schema_mismatch": []
+        },
+        "decks": {
+          "missing": [
+            "Default",
+            "Languages",
+            "Languages\u001f한국어",
+            "Languages\u001f한국어\u001fHangul"
+          ],
+          "extra": [],
+          "id_changed": []
+        },
+        "media": {
+          "missing": [],
+          "extra": [],
+          "hash_mismatch": [],
+          "src_names": [
+            "beep.wav",
+            "pixel.png"
+          ],
+          "dst_names": [
+            "beep.wav",
+            "pixel.png"
+          ]
+        },
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        },
+        "deck_config_count": {
+          "src": 1,
+          "dst": null
+        }
+      }
+    },
+    {
+      "apkg": "rich-with-scheduling.apkg",
+      "name": "rich-with-scheduling__hatto",
+      "flags": {
+        "withScheduling": false,
+        "withDeckConfigs": false,
+        "withMedia": true,
+        "legacy": false
+      },
+      "importLog": {
+        "foundNotes": 8,
+        "new": 8,
+        "updated": 0,
+        "duplicate": 0,
+        "conflicting": 0,
+        "newGuids": [
+          [
+            "hello",
+            "world"
+          ],
+          [
+            "한글 日本語 café 🇺🇸 bold &",
+            "עברית "
+          ],
+          [
+            "가가가가가가가가가가가가가가가가가가가가가가가가가가",
+            "tail"
+          ],
+          [
+            "odd-guid",
+            "kept"
+          ],
+          [
+            "front-rev",
+            "back-rev"
+          ],
+          [
+            "{{c1::숨김}} 그리고 {{c2::둘째}}",
+            "extra"
+          ],
+          [
+            " pixel.png ",
+            "[sound:beep.wav]"
+          ],
+          [
+            "has-extra",
+            "back",
+            "third"
+          ]
+        ],
+        "updatedFields": []
+      },
+      "schema": {
+        "src": 18,
+        "dst": 18
+      },
+      "summary": {
+        "notes": "8/8",
+        "missing": [],
+        "extra": [],
+        "fieldMismatch": 0,
+        "tagMismatch": 1,
+        "noteIdChanged": 0,
+        "midChanged": 0,
+        "mtimeChanged": 0,
+        "usnChanged": 0,
+        "csumChanged": 0,
+        "sfldChanged": 0,
+        "cardMissing": 0,
+        "cardExtra": 0,
+        "cardIdChanged": 0,
+        "cardDeckChanged": 4,
+        "scheduleDiffs": 1,
+        "notetypeMissing": [
+          "Basic",
+          "Basic (and reversed card)",
+          "Cloze"
+        ],
+        "notetypeExtra": [
+          "Basic (and reversed card)+",
+          "Basic+",
+          "Cloze+"
+        ],
+        "notetypeIdChanged": [],
+        "notetypeSchema": 0,
+        "deckMissing": [],
+        "deckExtra": [],
+        "deckIdChanged": [
+          "Languages",
+          "Languages\u001f한국어",
+          "Languages\u001f한국어\u001fHangul"
+        ],
+        "mediaMissing": [],
+        "mediaExtra": [],
+        "mediaHash": 0,
+        "revlog": {
+          "src": 1,
+          "dst": 0
+        }
+      },
+      "diff": {
+        "notes": {
+          "src": 8,
+          "dst": 8,
+          "missing_guids": [],
+          "extra_guids": [],
+          "field_mismatch": [],
+          "tag_mismatch": [
+            {
+              "guid": "xFz[Sb-!B!",
+              "src": [
+                "leech",
+                "marked",
+                "유니코드"
+              ],
+              "dst": [
+                "유니코드"
+              ]
+            }
+          ],
+          "id_changed": [],
+          "mid_changed": [],
+          "mtime_changed": [],
+          "usn_changed": [],
+          "csum_changed": [],
+          "sfld_changed": []
+        },
+        "cards": {
+          "src": 10,
+          "dst": 10,
+          "missing": [],
+          "extra": [],
+          "id_changed": [],
+          "ord_mismatch": [],
+          "deck_id_changed": [
+            {
+              "key": [
+                "ECq*zZZh:)",
+                0
+              ],
+              "src": 1793199529332,
+              "dst": 1793199529993
+            },
+            {
+              "key": [
+                "ECq*zZZh:)",
+                1
+              ],
+              "src": 1793199529332,
+              "dst": 1793199529993
+            },
+            {
+              "key": [
+                "Mf7/@t8g_#",
+                0
+              ],
+              "src": 1793199529333,
+              "dst": 1793199529994
+            },
+            {
+              "key": [
+                "Mf7/@t8g_#",
+                1
+              ],
+              "src": 1793199529333,
+              "dst": 1793199529994
+            }
+          ],
+          "schedule_or_state_diff": [
+            {
+              "key": [
+                "hd[RQ+(^+k",
+                0
+              ],
+              "diff": {
+                "type": {
+                  "src": 1,
+                  "dst": 0
+                },
+                "queue": {
+                  "src": 1,
+                  "dst": 0
+                },
+                "due": {
+                  "src": 1793200262,
+                  "dst": 1
+                },
+                "reps": {
+                  "src": 1,
+                  "dst": 0
+                },
+                "data": {
+                  "src": "{\"pos\":1,\"lrt\":1793199529}",
+                  "dst": "{\"lrt\":1793199529}"
+                }
+              }
+            }
+          ]
+        },
+        "notetypes": {
+          "missing": [
+            "Basic",
+            "Basic (and reversed card)",
+            "Cloze"
+          ],
+          "extra": [
+            "Basic (and reversed card)+",
+            "Basic+",
+            "Cloze+"
+          ],
+          "id_changed": [],
+          "schema_mismatch": []
+        },
+        "decks": {
+          "missing": [],
+          "extra": [],
+          "id_changed": [
+            {
+              "name": "Languages",
+              "src": 1793199529331,
+              "dst": 1793199529992
+            },
+            {
+              "name": "Languages\u001f한국어",
+              "src": 1793199529332,
+              "dst": 1793199529993
+            },
+            {
+              "name": "Languages\u001f한국어\u001fHangul",
+              "src": 1793199529333,
+              "dst": 1793199529994
+            }
+          ]
+        },
+        "media": {
+          "missing": [],
+          "extra": [],
+          "hash_mismatch": [],
+          "src_names": [
+            "beep.wav",
+            "pixel.png"
+          ],
+          "dst_names": [
+            "beep.wav",
+            "pixel.png"
+          ]
+        },
+        "revlog": {
+          "src": 1,
+          "dst": 0
+        },
+        "deck_config_count": {
+          "src": 1,
+          "dst": 1
+        }
+      }
+    },
+    {
+      "apkg": "rich-with-scheduling.apkg",
+      "name": "rich-with-scheduling__no-media",
+      "flags": {
+        "withScheduling": false,
+        "withDeckConfigs": false,
+        "withMedia": false,
+        "legacy": false
+      },
+      "importLog": {
+        "foundNotes": 8,
+        "new": 8,
+        "updated": 0,
+        "duplicate": 0,
+        "conflicting": 0,
+        "newGuids": [
+          [
+            "hello",
+            "world"
+          ],
+          [
+            "한글 日本語 café 🇺🇸 bold &",
+            "עברית "
+          ],
+          [
+            "가가가가가가가가가가가가가가가가가가가가가가가가가가",
+            "tail"
+          ],
+          [
+            "odd-guid",
+            "kept"
+          ],
+          [
+            "front-rev",
+            "back-rev"
+          ],
+          [
+            "{{c1::숨김}} 그리고 {{c2::둘째}}",
+            "extra"
+          ],
+          [
+            " pixel.png ",
+            "[sound:beep.wav]"
+          ],
+          [
+            "has-extra",
+            "back",
+            "third"
+          ]
+        ],
+        "updatedFields": []
+      },
+      "schema": {
+        "src": 18,
+        "dst": 18
+      },
+      "summary": {
+        "notes": "8/8",
+        "missing": [],
+        "extra": [],
+        "fieldMismatch": 0,
+        "tagMismatch": 1,
+        "noteIdChanged": 0,
+        "midChanged": 0,
+        "mtimeChanged": 0,
+        "usnChanged": 0,
+        "csumChanged": 0,
+        "sfldChanged": 0,
+        "cardMissing": 0,
+        "cardExtra": 0,
+        "cardIdChanged": 0,
+        "cardDeckChanged": 4,
+        "scheduleDiffs": 1,
+        "notetypeMissing": [
+          "Basic",
+          "Basic (and reversed card)",
+          "Cloze"
+        ],
+        "notetypeExtra": [
+          "Basic (and reversed card)+",
+          "Basic+",
+          "Cloze+"
+        ],
+        "notetypeIdChanged": [],
+        "notetypeSchema": 0,
+        "deckMissing": [],
+        "deckExtra": [],
+        "deckIdChanged": [
+          "Languages",
+          "Languages\u001f한국어",
+          "Languages\u001f한국어\u001fHangul"
+        ],
+        "mediaMissing": [
+          "beep.wav",
+          "pixel.png"
+        ],
+        "mediaExtra": [],
+        "mediaHash": 0,
+        "revlog": {
+          "src": 1,
+          "dst": 0
+        }
+      },
+      "diff": {
+        "notes": {
+          "src": 8,
+          "dst": 8,
+          "missing_guids": [],
+          "extra_guids": [],
+          "field_mismatch": [],
+          "tag_mismatch": [
+            {
+              "guid": "xFz[Sb-!B!",
+              "src": [
+                "leech",
+                "marked",
+                "유니코드"
+              ],
+              "dst": [
+                "유니코드"
+              ]
+            }
+          ],
+          "id_changed": [],
+          "mid_changed": [],
+          "mtime_changed": [],
+          "usn_changed": [],
+          "csum_changed": [],
+          "sfld_changed": []
+        },
+        "cards": {
+          "src": 10,
+          "dst": 10,
+          "missing": [],
+          "extra": [],
+          "id_changed": [],
+          "ord_mismatch": [],
+          "deck_id_changed": [
+            {
+              "key": [
+                "ECq*zZZh:)",
+                0
+              ],
+              "src": 1793199529332,
+              "dst": 1793199530133
+            },
+            {
+              "key": [
+                "ECq*zZZh:)",
+                1
+              ],
+              "src": 1793199529332,
+              "dst": 1793199530133
+            },
+            {
+              "key": [
+                "Mf7/@t8g_#",
+                0
+              ],
+              "src": 1793199529333,
+              "dst": 1793199530134
+            },
+            {
+              "key": [
+                "Mf7/@t8g_#",
+                1
+              ],
+              "src": 1793199529333,
+              "dst": 1793199530134
+            }
+          ],
+          "schedule_or_state_diff": [
+            {
+              "key": [
+                "hd[RQ+(^+k",
+                0
+              ],
+              "diff": {
+                "type": {
+                  "src": 1,
+                  "dst": 0
+                },
+                "queue": {
+                  "src": 1,
+                  "dst": 0
+                },
+                "due": {
+                  "src": 1793200262,
+                  "dst": 1
+                },
+                "reps": {
+                  "src": 1,
+                  "dst": 0
+                },
+                "data": {
+                  "src": "{\"pos\":1,\"lrt\":1793199529}",
+                  "dst": "{\"lrt\":1793199529}"
+                }
+              }
+            }
+          ]
+        },
+        "notetypes": {
+          "missing": [
+            "Basic",
+            "Basic (and reversed card)",
+            "Cloze"
+          ],
+          "extra": [
+            "Basic (and reversed card)+",
+            "Basic+",
+            "Cloze+"
+          ],
+          "id_changed": [],
+          "schema_mismatch": []
+        },
+        "decks": {
+          "missing": [],
+          "extra": [],
+          "id_changed": [
+            {
+              "name": "Languages",
+              "src": 1793199529331,
+              "dst": 1793199530132
+            },
+            {
+              "name": "Languages\u001f한국어",
+              "src": 1793199529332,
+              "dst": 1793199530133
+            },
+            {
+              "name": "Languages\u001f한국어\u001fHangul",
+              "src": 1793199529333,
+              "dst": 1793199530134
+            }
+          ]
+        },
+        "media": {
+          "missing": [
+            "beep.wav",
+            "pixel.png"
+          ],
+          "extra": [],
+          "hash_mismatch": [],
+          "src_names": [
+            "beep.wav",
+            "pixel.png"
+          ],
+          "dst_names": []
+        },
+        "revlog": {
+          "src": 1,
+          "dst": 0
+        },
+        "deck_config_count": {
+          "src": 1,
+          "dst": 1
+        }
+      }
+    },
+    {
+      "apkg": "rich-with-scheduling.apkg",
+      "name": "rich-with-scheduling__with-scheduling",
+      "flags": {
+        "withScheduling": true,
+        "withDeckConfigs": true,
+        "withMedia": true,
+        "legacy": false
+      },
+      "importLog": {
+        "foundNotes": 8,
+        "new": 8,
+        "updated": 0,
+        "duplicate": 0,
+        "conflicting": 0,
+        "newGuids": [
+          [
+            "hello",
+            "world"
+          ],
+          [
+            "한글 日本語 café 🇺🇸 bold &",
+            "עברית "
+          ],
+          [
+            "가가가가가가가가가가가가가가가가가가가가가가가가가가",
+            "tail"
+          ],
+          [
+            "odd-guid",
+            "kept"
+          ],
+          [
+            "front-rev",
+            "back-rev"
+          ],
+          [
+            "{{c1::숨김}} 그리고 {{c2::둘째}}",
+            "extra"
+          ],
+          [
+            " pixel.png ",
+            "[sound:beep.wav]"
+          ],
+          [
+            "has-extra",
+            "back",
+            "third"
+          ]
+        ],
+        "updatedFields": []
+      },
+      "schema": {
+        "src": 18,
+        "dst": 18
+      },
+      "summary": {
+        "notes": "8/8",
+        "missing": [],
+        "extra": [],
+        "fieldMismatch": 0,
+        "tagMismatch": 0,
+        "noteIdChanged": 0,
+        "midChanged": 0,
+        "mtimeChanged": 0,
+        "usnChanged": 0,
+        "csumChanged": 0,
+        "sfldChanged": 0,
+        "cardMissing": 0,
+        "cardExtra": 0,
+        "cardIdChanged": 0,
+        "cardDeckChanged": 4,
+        "scheduleDiffs": 0,
+        "notetypeMissing": [
+          "Basic",
+          "Basic (and reversed card)",
+          "Cloze"
+        ],
+        "notetypeExtra": [
+          "Basic (and reversed card)+",
+          "Basic+",
+          "Cloze+"
+        ],
+        "notetypeIdChanged": [],
+        "notetypeSchema": 0,
+        "deckMissing": [],
+        "deckExtra": [],
+        "deckIdChanged": [
+          "Languages",
+          "Languages\u001f한국어",
+          "Languages\u001f한국어\u001fHangul"
+        ],
+        "mediaMissing": [],
+        "mediaExtra": [],
+        "mediaHash": 0,
+        "revlog": {
+          "src": 1,
+          "dst": 1
+        }
+      },
+      "diff": {
+        "notes": {
+          "src": 8,
+          "dst": 8,
+          "missing_guids": [],
+          "extra_guids": [],
+          "field_mismatch": [],
+          "tag_mismatch": [],
+          "id_changed": [],
+          "mid_changed": [],
+          "mtime_changed": [],
+          "usn_changed": [],
+          "csum_changed": [],
+          "sfld_changed": []
+        },
+        "cards": {
+          "src": 10,
+          "dst": 10,
+          "missing": [],
+          "extra": [],
+          "id_changed": [],
+          "ord_mismatch": [],
+          "deck_id_changed": [
+            {
+              "key": [
+                "ECq*zZZh:)",
+                0
+              ],
+              "src": 1793199529332,
+              "dst": 1793199530275
+            },
+            {
+              "key": [
+                "ECq*zZZh:)",
+                1
+              ],
+              "src": 1793199529332,
+              "dst": 1793199530275
+            },
+            {
+              "key": [
+                "Mf7/@t8g_#",
+                0
+              ],
+              "src": 1793199529333,
+              "dst": 1793199530276
+            },
+            {
+              "key": [
+                "Mf7/@t8g_#",
+                1
+              ],
+              "src": 1793199529333,
+              "dst": 1793199530276
+            }
+          ],
+          "schedule_or_state_diff": []
+        },
+        "notetypes": {
+          "missing": [
+            "Basic",
+            "Basic (and reversed card)",
+            "Cloze"
+          ],
+          "extra": [
+            "Basic (and reversed card)+",
+            "Basic+",
+            "Cloze+"
+          ],
+          "id_changed": [],
+          "schema_mismatch": []
+        },
+        "decks": {
+          "missing": [],
+          "extra": [],
+          "id_changed": [
+            {
+              "name": "Languages",
+              "src": 1793199529331,
+              "dst": 1793199530274
+            },
+            {
+              "name": "Languages\u001f한국어",
+              "src": 1793199529332,
+              "dst": 1793199530275
+            },
+            {
+              "name": "Languages\u001f한국어\u001fHangul",
+              "src": 1793199529333,
+              "dst": 1793199530276
+            }
+          ]
+        },
+        "media": {
+          "missing": [],
+          "extra": [],
+          "hash_mismatch": [],
+          "src_names": [
+            "beep.wav",
+            "pixel.png"
+          ],
+          "dst_names": [
+            "beep.wav",
+            "pixel.png"
+          ]
+        },
+        "revlog": {
+          "src": 1,
+          "dst": 1
+        },
+        "deck_config_count": {
+          "src": 1,
+          "dst": 1
+        }
+      }
+    },
+    {
+      "apkg": "rich-with-scheduling.apkg",
+      "name": "rich-with-scheduling__legacy",
+      "flags": {
+        "withScheduling": false,
+        "withDeckConfigs": false,
+        "withMedia": true,
+        "legacy": true
+      },
+      "importLog": {
+        "foundNotes": 8,
+        "new": 8,
+        "updated": 0,
+        "duplicate": 0,
+        "conflicting": 0,
+        "newGuids": [
+          [
+            "hello",
+            "world"
+          ],
+          [
+            "한글 日本語 café 🇺🇸 bold &",
+            "עברית "
+          ],
+          [
+            "가가가가가가가가가가가가가가가가가가가가가가가가가가",
+            "tail"
+          ],
+          [
+            "odd-guid",
+            "kept"
+          ],
+          [
+            "front-rev",
+            "back-rev"
+          ],
+          [
+            "{{c1::숨김}} 그리고 {{c2::둘째}}",
+            "extra"
+          ],
+          [
+            " pixel.png ",
+            "[sound:beep.wav]"
+          ],
+          [
+            "has-extra",
+            "back",
+            "third"
+          ]
+        ],
+        "updatedFields": []
+      },
+      "schema": {
+        "src": 18,
+        "dst": 11
+      },
+      "summary": {
+        "notes": "8/8",
+        "missing": [],
+        "extra": [],
+        "fieldMismatch": 0,
+        "tagMismatch": 1,
+        "noteIdChanged": 0,
+        "midChanged": 0,
+        "mtimeChanged": 0,
+        "usnChanged": 0,
+        "csumChanged": 0,
+        "sfldChanged": 0,
+        "cardMissing": 0,
+        "cardExtra": 0,
+        "cardIdChanged": 0,
+        "cardDeckChanged": 4,
+        "scheduleDiffs": 1,
+        "notetypeMissing": [
+          "Basic",
+          "Basic (and reversed card)",
+          "Cloze",
+          "Hatto"
+        ],
+        "notetypeExtra": [],
+        "notetypeIdChanged": [],
+        "notetypeSchema": 0,
+        "deckMissing": [
+          "Default",
+          "Languages",
+          "Languages\u001f한국어",
+          "Languages\u001f한국어\u001fHangul"
+        ],
+        "deckExtra": [],
+        "deckIdChanged": [],
+        "mediaMissing": [],
+        "mediaExtra": [],
+        "mediaHash": 0,
+        "revlog": {
+          "src": 1,
+          "dst": 0
+        }
+      },
+      "diff": {
+        "notes": {
+          "src": 8,
+          "dst": 8,
+          "missing_guids": [],
+          "extra_guids": [],
+          "field_mismatch": [],
+          "tag_mismatch": [
+            {
+              "guid": "xFz[Sb-!B!",
+              "src": [
+                "leech",
+                "marked",
+                "유니코드"
+              ],
+              "dst": [
+                "유니코드"
+              ]
+            }
+          ],
+          "id_changed": [],
+          "mid_changed": [],
+          "mtime_changed": [],
+          "usn_changed": [],
+          "csum_changed": [],
+          "sfld_changed": []
+        },
+        "cards": {
+          "src": 10,
+          "dst": 10,
+          "missing": [],
+          "extra": [],
+          "id_changed": [],
+          "ord_mismatch": [],
+          "deck_id_changed": [
+            {
+              "key": [
+                "ECq*zZZh:)",
+                0
+              ],
+              "src": 1793199529332,
+              "dst": 1793199530418
+            },
+            {
+              "key": [
+                "ECq*zZZh:)",
+                1
+              ],
+              "src": 1793199529332,
+              "dst": 1793199530418
+            },
+            {
+              "key": [
+                "Mf7/@t8g_#",
+                0
+              ],
+              "src": 1793199529333,
+              "dst": 1793199530419
+            },
+            {
+              "key": [
+                "Mf7/@t8g_#",
+                1
+              ],
+              "src": 1793199529333,
+              "dst": 1793199530419
+            }
+          ],
+          "schedule_or_state_diff": [
+            {
+              "key": [
+                "hd[RQ+(^+k",
+                0
+              ],
+              "diff": {
+                "type": {
+                  "src": 1,
+                  "dst": 0
+                },
+                "queue": {
+                  "src": 1,
+                  "dst": 0
+                },
+                "due": {
+                  "src": 1793200262,
+                  "dst": 1
+                },
+                "reps": {
+                  "src": 1,
+                  "dst": 0
+                },
+                "data": {
+                  "src": "{\"pos\":1,\"lrt\":1793199529}",
+                  "dst": "{\"lrt\":1793199529}"
+                }
+              }
+            }
+          ]
+        },
+        "notetypes": {
+          "missing": [
+            "Basic",
+            "Basic (and reversed card)",
+            "Cloze",
+            "Hatto"
+          ],
+          "extra": [],
+          "id_changed": [],
+          "schema_mismatch": []
+        },
+        "decks": {
+          "missing": [
+            "Default",
+            "Languages",
+            "Languages\u001f한국어",
+            "Languages\u001f한국어\u001fHangul"
+          ],
+          "extra": [],
+          "id_changed": []
+        },
+        "media": {
+          "missing": [],
+          "extra": [],
+          "hash_mismatch": [],
+          "src_names": [
+            "beep.wav",
+            "pixel.png"
+          ],
+          "dst_names": [
+            "beep.wav",
+            "pixel.png"
+          ]
+        },
+        "revlog": {
+          "src": 1,
+          "dst": 0
+        },
+        "deck_config_count": {
+          "src": 1,
+          "dst": null
+        }
+      }
+    },
+    {
+      "apkg": "public-media.apkg",
+      "name": "public-media__hatto",
+      "flags": {
+        "withScheduling": false,
+        "withDeckConfigs": false,
+        "withMedia": true,
+        "legacy": false
+      },
+      "importLog": {
+        "foundNotes": 1,
+        "new": 1,
+        "updated": 0,
+        "duplicate": 0,
+        "conflicting": 0,
+        "newGuids": [
+          [
+            "[sound:foo.wav]",
+            ""
+          ]
+        ],
+        "updatedFields": []
+      },
+      "schema": {
+        "src": 11,
+        "dst": 18
+      },
+      "summary": {
+        "notes": "1/1",
+        "missing": [],
+        "extra": [],
+        "fieldMismatch": 0,
+        "tagMismatch": 0,
+        "noteIdChanged": 0,
+        "midChanged": 0,
+        "mtimeChanged": 0,
+        "usnChanged": 1,
+        "csumChanged": 0,
+        "sfldChanged": 0,
+        "cardMissing": 0,
+        "cardExtra": 0,
+        "cardIdChanged": 0,
+        "cardDeckChanged": 0,
+        "scheduleDiffs": 1,
+        "notetypeMissing": [],
+        "notetypeExtra": [
+          "Basic+"
+        ],
+        "notetypeIdChanged": [],
+        "notetypeSchema": 0,
+        "deckMissing": [],
+        "deckExtra": [
+          "Default"
+        ],
+        "deckIdChanged": [],
+        "mediaMissing": [],
+        "mediaExtra": [],
+        "mediaHash": 0,
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        }
+      },
+      "diff": {
+        "notes": {
+          "src": 1,
+          "dst": 1,
+          "missing_guids": [],
+          "extra_guids": [],
+          "field_mismatch": [],
+          "tag_mismatch": [],
+          "id_changed": [],
+          "mid_changed": [],
+          "mtime_changed": [],
+          "usn_changed": [
+            {
+              "guid": "L;*}1M{l6|",
+              "src": -1,
+              "dst": 0
+            }
+          ],
+          "csum_changed": [],
+          "sfld_changed": []
+        },
+        "cards": {
+          "src": 1,
+          "dst": 1,
+          "missing": [],
+          "extra": [],
+          "id_changed": [],
+          "ord_mismatch": [],
+          "deck_id_changed": [],
+          "schedule_or_state_diff": [
+            {
+              "key": [
+                "L;*}1M{l6|",
+                0
+              ],
+              "diff": {
+                "factor": {
+                  "src": 2500,
+                  "dst": 0
+                },
+                "data": {
+                  "src": "",
+                  "dst": "{}"
+                }
+              }
+            }
+          ]
+        },
+        "notetypes": {
+          "missing": [],
+          "extra": [
+            "Basic+"
+          ],
+          "id_changed": [],
+          "schema_mismatch": []
+        },
+        "decks": {
+          "missing": [],
+          "extra": [
+            "Default"
+          ],
+          "id_changed": []
+        },
+        "media": {
+          "missing": [],
+          "extra": [],
+          "hash_mismatch": [],
+          "src_names": [
+            "foo.wav"
+          ],
+          "dst_names": [
+            "foo.wav"
+          ]
+        },
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        },
+        "deck_config_count": {
+          "src": null,
+          "dst": 1
+        }
+      }
+    },
+    {
+      "apkg": "public-media.apkg",
+      "name": "public-media__no-media",
+      "flags": {
+        "withScheduling": false,
+        "withDeckConfigs": false,
+        "withMedia": false,
+        "legacy": false
+      },
+      "importLog": {
+        "foundNotes": 1,
+        "new": 1,
+        "updated": 0,
+        "duplicate": 0,
+        "conflicting": 0,
+        "newGuids": [
+          [
+            "[sound:foo.wav]",
+            ""
+          ]
+        ],
+        "updatedFields": []
+      },
+      "schema": {
+        "src": 11,
+        "dst": 18
+      },
+      "summary": {
+        "notes": "1/1",
+        "missing": [],
+        "extra": [],
+        "fieldMismatch": 0,
+        "tagMismatch": 0,
+        "noteIdChanged": 0,
+        "midChanged": 0,
+        "mtimeChanged": 0,
+        "usnChanged": 1,
+        "csumChanged": 0,
+        "sfldChanged": 0,
+        "cardMissing": 0,
+        "cardExtra": 0,
+        "cardIdChanged": 0,
+        "cardDeckChanged": 0,
+        "scheduleDiffs": 1,
+        "notetypeMissing": [],
+        "notetypeExtra": [
+          "Basic_"
+        ],
+        "notetypeIdChanged": [],
+        "notetypeSchema": 0,
+        "deckMissing": [],
+        "deckExtra": [
+          "Default"
+        ],
+        "deckIdChanged": [],
+        "mediaMissing": [
+          "foo.wav"
+        ],
+        "mediaExtra": [],
+        "mediaHash": 0,
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        }
+      },
+      "diff": {
+        "notes": {
+          "src": 1,
+          "dst": 1,
+          "missing_guids": [],
+          "extra_guids": [],
+          "field_mismatch": [],
+          "tag_mismatch": [],
+          "id_changed": [],
+          "mid_changed": [],
+          "mtime_changed": [],
+          "usn_changed": [
+            {
+              "guid": "L;*}1M{l6|",
+              "src": -1,
+              "dst": 0
+            }
+          ],
+          "csum_changed": [],
+          "sfld_changed": []
+        },
+        "cards": {
+          "src": 1,
+          "dst": 1,
+          "missing": [],
+          "extra": [],
+          "id_changed": [],
+          "ord_mismatch": [],
+          "deck_id_changed": [],
+          "schedule_or_state_diff": [
+            {
+              "key": [
+                "L;*}1M{l6|",
+                0
+              ],
+              "diff": {
+                "factor": {
+                  "src": 2500,
+                  "dst": 0
+                },
+                "data": {
+                  "src": "",
+                  "dst": "{}"
+                }
+              }
+            }
+          ]
+        },
+        "notetypes": {
+          "missing": [],
+          "extra": [
+            "Basic_"
+          ],
+          "id_changed": [],
+          "schema_mismatch": []
+        },
+        "decks": {
+          "missing": [],
+          "extra": [
+            "Default"
+          ],
+          "id_changed": []
+        },
+        "media": {
+          "missing": [
+            "foo.wav"
+          ],
+          "extra": [],
+          "hash_mismatch": [],
+          "src_names": [
+            "foo.wav"
+          ],
+          "dst_names": []
+        },
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        },
+        "deck_config_count": {
+          "src": null,
+          "dst": 1
+        }
+      }
+    },
+    {
+      "apkg": "public-media.apkg",
+      "name": "public-media__with-scheduling",
+      "flags": {
+        "withScheduling": true,
+        "withDeckConfigs": true,
+        "withMedia": true,
+        "legacy": false
+      },
+      "importLog": {
+        "foundNotes": 1,
+        "new": 1,
+        "updated": 0,
+        "duplicate": 0,
+        "conflicting": 0,
+        "newGuids": [
+          [
+            "[sound:foo.wav]",
+            ""
+          ]
+        ],
+        "updatedFields": []
+      },
+      "schema": {
+        "src": 11,
+        "dst": 18
+      },
+      "summary": {
+        "notes": "1/1",
+        "missing": [],
+        "extra": [],
+        "fieldMismatch": 0,
+        "tagMismatch": 0,
+        "noteIdChanged": 0,
+        "midChanged": 0,
+        "mtimeChanged": 0,
+        "usnChanged": 1,
+        "csumChanged": 0,
+        "sfldChanged": 0,
+        "cardMissing": 0,
+        "cardExtra": 0,
+        "cardIdChanged": 0,
+        "cardDeckChanged": 0,
+        "scheduleDiffs": 1,
+        "notetypeMissing": [],
+        "notetypeExtra": [
+          "Basic_"
+        ],
+        "notetypeIdChanged": [],
+        "notetypeSchema": 0,
+        "deckMissing": [],
+        "deckExtra": [
+          "Default"
+        ],
+        "deckIdChanged": [],
+        "mediaMissing": [],
+        "mediaExtra": [],
+        "mediaHash": 0,
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        }
+      },
+      "diff": {
+        "notes": {
+          "src": 1,
+          "dst": 1,
+          "missing_guids": [],
+          "extra_guids": [],
+          "field_mismatch": [],
+          "tag_mismatch": [],
+          "id_changed": [],
+          "mid_changed": [],
+          "mtime_changed": [],
+          "usn_changed": [
+            {
+              "guid": "L;*}1M{l6|",
+              "src": -1,
+              "dst": 0
+            }
+          ],
+          "csum_changed": [],
+          "sfld_changed": []
+        },
+        "cards": {
+          "src": 1,
+          "dst": 1,
+          "missing": [],
+          "extra": [],
+          "id_changed": [],
+          "ord_mismatch": [],
+          "deck_id_changed": [],
+          "schedule_or_state_diff": [
+            {
+              "key": [
+                "L;*}1M{l6|",
+                0
+              ],
+              "diff": {
+                "data": {
+                  "src": "",
+                  "dst": "{}"
+                }
+              }
+            }
+          ]
+        },
+        "notetypes": {
+          "missing": [],
+          "extra": [
+            "Basic_"
+          ],
+          "id_changed": [],
+          "schema_mismatch": []
+        },
+        "decks": {
+          "missing": [],
+          "extra": [
+            "Default"
+          ],
+          "id_changed": []
+        },
+        "media": {
+          "missing": [],
+          "extra": [],
+          "hash_mismatch": [],
+          "src_names": [
+            "foo.wav"
+          ],
+          "dst_names": [
+            "foo.wav"
+          ]
+        },
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        },
+        "deck_config_count": {
+          "src": null,
+          "dst": 1
+        }
+      }
+    },
+    {
+      "apkg": "public-media.apkg",
+      "name": "public-media__legacy",
+      "flags": {
+        "withScheduling": false,
+        "withDeckConfigs": false,
+        "withMedia": true,
+        "legacy": true
+      },
+      "importLog": {
+        "foundNotes": 1,
+        "new": 1,
+        "updated": 0,
+        "duplicate": 0,
+        "conflicting": 0,
+        "newGuids": [
+          [
+            "[sound:foo.wav]",
+            ""
+          ]
+        ],
+        "updatedFields": []
+      },
+      "schema": {
+        "src": 11,
+        "dst": 11
+      },
+      "summary": {
+        "notes": "1/1",
+        "missing": [],
+        "extra": [],
+        "fieldMismatch": 0,
+        "tagMismatch": 0,
+        "noteIdChanged": 0,
+        "midChanged": 0,
+        "mtimeChanged": 0,
+        "usnChanged": 1,
+        "csumChanged": 0,
+        "sfldChanged": 0,
+        "cardMissing": 0,
+        "cardExtra": 0,
+        "cardIdChanged": 0,
+        "cardDeckChanged": 0,
+        "scheduleDiffs": 1,
+        "notetypeMissing": [],
+        "notetypeExtra": [],
+        "notetypeIdChanged": [],
+        "notetypeSchema": 0,
+        "deckMissing": [],
+        "deckExtra": [],
+        "deckIdChanged": [],
+        "mediaMissing": [],
+        "mediaExtra": [],
+        "mediaHash": 0,
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        }
+      },
+      "diff": {
+        "notes": {
+          "src": 1,
+          "dst": 1,
+          "missing_guids": [],
+          "extra_guids": [],
+          "field_mismatch": [],
+          "tag_mismatch": [],
+          "id_changed": [],
+          "mid_changed": [],
+          "mtime_changed": [],
+          "usn_changed": [
+            {
+              "guid": "L;*}1M{l6|",
+              "src": -1,
+              "dst": 0
+            }
+          ],
+          "csum_changed": [],
+          "sfld_changed": []
+        },
+        "cards": {
+          "src": 1,
+          "dst": 1,
+          "missing": [],
+          "extra": [],
+          "id_changed": [],
+          "ord_mismatch": [],
+          "deck_id_changed": [],
+          "schedule_or_state_diff": [
+            {
+              "key": [
+                "L;*}1M{l6|",
+                0
+              ],
+              "diff": {
+                "factor": {
+                  "src": 2500,
+                  "dst": 0
+                },
+                "data": {
+                  "src": "",
+                  "dst": "{}"
+                }
+              }
+            }
+          ]
+        },
+        "notetypes": {
+          "missing": [],
+          "extra": [],
+          "id_changed": [],
+          "schema_mismatch": []
+        },
+        "decks": {
+          "missing": [],
+          "extra": [],
+          "id_changed": []
+        },
+        "media": {
+          "missing": [],
+          "extra": [],
+          "hash_mismatch": [],
+          "src_names": [
+            "foo.wav"
+          ],
+          "dst_names": [
+            "foo.wav"
+          ]
+        },
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        },
+        "deck_config_count": {
+          "src": null,
+          "dst": null
+        }
+      }
+    },
+    {
+      "apkg": "public-update1.apkg",
+      "name": "public-update1__hatto",
+      "flags": {
+        "withScheduling": false,
+        "withDeckConfigs": false,
+        "withMedia": true,
+        "legacy": false
+      },
+      "importLog": {
+        "foundNotes": 1,
+        "new": 1,
+        "updated": 0,
+        "duplicate": 0,
+        "conflicting": 0,
+        "newGuids": [
+          [
+            "hello",
+            "world"
+          ]
+        ],
+        "updatedFields": []
+      },
+      "schema": {
+        "src": 11,
+        "dst": 18
+      },
+      "summary": {
+        "notes": "1/1",
+        "missing": [],
+        "extra": [],
+        "fieldMismatch": 0,
+        "tagMismatch": 0,
+        "noteIdChanged": 0,
+        "midChanged": 0,
+        "mtimeChanged": 0,
+        "usnChanged": 1,
+        "csumChanged": 0,
+        "sfldChanged": 0,
+        "cardMissing": 0,
+        "cardExtra": 0,
+        "cardIdChanged": 0,
+        "cardDeckChanged": 0,
+        "scheduleDiffs": 1,
+        "notetypeMissing": [],
+        "notetypeExtra": [
+          "Basic+"
+        ],
+        "notetypeIdChanged": [],
+        "notetypeSchema": 0,
+        "deckMissing": [],
+        "deckExtra": [
+          "Default"
+        ],
+        "deckIdChanged": [],
+        "mediaMissing": [],
+        "mediaExtra": [],
+        "mediaHash": 0,
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        }
+      },
+      "diff": {
+        "notes": {
+          "src": 1,
+          "dst": 1,
+          "missing_guids": [],
+          "extra_guids": [],
+          "field_mismatch": [],
+          "tag_mismatch": [],
+          "id_changed": [],
+          "mid_changed": [],
+          "mtime_changed": [],
+          "usn_changed": [
+            {
+              "guid": "cU1%zNUzk1",
+              "src": -1,
+              "dst": 0
+            }
+          ],
+          "csum_changed": [],
+          "sfld_changed": []
+        },
+        "cards": {
+          "src": 1,
+          "dst": 1,
+          "missing": [],
+          "extra": [],
+          "id_changed": [],
+          "ord_mismatch": [],
+          "deck_id_changed": [],
+          "schedule_or_state_diff": [
+            {
+              "key": [
+                "cU1%zNUzk1",
+                0
+              ],
+              "diff": {
+                "data": {
+                  "src": "",
+                  "dst": "{}"
+                }
+              }
+            }
+          ]
+        },
+        "notetypes": {
+          "missing": [],
+          "extra": [
+            "Basic+"
+          ],
+          "id_changed": [],
+          "schema_mismatch": []
+        },
+        "decks": {
+          "missing": [],
+          "extra": [
+            "Default"
+          ],
+          "id_changed": []
+        },
+        "media": {
+          "missing": [],
+          "extra": [],
+          "hash_mismatch": [],
+          "src_names": [],
+          "dst_names": []
+        },
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        },
+        "deck_config_count": {
+          "src": null,
+          "dst": 1
+        }
+      }
+    },
+    {
+      "apkg": "public-update1.apkg",
+      "name": "public-update1__no-media",
+      "flags": {
+        "withScheduling": false,
+        "withDeckConfigs": false,
+        "withMedia": false,
+        "legacy": false
+      },
+      "importLog": {
+        "foundNotes": 1,
+        "new": 1,
+        "updated": 0,
+        "duplicate": 0,
+        "conflicting": 0,
+        "newGuids": [
+          [
+            "hello",
+            "world"
+          ]
+        ],
+        "updatedFields": []
+      },
+      "schema": {
+        "src": 11,
+        "dst": 18
+      },
+      "summary": {
+        "notes": "1/1",
+        "missing": [],
+        "extra": [],
+        "fieldMismatch": 0,
+        "tagMismatch": 0,
+        "noteIdChanged": 0,
+        "midChanged": 0,
+        "mtimeChanged": 0,
+        "usnChanged": 1,
+        "csumChanged": 0,
+        "sfldChanged": 0,
+        "cardMissing": 0,
+        "cardExtra": 0,
+        "cardIdChanged": 0,
+        "cardDeckChanged": 0,
+        "scheduleDiffs": 1,
+        "notetypeMissing": [],
+        "notetypeExtra": [
+          "Basic_"
+        ],
+        "notetypeIdChanged": [],
+        "notetypeSchema": 0,
+        "deckMissing": [],
+        "deckExtra": [
+          "Default"
+        ],
+        "deckIdChanged": [],
+        "mediaMissing": [],
+        "mediaExtra": [],
+        "mediaHash": 0,
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        }
+      },
+      "diff": {
+        "notes": {
+          "src": 1,
+          "dst": 1,
+          "missing_guids": [],
+          "extra_guids": [],
+          "field_mismatch": [],
+          "tag_mismatch": [],
+          "id_changed": [],
+          "mid_changed": [],
+          "mtime_changed": [],
+          "usn_changed": [
+            {
+              "guid": "cU1%zNUzk1",
+              "src": -1,
+              "dst": 0
+            }
+          ],
+          "csum_changed": [],
+          "sfld_changed": []
+        },
+        "cards": {
+          "src": 1,
+          "dst": 1,
+          "missing": [],
+          "extra": [],
+          "id_changed": [],
+          "ord_mismatch": [],
+          "deck_id_changed": [],
+          "schedule_or_state_diff": [
+            {
+              "key": [
+                "cU1%zNUzk1",
+                0
+              ],
+              "diff": {
+                "data": {
+                  "src": "",
+                  "dst": "{}"
+                }
+              }
+            }
+          ]
+        },
+        "notetypes": {
+          "missing": [],
+          "extra": [
+            "Basic_"
+          ],
+          "id_changed": [],
+          "schema_mismatch": []
+        },
+        "decks": {
+          "missing": [],
+          "extra": [
+            "Default"
+          ],
+          "id_changed": []
+        },
+        "media": {
+          "missing": [],
+          "extra": [],
+          "hash_mismatch": [],
+          "src_names": [],
+          "dst_names": []
+        },
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        },
+        "deck_config_count": {
+          "src": null,
+          "dst": 1
+        }
+      }
+    },
+    {
+      "apkg": "public-update1.apkg",
+      "name": "public-update1__with-scheduling",
+      "flags": {
+        "withScheduling": true,
+        "withDeckConfigs": true,
+        "withMedia": true,
+        "legacy": false
+      },
+      "importLog": {
+        "foundNotes": 1,
+        "new": 1,
+        "updated": 0,
+        "duplicate": 0,
+        "conflicting": 0,
+        "newGuids": [
+          [
+            "hello",
+            "world"
+          ]
+        ],
+        "updatedFields": []
+      },
+      "schema": {
+        "src": 11,
+        "dst": 18
+      },
+      "summary": {
+        "notes": "1/1",
+        "missing": [],
+        "extra": [],
+        "fieldMismatch": 0,
+        "tagMismatch": 0,
+        "noteIdChanged": 0,
+        "midChanged": 0,
+        "mtimeChanged": 0,
+        "usnChanged": 1,
+        "csumChanged": 0,
+        "sfldChanged": 0,
+        "cardMissing": 0,
+        "cardExtra": 0,
+        "cardIdChanged": 0,
+        "cardDeckChanged": 0,
+        "scheduleDiffs": 1,
+        "notetypeMissing": [],
+        "notetypeExtra": [
+          "Basic+"
+        ],
+        "notetypeIdChanged": [],
+        "notetypeSchema": 0,
+        "deckMissing": [],
+        "deckExtra": [
+          "Default"
+        ],
+        "deckIdChanged": [],
+        "mediaMissing": [],
+        "mediaExtra": [],
+        "mediaHash": 0,
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        }
+      },
+      "diff": {
+        "notes": {
+          "src": 1,
+          "dst": 1,
+          "missing_guids": [],
+          "extra_guids": [],
+          "field_mismatch": [],
+          "tag_mismatch": [],
+          "id_changed": [],
+          "mid_changed": [],
+          "mtime_changed": [],
+          "usn_changed": [
+            {
+              "guid": "cU1%zNUzk1",
+              "src": -1,
+              "dst": 0
+            }
+          ],
+          "csum_changed": [],
+          "sfld_changed": []
+        },
+        "cards": {
+          "src": 1,
+          "dst": 1,
+          "missing": [],
+          "extra": [],
+          "id_changed": [],
+          "ord_mismatch": [],
+          "deck_id_changed": [],
+          "schedule_or_state_diff": [
+            {
+              "key": [
+                "cU1%zNUzk1",
+                0
+              ],
+              "diff": {
+                "data": {
+                  "src": "",
+                  "dst": "{}"
+                }
+              }
+            }
+          ]
+        },
+        "notetypes": {
+          "missing": [],
+          "extra": [
+            "Basic+"
+          ],
+          "id_changed": [],
+          "schema_mismatch": []
+        },
+        "decks": {
+          "missing": [],
+          "extra": [
+            "Default"
+          ],
+          "id_changed": []
+        },
+        "media": {
+          "missing": [],
+          "extra": [],
+          "hash_mismatch": [],
+          "src_names": [],
+          "dst_names": []
+        },
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        },
+        "deck_config_count": {
+          "src": null,
+          "dst": 1
+        }
+      }
+    },
+    {
+      "apkg": "public-update1.apkg",
+      "name": "public-update1__legacy",
+      "flags": {
+        "withScheduling": false,
+        "withDeckConfigs": false,
+        "withMedia": true,
+        "legacy": true
+      },
+      "importLog": {
+        "foundNotes": 1,
+        "new": 1,
+        "updated": 0,
+        "duplicate": 0,
+        "conflicting": 0,
+        "newGuids": [
+          [
+            "hello",
+            "world"
+          ]
+        ],
+        "updatedFields": []
+      },
+      "schema": {
+        "src": 11,
+        "dst": 11
+      },
+      "summary": {
+        "notes": "1/1",
+        "missing": [],
+        "extra": [],
+        "fieldMismatch": 0,
+        "tagMismatch": 0,
+        "noteIdChanged": 0,
+        "midChanged": 0,
+        "mtimeChanged": 0,
+        "usnChanged": 1,
+        "csumChanged": 0,
+        "sfldChanged": 0,
+        "cardMissing": 0,
+        "cardExtra": 0,
+        "cardIdChanged": 0,
+        "cardDeckChanged": 0,
+        "scheduleDiffs": 1,
+        "notetypeMissing": [],
+        "notetypeExtra": [],
+        "notetypeIdChanged": [],
+        "notetypeSchema": 0,
+        "deckMissing": [],
+        "deckExtra": [],
+        "deckIdChanged": [],
+        "mediaMissing": [],
+        "mediaExtra": [],
+        "mediaHash": 0,
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        }
+      },
+      "diff": {
+        "notes": {
+          "src": 1,
+          "dst": 1,
+          "missing_guids": [],
+          "extra_guids": [],
+          "field_mismatch": [],
+          "tag_mismatch": [],
+          "id_changed": [],
+          "mid_changed": [],
+          "mtime_changed": [],
+          "usn_changed": [
+            {
+              "guid": "cU1%zNUzk1",
+              "src": -1,
+              "dst": 0
+            }
+          ],
+          "csum_changed": [],
+          "sfld_changed": []
+        },
+        "cards": {
+          "src": 1,
+          "dst": 1,
+          "missing": [],
+          "extra": [],
+          "id_changed": [],
+          "ord_mismatch": [],
+          "deck_id_changed": [],
+          "schedule_or_state_diff": [
+            {
+              "key": [
+                "cU1%zNUzk1",
+                0
+              ],
+              "diff": {
+                "data": {
+                  "src": "",
+                  "dst": "{}"
+                }
+              }
+            }
+          ]
+        },
+        "notetypes": {
+          "missing": [],
+          "extra": [],
+          "id_changed": [],
+          "schema_mismatch": []
+        },
+        "decks": {
+          "missing": [],
+          "extra": [],
+          "id_changed": []
+        },
+        "media": {
+          "missing": [],
+          "extra": [],
+          "hash_mismatch": [],
+          "src_names": [],
+          "dst_names": []
+        },
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        },
+        "deck_config_count": {
+          "src": null,
+          "dst": null
+        }
+      }
+    },
+    {
+      "apkg": "public-update2.apkg",
+      "name": "public-update2__hatto",
+      "flags": {
+        "withScheduling": false,
+        "withDeckConfigs": false,
+        "withMedia": true,
+        "legacy": false
+      },
+      "importLog": {
+        "foundNotes": 1,
+        "new": 1,
+        "updated": 0,
+        "duplicate": 0,
+        "conflicting": 0,
+        "newGuids": [
+          [
+            "goodbye",
+            "world"
+          ]
+        ],
+        "updatedFields": []
+      },
+      "schema": {
+        "src": 11,
+        "dst": 18
+      },
+      "summary": {
+        "notes": "1/1",
+        "missing": [],
+        "extra": [],
+        "fieldMismatch": 0,
+        "tagMismatch": 0,
+        "noteIdChanged": 0,
+        "midChanged": 0,
+        "mtimeChanged": 0,
+        "usnChanged": 1,
+        "csumChanged": 0,
+        "sfldChanged": 0,
+        "cardMissing": 0,
+        "cardExtra": 0,
+        "cardIdChanged": 0,
+        "cardDeckChanged": 0,
+        "scheduleDiffs": 1,
+        "notetypeMissing": [],
+        "notetypeExtra": [
+          "Basic+"
+        ],
+        "notetypeIdChanged": [],
+        "notetypeSchema": 0,
+        "deckMissing": [],
+        "deckExtra": [
+          "Default"
+        ],
+        "deckIdChanged": [],
+        "mediaMissing": [],
+        "mediaExtra": [],
+        "mediaHash": 0,
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        }
+      },
+      "diff": {
+        "notes": {
+          "src": 1,
+          "dst": 1,
+          "missing_guids": [],
+          "extra_guids": [],
+          "field_mismatch": [],
+          "tag_mismatch": [],
+          "id_changed": [],
+          "mid_changed": [],
+          "mtime_changed": [],
+          "usn_changed": [
+            {
+              "guid": "cU1%zNUzk1",
+              "src": -1,
+              "dst": 0
+            }
+          ],
+          "csum_changed": [],
+          "sfld_changed": []
+        },
+        "cards": {
+          "src": 1,
+          "dst": 1,
+          "missing": [],
+          "extra": [],
+          "id_changed": [],
+          "ord_mismatch": [],
+          "deck_id_changed": [],
+          "schedule_or_state_diff": [
+            {
+              "key": [
+                "cU1%zNUzk1",
+                0
+              ],
+              "diff": {
+                "data": {
+                  "src": "",
+                  "dst": "{}"
+                }
+              }
+            }
+          ]
+        },
+        "notetypes": {
+          "missing": [],
+          "extra": [
+            "Basic+"
+          ],
+          "id_changed": [],
+          "schema_mismatch": []
+        },
+        "decks": {
+          "missing": [],
+          "extra": [
+            "Default"
+          ],
+          "id_changed": []
+        },
+        "media": {
+          "missing": [],
+          "extra": [],
+          "hash_mismatch": [],
+          "src_names": [],
+          "dst_names": []
+        },
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        },
+        "deck_config_count": {
+          "src": null,
+          "dst": 1
+        }
+      }
+    },
+    {
+      "apkg": "public-update2.apkg",
+      "name": "public-update2__no-media",
+      "flags": {
+        "withScheduling": false,
+        "withDeckConfigs": false,
+        "withMedia": false,
+        "legacy": false
+      },
+      "importLog": {
+        "foundNotes": 1,
+        "new": 1,
+        "updated": 0,
+        "duplicate": 0,
+        "conflicting": 0,
+        "newGuids": [
+          [
+            "goodbye",
+            "world"
+          ]
+        ],
+        "updatedFields": []
+      },
+      "schema": {
+        "src": 11,
+        "dst": 18
+      },
+      "summary": {
+        "notes": "1/1",
+        "missing": [],
+        "extra": [],
+        "fieldMismatch": 0,
+        "tagMismatch": 0,
+        "noteIdChanged": 0,
+        "midChanged": 0,
+        "mtimeChanged": 0,
+        "usnChanged": 1,
+        "csumChanged": 0,
+        "sfldChanged": 0,
+        "cardMissing": 0,
+        "cardExtra": 0,
+        "cardIdChanged": 0,
+        "cardDeckChanged": 0,
+        "scheduleDiffs": 1,
+        "notetypeMissing": [],
+        "notetypeExtra": [
+          "Basic_"
+        ],
+        "notetypeIdChanged": [],
+        "notetypeSchema": 0,
+        "deckMissing": [],
+        "deckExtra": [
+          "Default"
+        ],
+        "deckIdChanged": [],
+        "mediaMissing": [],
+        "mediaExtra": [],
+        "mediaHash": 0,
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        }
+      },
+      "diff": {
+        "notes": {
+          "src": 1,
+          "dst": 1,
+          "missing_guids": [],
+          "extra_guids": [],
+          "field_mismatch": [],
+          "tag_mismatch": [],
+          "id_changed": [],
+          "mid_changed": [],
+          "mtime_changed": [],
+          "usn_changed": [
+            {
+              "guid": "cU1%zNUzk1",
+              "src": -1,
+              "dst": 0
+            }
+          ],
+          "csum_changed": [],
+          "sfld_changed": []
+        },
+        "cards": {
+          "src": 1,
+          "dst": 1,
+          "missing": [],
+          "extra": [],
+          "id_changed": [],
+          "ord_mismatch": [],
+          "deck_id_changed": [],
+          "schedule_or_state_diff": [
+            {
+              "key": [
+                "cU1%zNUzk1",
+                0
+              ],
+              "diff": {
+                "data": {
+                  "src": "",
+                  "dst": "{}"
+                }
+              }
+            }
+          ]
+        },
+        "notetypes": {
+          "missing": [],
+          "extra": [
+            "Basic_"
+          ],
+          "id_changed": [],
+          "schema_mismatch": []
+        },
+        "decks": {
+          "missing": [],
+          "extra": [
+            "Default"
+          ],
+          "id_changed": []
+        },
+        "media": {
+          "missing": [],
+          "extra": [],
+          "hash_mismatch": [],
+          "src_names": [],
+          "dst_names": []
+        },
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        },
+        "deck_config_count": {
+          "src": null,
+          "dst": 1
+        }
+      }
+    },
+    {
+      "apkg": "public-update2.apkg",
+      "name": "public-update2__with-scheduling",
+      "flags": {
+        "withScheduling": true,
+        "withDeckConfigs": true,
+        "withMedia": true,
+        "legacy": false
+      },
+      "importLog": {
+        "foundNotes": 1,
+        "new": 1,
+        "updated": 0,
+        "duplicate": 0,
+        "conflicting": 0,
+        "newGuids": [
+          [
+            "goodbye",
+            "world"
+          ]
+        ],
+        "updatedFields": []
+      },
+      "schema": {
+        "src": 11,
+        "dst": 18
+      },
+      "summary": {
+        "notes": "1/1",
+        "missing": [],
+        "extra": [],
+        "fieldMismatch": 0,
+        "tagMismatch": 0,
+        "noteIdChanged": 0,
+        "midChanged": 0,
+        "mtimeChanged": 0,
+        "usnChanged": 1,
+        "csumChanged": 0,
+        "sfldChanged": 0,
+        "cardMissing": 0,
+        "cardExtra": 0,
+        "cardIdChanged": 0,
+        "cardDeckChanged": 0,
+        "scheduleDiffs": 1,
+        "notetypeMissing": [],
+        "notetypeExtra": [
+          "Basic+"
+        ],
+        "notetypeIdChanged": [],
+        "notetypeSchema": 0,
+        "deckMissing": [],
+        "deckExtra": [
+          "Default"
+        ],
+        "deckIdChanged": [],
+        "mediaMissing": [],
+        "mediaExtra": [],
+        "mediaHash": 0,
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        }
+      },
+      "diff": {
+        "notes": {
+          "src": 1,
+          "dst": 1,
+          "missing_guids": [],
+          "extra_guids": [],
+          "field_mismatch": [],
+          "tag_mismatch": [],
+          "id_changed": [],
+          "mid_changed": [],
+          "mtime_changed": [],
+          "usn_changed": [
+            {
+              "guid": "cU1%zNUzk1",
+              "src": -1,
+              "dst": 0
+            }
+          ],
+          "csum_changed": [],
+          "sfld_changed": []
+        },
+        "cards": {
+          "src": 1,
+          "dst": 1,
+          "missing": [],
+          "extra": [],
+          "id_changed": [],
+          "ord_mismatch": [],
+          "deck_id_changed": [],
+          "schedule_or_state_diff": [
+            {
+              "key": [
+                "cU1%zNUzk1",
+                0
+              ],
+              "diff": {
+                "data": {
+                  "src": "",
+                  "dst": "{}"
+                }
+              }
+            }
+          ]
+        },
+        "notetypes": {
+          "missing": [],
+          "extra": [
+            "Basic+"
+          ],
+          "id_changed": [],
+          "schema_mismatch": []
+        },
+        "decks": {
+          "missing": [],
+          "extra": [
+            "Default"
+          ],
+          "id_changed": []
+        },
+        "media": {
+          "missing": [],
+          "extra": [],
+          "hash_mismatch": [],
+          "src_names": [],
+          "dst_names": []
+        },
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        },
+        "deck_config_count": {
+          "src": null,
+          "dst": 1
+        }
+      }
+    },
+    {
+      "apkg": "public-update2.apkg",
+      "name": "public-update2__legacy",
+      "flags": {
+        "withScheduling": false,
+        "withDeckConfigs": false,
+        "withMedia": true,
+        "legacy": true
+      },
+      "importLog": {
+        "foundNotes": 1,
+        "new": 1,
+        "updated": 0,
+        "duplicate": 0,
+        "conflicting": 0,
+        "newGuids": [
+          [
+            "goodbye",
+            "world"
+          ]
+        ],
+        "updatedFields": []
+      },
+      "schema": {
+        "src": 11,
+        "dst": 11
+      },
+      "summary": {
+        "notes": "1/1",
+        "missing": [],
+        "extra": [],
+        "fieldMismatch": 0,
+        "tagMismatch": 0,
+        "noteIdChanged": 0,
+        "midChanged": 0,
+        "mtimeChanged": 0,
+        "usnChanged": 1,
+        "csumChanged": 0,
+        "sfldChanged": 0,
+        "cardMissing": 0,
+        "cardExtra": 0,
+        "cardIdChanged": 0,
+        "cardDeckChanged": 0,
+        "scheduleDiffs": 1,
+        "notetypeMissing": [],
+        "notetypeExtra": [],
+        "notetypeIdChanged": [],
+        "notetypeSchema": 0,
+        "deckMissing": [],
+        "deckExtra": [],
+        "deckIdChanged": [],
+        "mediaMissing": [],
+        "mediaExtra": [],
+        "mediaHash": 0,
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        }
+      },
+      "diff": {
+        "notes": {
+          "src": 1,
+          "dst": 1,
+          "missing_guids": [],
+          "extra_guids": [],
+          "field_mismatch": [],
+          "tag_mismatch": [],
+          "id_changed": [],
+          "mid_changed": [],
+          "mtime_changed": [],
+          "usn_changed": [
+            {
+              "guid": "cU1%zNUzk1",
+              "src": -1,
+              "dst": 0
+            }
+          ],
+          "csum_changed": [],
+          "sfld_changed": []
+        },
+        "cards": {
+          "src": 1,
+          "dst": 1,
+          "missing": [],
+          "extra": [],
+          "id_changed": [],
+          "ord_mismatch": [],
+          "deck_id_changed": [],
+          "schedule_or_state_diff": [
+            {
+              "key": [
+                "cU1%zNUzk1",
+                0
+              ],
+              "diff": {
+                "data": {
+                  "src": "",
+                  "dst": "{}"
+                }
+              }
+            }
+          ]
+        },
+        "notetypes": {
+          "missing": [],
+          "extra": [],
+          "id_changed": [],
+          "schema_mismatch": []
+        },
+        "decks": {
+          "missing": [],
+          "extra": [],
+          "id_changed": []
+        },
+        "media": {
+          "missing": [],
+          "extra": [],
+          "hash_mismatch": [],
+          "src_names": [],
+          "dst_names": []
+        },
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        },
+        "deck_config_count": {
+          "src": null,
+          "dst": null
+        }
+      }
+    },
+    {
+      "apkg": "public-diffmodels2-1.apkg",
+      "name": "public-diffmodels2-1__hatto",
+      "flags": {
+        "withScheduling": false,
+        "withDeckConfigs": false,
+        "withMedia": true,
+        "legacy": false
+      },
+      "importLog": {
+        "foundNotes": 1,
+        "new": 1,
+        "updated": 0,
+        "duplicate": 0,
+        "conflicting": 0,
+        "newGuids": [
+          [
+            "front",
+            "back"
+          ]
+        ],
+        "updatedFields": []
+      },
+      "schema": {
+        "src": 11,
+        "dst": 18
+      },
+      "summary": {
+        "notes": "1/1",
+        "missing": [],
+        "extra": [],
+        "fieldMismatch": 0,
+        "tagMismatch": 0,
+        "noteIdChanged": 0,
+        "midChanged": 0,
+        "mtimeChanged": 0,
+        "usnChanged": 1,
+        "csumChanged": 0,
+        "sfldChanged": 0,
+        "cardMissing": 0,
+        "cardExtra": 0,
+        "cardIdChanged": 0,
+        "cardDeckChanged": 0,
+        "scheduleDiffs": 1,
+        "notetypeMissing": [],
+        "notetypeExtra": [
+          "Basic_"
+        ],
+        "notetypeIdChanged": [],
+        "notetypeSchema": 0,
+        "deckMissing": [],
+        "deckExtra": [
+          "Default"
+        ],
+        "deckIdChanged": [],
+        "mediaMissing": [],
+        "mediaExtra": [],
+        "mediaHash": 0,
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        }
+      },
+      "diff": {
+        "notes": {
+          "src": 1,
+          "dst": 1,
+          "missing_guids": [],
+          "extra_guids": [],
+          "field_mismatch": [],
+          "tag_mismatch": [],
+          "id_changed": [],
+          "mid_changed": [],
+          "mtime_changed": [],
+          "usn_changed": [
+            {
+              "guid": "MGCsE3z^Er",
+              "src": -1,
+              "dst": 0
+            }
+          ],
+          "csum_changed": [],
+          "sfld_changed": []
+        },
+        "cards": {
+          "src": 1,
+          "dst": 1,
+          "missing": [],
+          "extra": [],
+          "id_changed": [],
+          "ord_mismatch": [],
+          "deck_id_changed": [],
+          "schedule_or_state_diff": [
+            {
+              "key": [
+                "MGCsE3z^Er",
+                0
+              ],
+              "diff": {
+                "data": {
+                  "src": "",
+                  "dst": "{}"
+                }
+              }
+            }
+          ]
+        },
+        "notetypes": {
+          "missing": [],
+          "extra": [
+            "Basic_"
+          ],
+          "id_changed": [],
+          "schema_mismatch": []
+        },
+        "decks": {
+          "missing": [],
+          "extra": [
+            "Default"
+          ],
+          "id_changed": []
+        },
+        "media": {
+          "missing": [],
+          "extra": [],
+          "hash_mismatch": [],
+          "src_names": [],
+          "dst_names": []
+        },
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        },
+        "deck_config_count": {
+          "src": null,
+          "dst": 1
+        }
+      }
+    },
+    {
+      "apkg": "public-diffmodels2-1.apkg",
+      "name": "public-diffmodels2-1__no-media",
+      "flags": {
+        "withScheduling": false,
+        "withDeckConfigs": false,
+        "withMedia": false,
+        "legacy": false
+      },
+      "importLog": {
+        "foundNotes": 1,
+        "new": 1,
+        "updated": 0,
+        "duplicate": 0,
+        "conflicting": 0,
+        "newGuids": [
+          [
+            "front",
+            "back"
+          ]
+        ],
+        "updatedFields": []
+      },
+      "schema": {
+        "src": 11,
+        "dst": 18
+      },
+      "summary": {
+        "notes": "1/1",
+        "missing": [],
+        "extra": [],
+        "fieldMismatch": 0,
+        "tagMismatch": 0,
+        "noteIdChanged": 0,
+        "midChanged": 0,
+        "mtimeChanged": 0,
+        "usnChanged": 1,
+        "csumChanged": 0,
+        "sfldChanged": 0,
+        "cardMissing": 0,
+        "cardExtra": 0,
+        "cardIdChanged": 0,
+        "cardDeckChanged": 0,
+        "scheduleDiffs": 1,
+        "notetypeMissing": [],
+        "notetypeExtra": [
+          "Basic_"
+        ],
+        "notetypeIdChanged": [],
+        "notetypeSchema": 0,
+        "deckMissing": [],
+        "deckExtra": [
+          "Default"
+        ],
+        "deckIdChanged": [],
+        "mediaMissing": [],
+        "mediaExtra": [],
+        "mediaHash": 0,
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        }
+      },
+      "diff": {
+        "notes": {
+          "src": 1,
+          "dst": 1,
+          "missing_guids": [],
+          "extra_guids": [],
+          "field_mismatch": [],
+          "tag_mismatch": [],
+          "id_changed": [],
+          "mid_changed": [],
+          "mtime_changed": [],
+          "usn_changed": [
+            {
+              "guid": "MGCsE3z^Er",
+              "src": -1,
+              "dst": 0
+            }
+          ],
+          "csum_changed": [],
+          "sfld_changed": []
+        },
+        "cards": {
+          "src": 1,
+          "dst": 1,
+          "missing": [],
+          "extra": [],
+          "id_changed": [],
+          "ord_mismatch": [],
+          "deck_id_changed": [],
+          "schedule_or_state_diff": [
+            {
+              "key": [
+                "MGCsE3z^Er",
+                0
+              ],
+              "diff": {
+                "data": {
+                  "src": "",
+                  "dst": "{}"
+                }
+              }
+            }
+          ]
+        },
+        "notetypes": {
+          "missing": [],
+          "extra": [
+            "Basic_"
+          ],
+          "id_changed": [],
+          "schema_mismatch": []
+        },
+        "decks": {
+          "missing": [],
+          "extra": [
+            "Default"
+          ],
+          "id_changed": []
+        },
+        "media": {
+          "missing": [],
+          "extra": [],
+          "hash_mismatch": [],
+          "src_names": [],
+          "dst_names": []
+        },
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        },
+        "deck_config_count": {
+          "src": null,
+          "dst": 1
+        }
+      }
+    },
+    {
+      "apkg": "public-diffmodels2-1.apkg",
+      "name": "public-diffmodels2-1__with-scheduling",
+      "flags": {
+        "withScheduling": true,
+        "withDeckConfigs": true,
+        "withMedia": true,
+        "legacy": false
+      },
+      "importLog": {
+        "foundNotes": 1,
+        "new": 1,
+        "updated": 0,
+        "duplicate": 0,
+        "conflicting": 0,
+        "newGuids": [
+          [
+            "front",
+            "back"
+          ]
+        ],
+        "updatedFields": []
+      },
+      "schema": {
+        "src": 11,
+        "dst": 18
+      },
+      "summary": {
+        "notes": "1/1",
+        "missing": [],
+        "extra": [],
+        "fieldMismatch": 0,
+        "tagMismatch": 0,
+        "noteIdChanged": 0,
+        "midChanged": 0,
+        "mtimeChanged": 0,
+        "usnChanged": 1,
+        "csumChanged": 0,
+        "sfldChanged": 0,
+        "cardMissing": 0,
+        "cardExtra": 0,
+        "cardIdChanged": 0,
+        "cardDeckChanged": 0,
+        "scheduleDiffs": 1,
+        "notetypeMissing": [],
+        "notetypeExtra": [
+          "Basic+"
+        ],
+        "notetypeIdChanged": [],
+        "notetypeSchema": 0,
+        "deckMissing": [],
+        "deckExtra": [
+          "Default"
+        ],
+        "deckIdChanged": [],
+        "mediaMissing": [],
+        "mediaExtra": [],
+        "mediaHash": 0,
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        }
+      },
+      "diff": {
+        "notes": {
+          "src": 1,
+          "dst": 1,
+          "missing_guids": [],
+          "extra_guids": [],
+          "field_mismatch": [],
+          "tag_mismatch": [],
+          "id_changed": [],
+          "mid_changed": [],
+          "mtime_changed": [],
+          "usn_changed": [
+            {
+              "guid": "MGCsE3z^Er",
+              "src": -1,
+              "dst": 0
+            }
+          ],
+          "csum_changed": [],
+          "sfld_changed": []
+        },
+        "cards": {
+          "src": 1,
+          "dst": 1,
+          "missing": [],
+          "extra": [],
+          "id_changed": [],
+          "ord_mismatch": [],
+          "deck_id_changed": [],
+          "schedule_or_state_diff": [
+            {
+              "key": [
+                "MGCsE3z^Er",
+                0
+              ],
+              "diff": {
+                "data": {
+                  "src": "",
+                  "dst": "{}"
+                }
+              }
+            }
+          ]
+        },
+        "notetypes": {
+          "missing": [],
+          "extra": [
+            "Basic+"
+          ],
+          "id_changed": [],
+          "schema_mismatch": []
+        },
+        "decks": {
+          "missing": [],
+          "extra": [
+            "Default"
+          ],
+          "id_changed": []
+        },
+        "media": {
+          "missing": [],
+          "extra": [],
+          "hash_mismatch": [],
+          "src_names": [],
+          "dst_names": []
+        },
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        },
+        "deck_config_count": {
+          "src": null,
+          "dst": 1
+        }
+      }
+    },
+    {
+      "apkg": "public-diffmodels2-1.apkg",
+      "name": "public-diffmodels2-1__legacy",
+      "flags": {
+        "withScheduling": false,
+        "withDeckConfigs": false,
+        "withMedia": true,
+        "legacy": true
+      },
+      "importLog": {
+        "foundNotes": 1,
+        "new": 1,
+        "updated": 0,
+        "duplicate": 0,
+        "conflicting": 0,
+        "newGuids": [
+          [
+            "front",
+            "back"
+          ]
+        ],
+        "updatedFields": []
+      },
+      "schema": {
+        "src": 11,
+        "dst": 11
+      },
+      "summary": {
+        "notes": "1/1",
+        "missing": [],
+        "extra": [],
+        "fieldMismatch": 0,
+        "tagMismatch": 0,
+        "noteIdChanged": 0,
+        "midChanged": 0,
+        "mtimeChanged": 0,
+        "usnChanged": 1,
+        "csumChanged": 0,
+        "sfldChanged": 0,
+        "cardMissing": 0,
+        "cardExtra": 0,
+        "cardIdChanged": 0,
+        "cardDeckChanged": 0,
+        "scheduleDiffs": 1,
+        "notetypeMissing": [],
+        "notetypeExtra": [],
+        "notetypeIdChanged": [],
+        "notetypeSchema": 0,
+        "deckMissing": [],
+        "deckExtra": [],
+        "deckIdChanged": [],
+        "mediaMissing": [],
+        "mediaExtra": [],
+        "mediaHash": 0,
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        }
+      },
+      "diff": {
+        "notes": {
+          "src": 1,
+          "dst": 1,
+          "missing_guids": [],
+          "extra_guids": [],
+          "field_mismatch": [],
+          "tag_mismatch": [],
+          "id_changed": [],
+          "mid_changed": [],
+          "mtime_changed": [],
+          "usn_changed": [
+            {
+              "guid": "MGCsE3z^Er",
+              "src": -1,
+              "dst": 0
+            }
+          ],
+          "csum_changed": [],
+          "sfld_changed": []
+        },
+        "cards": {
+          "src": 1,
+          "dst": 1,
+          "missing": [],
+          "extra": [],
+          "id_changed": [],
+          "ord_mismatch": [],
+          "deck_id_changed": [],
+          "schedule_or_state_diff": [
+            {
+              "key": [
+                "MGCsE3z^Er",
+                0
+              ],
+              "diff": {
+                "data": {
+                  "src": "",
+                  "dst": "{}"
+                }
+              }
+            }
+          ]
+        },
+        "notetypes": {
+          "missing": [],
+          "extra": [],
+          "id_changed": [],
+          "schema_mismatch": []
+        },
+        "decks": {
+          "missing": [],
+          "extra": [],
+          "id_changed": []
+        },
+        "media": {
+          "missing": [],
+          "extra": [],
+          "hash_mismatch": [],
+          "src_names": [],
+          "dst_names": []
+        },
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        },
+        "deck_config_count": {
+          "src": null,
+          "dst": null
+        }
+      }
+    }
+  ],
+  "mutation": {
+    "actions": {
+      "editedGuid": "hd[RQ+(^+k",
+      "addedGuid": "tfJ7#-$(:{",
+      "deletedGuid": "odd guid 한글 \"quote\" \\",
+      "notetype": {
+        "beforeNames": [
+          "Front",
+          "Back",
+          "Extra"
+        ],
+        "afterNames": [
+          "Front",
+          "Back",
+          "AddedLater"
+        ],
+        "updateError": null
+      }
+    },
+    "serverResults": [
+      {
+        "updateNotes": 0,
+        "ontoOriginal": {
+          "foundNotes": 8,
+          "new": 1,
+          "updated": 1,
+          "duplicate": 6,
+          "conflicting": 0,
+          "newGuids": [
+            [
+              "brand-new",
+              "from-app"
+            ]
+          ],
+          "updatedFields": [
+            [
+              "hello-edited",
+              "world"
+            ]
+          ],
+          "guidsAfter": [
+            "hd[RQ+(^+k",
+            "xFz[Sb-!B!",
+            "nK>9-p8OR8",
+            "odd guid 한글 \"quote\" \\",
+            "ECq*zZZh:)",
+            "Mf7/@t8g_#",
+            "njc_^>.:-n",
+            "kI&!]^1KNI",
+            "tfJ7#-$(:{"
+          ],
+          "deletedStillPresent": true,
+          "addedPresent": true,
+          "editedFields": [
+            "hello-edited",
+            "world"
+          ],
+          "editedTags": [
+            "custom",
+            "renamed-tag"
+          ],
+          "notetypeNames": [
+            "Basic",
+            "Basic (and reversed card)",
+            "Basic (and reversed card)+",
+            "Basic (optional reversed card)",
+            "Basic (type in the answer)",
+            "Basic+",
+            "Basic++",
+            "Cloze",
+            "Cloze+",
+            "Hatto",
+            "Image Occlusion"
+          ]
+        },
+        "ontoEmpty": {
+          "foundNotes": 8,
+          "new": 8,
+          "updated": 0,
+          "duplicate": 0,
+          "conflicting": 0,
+          "newGuids": [
+            [
+              "hello-edited",
+              "world"
+            ],
+            [
+              "한글 日本語 café 🇺🇸 bold &",
+              "עברית "
+            ],
+            [
+              "가가가가가가가가가가가가가가가가가가가가가가가가가가",
+              "tail"
+            ],
+            [
+              "front-rev",
+              "back-rev"
+            ],
+            [
+              "{{c1::숨김}} 그리고 {{c2::둘째}}",
+              "extra"
+            ],
+            [
+              " pixel.png ",
+              "[sound:beep.wav]"
+            ],
+            [
+              "has-extra",
+              "back",
+              "third"
+            ],
+            [
+              "brand-new",
+              "from-app"
+            ]
+          ],
+          "updatedFields": [],
+          "guidCount": 8,
+          "deletedPresent": false
+        }
+      },
+      {
+        "updateNotes": 1,
+        "ontoOriginal": {
+          "foundNotes": 8,
+          "new": 1,
+          "updated": 2,
+          "duplicate": 5,
+          "conflicting": 0,
+          "newGuids": [
+            [
+              "brand-new",
+              "from-app"
+            ]
+          ],
+          "updatedFields": [
+            [
+              "hello-edited",
+              "world"
+            ],
+            [
+              "has-extra",
+              "back",
+              "",
+              "third"
+            ]
+          ],
+          "guidsAfter": [
+            "hd[RQ+(^+k",
+            "xFz[Sb-!B!",
+            "nK>9-p8OR8",
+            "odd guid 한글 \"quote\" \\",
+            "ECq*zZZh:)",
+            "Mf7/@t8g_#",
+            "njc_^>.:-n",
+            "kI&!]^1KNI",
+            "tfJ7#-$(:{"
+          ],
+          "deletedStillPresent": true,
+          "addedPresent": true,
+          "editedFields": [
+            "hello-edited",
+            "world"
+          ],
+          "editedTags": [
+            "custom",
+            "renamed-tag"
+          ],
+          "notetypeNames": [
+            "Basic",
+            "Basic (and reversed card)",
+            "Basic (and reversed card)+",
+            "Basic (optional reversed card)",
+            "Basic (type in the answer)",
+            "Basic+",
+            "Basic++",
+            "Cloze",
+            "Cloze+",
+            "Hatto",
+            "Image Occlusion"
+          ]
+        },
+        "ontoEmpty": {
+          "foundNotes": 8,
+          "new": 8,
+          "updated": 0,
+          "duplicate": 0,
+          "conflicting": 0,
+          "newGuids": [
+            [
+              "hello-edited",
+              "world"
+            ],
+            [
+              "한글 日本語 café 🇺🇸 bold &",
+              "עברית "
+            ],
+            [
+              "가가가가가가가가가가가가가가가가가가가가가가가가가가",
+              "tail"
+            ],
+            [
+              "front-rev",
+              "back-rev"
+            ],
+            [
+              "{{c1::숨김}} 그리고 {{c2::둘째}}",
+              "extra"
+            ],
+            [
+              " pixel.png ",
+              "[sound:beep.wav]"
+            ],
+            [
+              "has-extra",
+              "back",
+              "third"
+            ],
+            [
+              "brand-new",
+              "from-app"
+            ]
+          ],
+          "updatedFields": [],
+          "guidCount": 8,
+          "deletedPresent": false
+        }
+      },
+      {
+        "updateNotes": 2,
+        "ontoOriginal": {
+          "foundNotes": 8,
+          "new": 1,
+          "updated": 0,
+          "duplicate": 7,
+          "conflicting": 0,
+          "newGuids": [
+            [
+              "brand-new",
+              "from-app"
+            ]
+          ],
+          "updatedFields": [],
+          "guidsAfter": [
+            "hd[RQ+(^+k",
+            "xFz[Sb-!B!",
+            "nK>9-p8OR8",
+            "odd guid 한글 \"quote\" \\",
+            "ECq*zZZh:)",
+            "Mf7/@t8g_#",
+            "njc_^>.:-n",
+            "kI&!]^1KNI",
+            "tfJ7#-$(:{"
+          ],
+          "deletedStillPresent": true,
+          "addedPresent": true,
+          "editedFields": [
+            "hello",
+            "world"
+          ],
+          "editedTags": [
+            "custom",
+            "custom::child"
+          ],
+          "notetypeNames": [
+            "Basic",
+            "Basic (and reversed card)",
+            "Basic (and reversed card)+",
+            "Basic (optional reversed card)",
+            "Basic (type in the answer)",
+            "Basic+",
+            "Basic++",
+            "Cloze",
+            "Cloze+",
+            "Hatto",
+            "Image Occlusion"
+          ]
+        },
+        "ontoEmpty": {
+          "foundNotes": 8,
+          "new": 8,
+          "updated": 0,
+          "duplicate": 0,
+          "conflicting": 0,
+          "newGuids": [
+            [
+              "hello-edited",
+              "world"
+            ],
+            [
+              "한글 日本語 café 🇺🇸 bold &",
+              "עברית "
+            ],
+            [
+              "가가가가가가가가가가가가가가가가가가가가가가가가가가",
+              "tail"
+            ],
+            [
+              "front-rev",
+              "back-rev"
+            ],
+            [
+              "{{c1::숨김}} 그리고 {{c2::둘째}}",
+              "extra"
+            ],
+            [
+              " pixel.png ",
+              "[sound:beep.wav]"
+            ],
+            [
+              "has-extra",
+              "back",
+              "third"
+            ],
+            [
+              "brand-new",
+              "from-app"
+            ]
+          ],
+          "updatedFields": [],
+          "guidCount": 8,
+          "deletedPresent": false
+        }
+      }
+    ],
+    "bidirectional": {
+      "importLog": {
+        "foundNotes": 8,
+        "new": 0,
+        "updated": 0,
+        "duplicate": 8,
+        "conflicting": 0,
+        "newGuids": [],
+        "updatedFields": [],
+        "guidCount": 8,
+        "uniqueGuids": 8
+      },
+      "compareAppExportToServerExport": {
+        "notes": "8/8",
+        "missing": [],
+        "extra": [],
+        "fieldMismatch": 0,
+        "tagMismatch": 0,
+        "noteIdChanged": 0,
+        "midChanged": 0,
+        "mtimeChanged": 0,
+        "usnChanged": 0,
+        "csumChanged": 0,
+        "sfldChanged": 0,
+        "cardMissing": 0,
+        "cardExtra": 0,
+        "cardIdChanged": 0,
+        "cardDeckChanged": 4,
+        "scheduleDiffs": 0,
+        "notetypeMissing": [
+          "Basic"
+        ],
+        "notetypeExtra": [
+          "Basic++"
+        ],
+        "notetypeIdChanged": [],
+        "notetypeSchema": 0,
+        "deckMissing": [],
+        "deckExtra": [],
+        "deckIdChanged": [
+          "Languages",
+          "Languages\u001f한국어",
+          "Languages\u001f한국어\u001fHangul"
+        ],
+        "mediaMissing": [],
+        "mediaExtra": [],
+        "mediaHash": 0,
+        "revlog": {
+          "src": 0,
+          "dst": 0
+        }
+      }
+    }
+  }
+}

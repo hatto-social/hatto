@@ -205,6 +205,76 @@ All tests passed!
 - 콜드 cargo 레지스트리 기준 빌드 시간, NestJS 프로세스, 장시간 메모리
 - content:// / SAF
 
+## re-export 왕복에서 남는 것 (후속)
+
+앱에만 있는 변경을 apkg로 다시 내보내 서버가 받는 흐름을, 같은 protobuf 통로로 napi와 FRB 호스트에서 실행했다. 샘플은 한 컬렉션에 같이 넣었다. **[실행]** 노트 8개, 카드 10개.
+
+| 종류 | 만든 방법 |
+|---|---|
+| Basic | 스톡 노트타입. 필드에 한글·일본어·café·🇺🇸·`<b>`·`&amp;`·`<script>`, 4000자 `가`+`<b>end</b>`, base91 밖 문자(공백·`"`·`\`·한글)가 들어간 guid |
+| Basic (and reversed card) | 새 컬렉션에 이미 있는 스톡. 템플릿 Card 1·Card 2, 카드 2장 |
+| Cloze | 스톡 `KIND_CLOZE`. `{{c1::숨김}}` `{{c2::둘째}}`, 카드 ord 0·1 |
+| 미디어 | `AddMediaFile`로 `pixel.png`, `beep.wav`. 필드는 `<img src>`와 `[sound:]` |
+| 태그 | `custom`, `custom::child`, `marked`, `leech`, `유니코드` |
+| 서브덱 | `Languages::한국어::Hangul`. DB 이름은 `Languages`, `Languages\x1f한국어`, `Languages\x1f한국어\x1fHangul` |
+| 커스텀 노트타입 Hatto | Basic을 복사해 필드 Extra를 추가. 노트 필드 3개 |
+| 스케줄 | 카드 하나 AnswerCard GOOD. revlog 1, type 1, reps 1, `left` 1, data `{"pos":1,"lrt":…}` |
+| 공개 샘플 | Anki 트리 `pylib/tests/support`의 `media.apkg`, `update1.apkg`, `update2.apkg`, `diffmodels2-1.apkg` (스키마 11) |
+
+비교는 export한 apkg의 sqlite·미디어를 `scripts/fidelity_snapshot.py`로 읽고 `scripts/fidelity_compare.py`로 맞췄다. FRB는 같은 originals를 import한 뒤 `with_scheduling=false`, `with_deck_configs=false`, `with_media=true`로 다시 export했다. **[실행]** `flutter test test/fidelity_test.dart` 통과. napi 왕복 24조합(샘플 6 × 옵션 4)도 예외 없이 끝났다.
+
+### 보존 / 유실
+
+Hatto 정책 export는 `with_scheduling=false`, `with_deck_configs=false`, `with_media=true`, `legacy=false`다. 아래 “정책”은 그 옵션으로 `rich-with-scheduling.apkg`를 빈 컬렉션에 넣었다가 다시 내보낸 결과다. napi와 FRB가 같았다.
+
+| 항목 | 정책 왕복 | 근거 | Hatto 결정과의 관계 |
+|---|---|---|---|
+| 필드 값·순서 | 보존 | [실행] field mismatch 0. 유니코드, HTML, 4000자, cloze 표기, 미디어 참조 포함 | 본문. 유지해야 함 |
+| guid | 보존 | [실행] missing/extra guid 0. base91 밖 guid도 유지 | 외부 덱을 병합하지 않으려면 guid 일치를 꺼야 하는데 옵션이 없다. 결정 필요 |
+| note id | 보존 | [실행] id_changed 0 | 새 인스턴스여도 이 경로에서는 유지됨 |
+| mtime (`notes.mod`) | 보존 | [실행] mtime_changed 0 | |
+| csum, sfld | 보존 | [실행] 둘 다 changed 0. sfld는 HTML이 벗겨진 첫 필드(` pixel.png `, `한글 … bold &`) | [코드] `prepare_for_update`가 다시 계산. 입력이 같으면 값도 같음 |
+| 태그(일반) | 보존 | [실행] `custom`, `custom::child`, `유니코드`, `reversed`, `cloze`, `media` | |
+| `marked`, `leech` | 유실 | [실행] `with_scheduling=false`에서 `["leech","marked","유니코드"]` → `["유니코드"]`. true면 유지 | [코드] `gather.rs` `remove_system_tags`는 스케줄 제외일 때만. 옵션으로 이 둘만 남길 수는 없다 |
+| 노트타입 필드 이름·순서, 템플릿 이름·ord | 보존 | [실행] Hatto는 Front/Back/Extra, Card 1. Cloze는 Text/Back Extra, 카드 2장. reversed는 Card 1·Card 2 | |
+| 스톡 노트타입 이름 | 바뀜 | [실행] 대상에 이미 Basic/Cloze/reversed가 있으면 들어온 쪽 이름이 `Basic+`, `Cloze+`, `Basic (and reversed card)+`. 노트 mid(그 id)는 그대로 | [코드] `NoteField::is_match`는 양쪽 config id가 있으면 이름이 같아도 id가 다르면 불일치 → `equal_schema` 실패 → 새 이름. 이름으로 강제 병합하는 옵션은 없다. 결정 필요 |
+| 커스텀 노트타입 이름 Hatto | 보존 | [실행] 충돌하는 스톡 이름이 없어서 `Hatto`로 남음 | |
+| 덱 이름·계층 | 보존 | [실행] Default와 `\x1f` 계층 이름이 양쪽에 있음 | API에 넘긴 `::`는 DB에서 `\x1f` |
+| 덱 id | Default=1만 유지, 만든 덱은 새 id | [실행] `deckIdChanged`에 Languages 3개. 그 카드 4장의 `cards.did`도 바뀜. 카드 id는 유지 | 계층 문자열은 남고 id는 남기지 않음 |
+| 미디어 파일명·sha1 | 보존 | [실행] `pixel.png`, `beep.wav` 해시 불일치 0. 공개 `foo.wav`도 `with_media=true`면 유지 | `with_media=false`면 파일은 빠지고 필드 문자열의 참조는 남음 [실행] |
+| usn | 대상 값으로 덮임 | [실행] 이번 컬렉션은 server=true라 처음부터 0이라 변화 없음. 스키마 11 샘플은 -1 → 0 | [코드] import가 `note.usn = self.usn` |
+| revlog | 유실 | [실행] 1 → 0. `with_scheduling=true`면 1 → 1 | 기존 결정과 일치. 옵션으로 빠짐 |
+| type, queue, due, reps, ease(`factor`), data의 `pos` | 리셋 | [실행] type 1→0, queue 1→0, due 1793200262→1, reps 1→0, data에서 `pos` 삭제. true면 이 차이는 없음 | 기존 결정(카드 상태 제외)과 일치 |
+| `cards.left`, data의 `lrt` | 남음 | [실행] 정책 export 뒤에도 `left=1`, `data={"lrt":1793199529}` | 옵션이 이걸 지우지 않음. [코드] `schedule_as_new`는 left와 data JSON을 안 지움. 결정 필요(이전 절과 동일) |
+| legacy=true | 스키마 11으로 다운그레이드 | [실행] dst schema 11. 노트 필드는 8/8 유지. `notetypes`/`decks` 테이블은 없음 | 정책 옵션이 아님. 이름 비교는 v18 테이블 기준이라 legacy 행의 “노트타입 없음”은 테이블이 없는 것이다 |
+
+`with_scheduling=true`여도 스톡 노트타입 `+` 접미사와 커스텀 덱 id 변경은 그대로다. 그 둘은 스케줄 옵션과 무관하다.
+
+### 앱에서 고친 뒤 서버가 받을 때
+
+napi와 FRB 각각이 원본을 import하고, 필드 수정·태그 교체·노트 추가·노트 삭제를 한 다음 정책 옵션으로 export했다. napi는 거기에 Hatto 필드 `Extra`를 빼고 `AddedLater`를 넣는 `UpdateNotetype`까지 했다. **[실행]** 그 호출은 성공했고 이후 노트타입 필드 이름은 `Front, Back, AddedLater`였다. FRB 쪽 노트타입 필드 편집은 이번 테스트에 넣지 않았다.
+
+서버(napi)가 **이미 원본이 들어 있는** 컬렉션에 그 apkg를 다시 import한 결과. FRB가 만든 패키지 기준이다. napi가 만든 패키지도 같은 방향이었다.
+
+| updateNotes | 편집된 guid | 추가된 guid | 삭제한 guid |
+|---|---|---|---|
+| if_newer (0) | `updated=1`, 필드는 `hello-from-frb` | `new=1` | 컬렉션에 **그대로 있음** (`deletedStillPresent=true`) |
+| always (1) | `updated=1`, 같은 새 필드 | `new=1` | 그대로 있음 |
+| never (2) | `duplicate`, 필드는 원래 `hello` / `world`, 태그도 원래 `custom` `custom::child` | `new=1` (guid가 없으므로 never와 무관하게 추가) | 그대로 있음 |
+
+빈 컬렉션에 넣으면 삭제된 guid는 없다. **[실행]** `deletedPresent=false`, 노트 8개(원본 8 − 삭제 1 + 추가 1). 삭제는 “패키지에 없다”로만 표현되고, 이미 있는 컬렉션의 노트를 지우는 동작은 없다.
+
+**[코드]** `import_notes`는 guid가 있으면 갱신하거나 duplicate로 남기고, 패키지에 없는 guid는 보지 않는다. 삭제를 전파하는 플래그는 없다.
+
+양방향: 서버가 앱 패키지를 빈 컬렉션에 import한 뒤 다시 export하고, 그 파일을 앱 컬렉션에 다시 import. **[실행]** `new=0`, `duplicate=8`, guid 개수 8, 고유 guid 8. 노트가 두 배로 늘지 않았다. 앱 export와 서버 re-export의 필드·태그·csum·mtime·note id 차이는 0이었다. 카드의 덱 id 4개와 스톡 노트타입 이름 `+`는 위와 같이 달랐다.
+
+### 설계상 위험
+
+- 삭제는 기존 컬렉션으로 전파되지 않는다. 앱 re-export를 서버의 기존 컬렉션에 병합하면 앱에서 지운 노트가 서버에 남는다. 전체를 갈아끼우지 않는 한 rslib 옵션으로 막을 수 없다.
+- guid가 같으면 갱신된다. “외부 guid는 병합하지 않는다”와 충돌한다. import 쪽에 그 스위치를 끄는 필드는 없다. 빈 컬렉션에 넣거나, import 전에 guid를 바꿔야 한다.
+- 서버 컬렉션에 같은 이름의 스톡 노트타입이 있으면 들어온 노트타입은 `+`가 붙은 새 이름이 된다. 노트는 그 id를 따라가서 필드 값은 유지되지만, 이름·id를 서버의 원래 Basic/Cloze와 공유하지 않는다. 필드 config id가 양쪽 다 있으면 이름이 같아도 스키마가 다르다고 본다.
+- `marked`/`leech`와 `left`·`lrt`는 정책 옵션과 어긋나게 빠지거나 남는다. 한 플래그가 시스템 태그는 지우고 스케줄 잔재 일부는 남긴다.
+
 ## 재현
 
 Anki 소스는 `spikes/rslib-26.09.3/vendor/anki`에만 받는다. 커밋하지 않는다.
