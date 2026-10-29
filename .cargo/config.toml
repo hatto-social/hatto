@@ -1,0 +1,16 @@
+# prost-build (rslib's anki_proto, and our service-index build script) shells out
+# to protoc. Anki 26.09.3 is built with protoc 31.1. `force` keeps a checkout of
+# Anki's own .cargo/config.toml from pointing PROTOC at a protoc binary that
+# only exists after Anki's ninja download step.
+[env]
+PROTOC = { value = "protoc", force = true }
+
+# Android 15+ devices ship 16KB pages. AnkiDroid links rslib with the same flag.
+[target.aarch64-linux-android]
+rustflags = ["-C", "link-arg=-Wl,-z,max-page-size=16384"]
+
+[target.armv7-linux-androideabi]
+rustflags = ["-C", "link-arg=-Wl,-z,max-page-size=16384"]
+
+[target.x86_64-linux-android]
+rustflags = ["-C", "link-arg=-Wl,-z,max-page-size=16384"]

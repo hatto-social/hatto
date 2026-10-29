@@ -2,8 +2,10 @@
 spikes/rslib-26.09.3/vendor/
 
 # Build outputs
+/target/
 target/
 **/target/
+**/*.rs.bk
 **/*.node
 **/*.so
 spikes/rslib-26.09.3/napi/artifacts/
@@ -13,7 +15,24 @@ spikes/rslib-26.09.3/mobile/android/.gradle/
 spikes/rslib-26.09.3/mobile/android/app/src/main/jniLibs/
 spikes/rslib-26.09.3/logs/
 node_modules/
+
 .dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+coverage/
+
+.idea/
+*.iml
+.DS_Store
+
+# Android/Flutter local machine files
+**/local.properties
+**/.gradle/
+**/android/app/debug/
+**/android/app/profile/
+**/android/app/release/
 
 # Generated during the spike run; the report quotes the committed summary.
 spikes/rslib-26.09.3/results/*.log
