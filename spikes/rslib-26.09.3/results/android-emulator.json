@@ -1,0 +1,13 @@
+{
+  "kvm": "permission denied. /dev/kvm is crw-rw---- root:103 and this user is not in that group",
+  "accel": "off (TCG)",
+  "avd": "hatto_ps16k",
+  "image": "system-images;android-35;google_apis_ps16k;x86_64",
+  "abi": "x86_64",
+  "sdk": 35,
+  "page_size": 16384,
+  "first_install_before_boot_completed": "PackageManagerInternal.freeStorage NullPointerException",
+  "first_test_after_boot": "did not complete at 7:21",
+  "retry": "All tests passed. FRB_DEVICE_OK fields=[alpha / beta, hello / world] reps=1",
+  "arm_device": false
+}

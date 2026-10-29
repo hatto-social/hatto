@@ -1,0 +1,15 @@
+[package]
+name = "hatto_rslib_frb"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "flutter_rust_bridge spike over the rslib protobuf bridge"
+
+[lib]
+name = "hatto_rslib_frb"
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+flutter_rust_bridge = "=2.13.0"
+hatto-rslib-bridge = { path = "../../bridge" }

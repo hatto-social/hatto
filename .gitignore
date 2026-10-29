@@ -1,5 +1,20 @@
+# Anki source is fetched at build time (AGPL, large). Do not vendor it.
+spikes/rslib-26.09.3/vendor/
+
+# Build outputs
 /target/
+target/
+**/target/
 **/*.rs.bk
+**/*.node
+**/*.so
+spikes/rslib-26.09.3/napi/artifacts/
+spikes/rslib-26.09.3/mobile/build/
+spikes/rslib-26.09.3/mobile/.dart_tool/
+spikes/rslib-26.09.3/mobile/android/.gradle/
+spikes/rslib-26.09.3/mobile/android/app/src/main/jniLibs/
+spikes/rslib-26.09.3/logs/
+node_modules/
 
 .dart_tool/
 .packages
@@ -18,3 +33,7 @@ coverage/
 **/android/app/debug/
 **/android/app/profile/
 **/android/app/release/
+
+# Generated during the spike run; the report quotes the committed summary.
+spikes/rslib-26.09.3/results/*.log
+spikes/rslib-26.09.3/mobile/android/local.properties
