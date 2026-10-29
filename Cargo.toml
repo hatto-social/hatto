@@ -1,0 +1,16 @@
+[workspace]
+resolver = "2"
+members = ["packages/rslib_bridge/rust"]
+# Anki is its own workspace (unmodified). It lives in-tree only as a submodule.
+exclude = ["third_party/anki"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-or-later"
+publish = false
+rust-version = "1.97.1"
+
+[profile.dev.package.anki]
+# The collection crate is large; skipping debuginfo keeps the host link smaller.
+debug = 0

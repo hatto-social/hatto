@@ -1,0 +1,10 @@
+[toolchain]
+# Anki 26.09.3 refuses older compilers (its own rust-toolchain.toml pins 1.97.1).
+# native_toolchain_rust also requires an exact channel, not "stable".
+channel = "1.97.1"
+targets = [
+  "x86_64-unknown-linux-gnu",
+  "aarch64-linux-android",
+  "armv7-linux-androideabi",
+  "x86_64-linux-android",
+]

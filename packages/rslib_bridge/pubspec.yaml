@@ -1,0 +1,25 @@
+name: rslib_bridge
+description: >-
+  flutter_rust_bridge bindings to unmodified Anki rslib 26.09.3.
+  Collection access goes through the protobuf backend channel only.
+publish_to: none
+version: 0.1.0
+resolution: workspace
+
+environment:
+  sdk: ^3.13.7
+  flutter: ">=3.47.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_rust_bridge: 2.13.0
+  flutter_rust_bridge_hooks: 2.13.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: false

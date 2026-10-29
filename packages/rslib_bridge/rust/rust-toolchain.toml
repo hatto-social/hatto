@@ -1,0 +1,9 @@
+[toolchain]
+# Keep in lockstep with the workspace root toolchain file.
+channel = "1.97.1"
+targets = [
+  "x86_64-unknown-linux-gnu",
+  "aarch64-linux-android",
+  "armv7-linux-androideabi",
+  "x86_64-linux-android",
+]
