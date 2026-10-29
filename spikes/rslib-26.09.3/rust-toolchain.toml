@@ -1,0 +1,4 @@
+[toolchain]
+# Matches ankitects/anki tag 26.09.3 (commit 29bb700b951e3f0c0cb69b77c0180fc1fe33e6ba).
+channel = "1.97.1"
+components = ["rust-analyzer"]

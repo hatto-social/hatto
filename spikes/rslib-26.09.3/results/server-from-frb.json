@@ -1,0 +1,195 @@
+{
+  "frbManifest": {
+    "editedGuid": "hd[RQ+(^+k",
+    "addedGuid": "F1MO&!.1m=",
+    "deletedGuid": "odd guid 한글 \"quote\" \\"
+  },
+  "serverResults": [
+    {
+      "updateNotes": 0,
+      "log": {
+        "foundNotes": 8,
+        "new": 1,
+        "updated": 1,
+        "duplicate": 6,
+        "conflicting": 0,
+        "newGuids": [
+          [
+            "added-on-frb",
+            "yes"
+          ]
+        ],
+        "updatedFields": [
+          [
+            "hello-from-frb",
+            "world"
+          ]
+        ],
+        "guidCount": 9,
+        "deletedStillPresent": true,
+        "addedPresent": true,
+        "editedFields": [
+          "hello-from-frb",
+          "world"
+        ],
+        "editedTags": [
+          "from-frb",
+          "renamed"
+        ],
+        "notetypeNames": [
+          "Basic",
+          "Basic (and reversed card)",
+          "Basic (and reversed card)+",
+          "Basic (optional reversed card)",
+          "Basic (type in the answer)",
+          "Basic+",
+          "Basic++",
+          "Cloze",
+          "Cloze+",
+          "Hatto",
+          "Image Occlusion"
+        ]
+      }
+    },
+    {
+      "updateNotes": 1,
+      "log": {
+        "foundNotes": 8,
+        "new": 1,
+        "updated": 1,
+        "duplicate": 6,
+        "conflicting": 0,
+        "newGuids": [
+          [
+            "added-on-frb",
+            "yes"
+          ]
+        ],
+        "updatedFields": [
+          [
+            "hello-from-frb",
+            "world"
+          ]
+        ],
+        "guidCount": 9,
+        "deletedStillPresent": true,
+        "addedPresent": true,
+        "editedFields": [
+          "hello-from-frb",
+          "world"
+        ],
+        "editedTags": [
+          "from-frb",
+          "renamed"
+        ],
+        "notetypeNames": [
+          "Basic",
+          "Basic (and reversed card)",
+          "Basic (and reversed card)+",
+          "Basic (optional reversed card)",
+          "Basic (type in the answer)",
+          "Basic+",
+          "Basic++",
+          "Cloze",
+          "Cloze+",
+          "Hatto",
+          "Image Occlusion"
+        ]
+      }
+    },
+    {
+      "updateNotes": 2,
+      "log": {
+        "foundNotes": 8,
+        "new": 1,
+        "updated": 0,
+        "duplicate": 7,
+        "conflicting": 0,
+        "newGuids": [
+          [
+            "added-on-frb",
+            "yes"
+          ]
+        ],
+        "updatedFields": [],
+        "guidCount": 9,
+        "deletedStillPresent": true,
+        "addedPresent": true,
+        "editedFields": [
+          "hello",
+          "world"
+        ],
+        "editedTags": [
+          "custom",
+          "custom::child"
+        ],
+        "notetypeNames": [
+          "Basic",
+          "Basic (and reversed card)",
+          "Basic (and reversed card)+",
+          "Basic (optional reversed card)",
+          "Basic (type in the answer)",
+          "Basic+",
+          "Basic++",
+          "Cloze",
+          "Cloze+",
+          "Hatto",
+          "Image Occlusion"
+        ]
+      }
+    }
+  ],
+  "bidirectional": {
+    "importLog": {
+      "foundNotes": 8,
+      "new": 0,
+      "updated": 0,
+      "duplicate": 8,
+      "conflicting": 0,
+      "newGuids": [],
+      "updatedFields": []
+    },
+    "guidCount": 8,
+    "uniqueGuids": 8
+  },
+  "compare": {
+    "notes": "8/8",
+    "missing": [],
+    "extra": [],
+    "fieldMismatch": 0,
+    "tagMismatch": 0,
+    "noteIdChanged": 0,
+    "midChanged": 0,
+    "mtimeChanged": 0,
+    "usnChanged": 0,
+    "csumChanged": 0,
+    "sfldChanged": 0,
+    "cardMissing": 0,
+    "cardExtra": 0,
+    "cardIdChanged": 0,
+    "cardDeckChanged": 4,
+    "scheduleDiffs": 0,
+    "notetypeMissing": [
+      "Basic"
+    ],
+    "notetypeExtra": [
+      "Basic++"
+    ],
+    "notetypeIdChanged": [],
+    "notetypeSchema": 0,
+    "deckMissing": [],
+    "deckExtra": [],
+    "deckIdChanged": [
+      "Languages",
+      "Languages\u001f한국어",
+      "Languages\u001f한국어\u001fHangul"
+    ],
+    "mediaMissing": [],
+    "mediaExtra": [],
+    "mediaHash": 0,
+    "revlog": {
+      "src": 0,
+      "dst": 0
+    }
+  }
+}

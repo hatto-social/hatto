@@ -1,0 +1,16 @@
+[package]
+name = "hatto-rslib-bridge"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Spike wrapper: Anki Backend::run_service_method bytes in/out only"
+
+[dependencies]
+anki = { path = "../vendor/anki/rslib" }
+anki_proto = { path = "../vendor/anki/rslib/proto" }
+prost = "0.13"
+# rslib calls tokio::io::{AsyncReadExt, AsyncWriteExt} but the anki workspace
+# tokio features do not include io-util. Enabling it here unifies the feature
+# for this build without editing rslib. Re-verified in this spike.
+tokio = { version = "1.45", features = ["io-util"] }
