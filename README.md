@@ -69,6 +69,10 @@ Commit the generated Rust and Dart. The `frb_generated.web.dart` file is part of
 
 The Flutter project is created with `--platforms=android` only (`social.hatto.hatto_mobile`, minSdk 24, ABIs `armeabi-v7a`, `arm64-v8a`, `x86_64`). Native code is built by the Dart build hook in `packages/rslib_bridge/hook/build.dart`, which runs Cargo for the Android targets listed in `rust-toolchain.toml`.
 
+The cdylib name is set explicitly to `rslib_bridge` (`librslib_bridge.so`). A flutter_rust_bridge cargokit build that leaves `[lib] name` unset emits `libUNKNOWN.so`, and the Android loader then cannot open the library. This repo does not use cargokit: cargokit selects the latest stable Rust with `rustup run stable`, which is not Anki 26.09.3's pin (`1.97.1` in `rust-toolchain.toml`). The native-assets hook uses that pin.
+
+Opening a collection still goes only through `init_backend` and `Backend::run_service_method`. `inspect_exported_deck_configs` exports an apkg on that channel, then reads the file itself. `collection.anki21b` is a zstd frame around SQLite. The `deck_config.config` column is a `DeckConfig.Config` protobuf and is decoded with prost (it is not JSON). The home screen's "Inspect deck configs" button prints the decoded preset name and the per-day limits.
+
 Not verified in this workspace: the Android SDK/NDK are not installed, so `flutter build apk` and an emulator were not run. To build an APK locally:
 
 1. Install Android SDK command-line tools and NDK r29 (AnkiDroid's rslib build uses NDK `29.0.14206865`).

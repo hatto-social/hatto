@@ -69,7 +69,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -1078899357;
+  int get rustContentHash => -1276539588;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -91,6 +91,10 @@ abstract class RustLibApi extends BaseApi {
   });
 
   Future<void> crateApiInitApp();
+
+  Future<List<DeckConfigRow>> crateApiInspectExportedDeckConfigs({
+    required String dir,
+  });
 
   Future<AnkiBackend> crateApiOpenBackend({required List<int> initMsg});
 
@@ -211,6 +215,39 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "init_app", argNames: []);
 
   @override
+  Future<List<DeckConfigRow>> crateApiInspectExportedDeckConfigs({
+    required String dir,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(dir, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 4,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_deck_config_row,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiInspectExportedDeckConfigsConstMeta,
+        argValues: [dir],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiInspectExportedDeckConfigsConstMeta =>
+      const TaskConstMeta(
+        debugName: "inspect_exported_deck_configs",
+        argNames: ["dir"],
+      );
+
+  @override
   Future<AnkiBackend> crateApiOpenBackend({required List<int> initMsg}) {
     return handler.executeNormal(
       NormalTask(
@@ -220,7 +257,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 4,
+            funcId: 5,
             port: port_,
           );
         },
@@ -249,7 +286,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 6,
             port: port_,
           );
         },
@@ -278,7 +315,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(service, serializer);
           sse_encode_String(method, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 7)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_service_method_index,
@@ -306,7 +343,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 8,
             port: port_,
           );
         },
@@ -378,6 +415,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ServiceMethodIndex dco_decode_box_autoadd_service_method_index(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_service_method_index(raw);
+  }
+
+  @protected
+  DeckConfigRow dco_decode_deck_config_row(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return DeckConfigRow(
+      id: dco_decode_i_64(arr[0]),
+      name: dco_decode_String(arr[1]),
+      newPerDay: dco_decode_u_32(arr[2]),
+      reviewsPerDay: dco_decode_u_32(arr[3]),
+    );
+  }
+
+  @protected
+  PlatformInt64 dco_decode_i_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dcoDecodeI64(raw);
+  }
+
+  @protected
+  List<DeckConfigRow> dco_decode_list_deck_config_row(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_deck_config_row).toList();
   }
 
   @protected
@@ -505,6 +568,41 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_service_method_index(deserializer));
+  }
+
+  @protected
+  DeckConfigRow sse_decode_deck_config_row(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_i_64(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_newPerDay = sse_decode_u_32(deserializer);
+    var var_reviewsPerDay = sse_decode_u_32(deserializer);
+    return DeckConfigRow(
+      id: var_id,
+      name: var_name,
+      newPerDay: var_newPerDay,
+      reviewsPerDay: var_reviewsPerDay,
+    );
+  }
+
+  @protected
+  PlatformInt64 sse_decode_i_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getPlatformInt64();
+  }
+
+  @protected
+  List<DeckConfigRow> sse_decode_list_deck_config_row(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <DeckConfigRow>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_deck_config_row(deserializer));
+    }
+    return ans_;
   }
 
   @protected
@@ -639,6 +737,36 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_service_method_index(self, serializer);
+  }
+
+  @protected
+  void sse_encode_deck_config_row(
+    DeckConfigRow self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.id, serializer);
+    sse_encode_String(self.name, serializer);
+    sse_encode_u_32(self.newPerDay, serializer);
+    sse_encode_u_32(self.reviewsPerDay, serializer);
+  }
+
+  @protected
+  void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putPlatformInt64(self);
+  }
+
+  @protected
+  void sse_encode_list_deck_config_row(
+    List<DeckConfigRow> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_deck_config_row(item, serializer);
+    }
   }
 
   @protected

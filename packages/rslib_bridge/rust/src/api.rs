@@ -85,6 +85,27 @@ pub fn anki_version() -> String {
     anki::version::version().to_string()
 }
 
+/// One row of `deck_config` after prost-decoding the `config` blob.
+///
+/// `new_per_day` and `reviews_per_day` come from `DeckConfig.Config`. The
+/// column is not JSON.
+#[derive(Debug)]
+pub struct DeckConfigRow {
+    pub id: i64,
+    pub name: String,
+    pub new_per_day: u32,
+    pub reviews_per_day: u32,
+}
+
+/// Export the collection in `dir` through `run_service_method`, then read the
+/// package offline.
+///
+/// `collection.anki21b` is zstd-compressed SQLite. Each `deck_config.config`
+/// value is a `DeckConfig.Config` protobuf.
+pub fn inspect_exported_deck_configs(dir: String) -> Result<Vec<DeckConfigRow>, String> {
+    crate::package_inspect::inspect_exported_deck_configs(dir)
+}
+
 /// Open a collection at `dir`, read deck names, and close it.
 ///
 /// This is the host/Android smoke path: `BackendInit` and `OpenCollection` go
@@ -156,7 +177,7 @@ pub fn smoke_open_collection(dir: String) -> Result<String, String> {
     ))
 }
 
-fn call(
+pub(crate) fn call(
     backend: &AnkiBackend,
     service: &str,
     method: &str,

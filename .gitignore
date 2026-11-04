@@ -37,3 +37,8 @@ coverage/
 # Generated during the spike run; the report quotes the committed summary.
 spikes/rslib-26.09.3/results/*.log
 spikes/rslib-26.09.3/mobile/android/local.properties
+
+# Packaged app binaries and capture dumps stay out of git.
+*.apk
+*.aab
+**/screenshots/

@@ -25,5 +25,11 @@ void main() {
     addTearDown(side.close);
     expect(side.pendingIntentCount(), 0);
     expect(File(p.join(dir.path, 'hatto.sqlite')).existsSync(), isTrue);
+
+    final rows = await inspectExportedDeckConfigs(dir: dir.path);
+    final preset = rows.singleWhere((row) => row.name == 'Default');
+    expect(preset.newPerDay, 20);
+    expect(preset.reviewsPerDay, 200);
+    expect(File(p.join(dir.path, 'export.apkg')).existsSync(), isTrue);
   });
 }

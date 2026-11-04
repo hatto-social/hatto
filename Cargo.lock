@@ -2681,7 +2681,11 @@ dependencies = [
  "prost",
  "prost-build",
  "prost-reflect",
+ "rusqlite",
  "tempfile",
+ "tokio",
+ "zip",
+ "zstd 0.13.3",
 ]
 
 [[package]]

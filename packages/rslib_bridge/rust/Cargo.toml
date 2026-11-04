@@ -8,6 +8,10 @@ publish.workspace = true
 rust-version.workspace = true
 
 [lib]
+# Name is required. flutter_rust_bridge's cargokit build names the cdylib
+# `libUNKNOWN.so` when this is omitted, and Android then fails to dlopen the
+# library the Dart loader asks for (`librslib_bridge.so`).
+name = "rslib_bridge"
 crate-type = ["lib", "cdylib", "staticlib"]
 
 [dependencies]
@@ -16,6 +20,15 @@ anki = { path = "../../../third_party/anki/rslib", features = ["rustls"] }
 anki_proto = { path = "../../../third_party/anki/rslib/proto" }
 flutter_rust_bridge = "=2.13.0"
 prost = "0.13"
+# rslib calls tokio::io::{AsyncReadExt, AsyncWriteExt}. Anki's workspace
+# tokio features omit `io-util`. Enabling it here unifies the feature for this
+# build without editing rslib.
+tokio = { version = "1.45", features = ["io-util"] }
+# Same versions as Anki 26.09.3 so the graph unifies. Used only to read an
+# exported package, not to call into rslib.
+rusqlite = "0.36.0"
+zip = { version = "4.1.0", default-features = false, features = ["deflate"] }
+zstd = "0.13.3"
 
 [build-dependencies]
 anyhow = "1"
