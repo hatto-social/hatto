@@ -68,6 +68,40 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _inspect() async {
+    setState(() {
+      _busy = true;
+      _status = 'Exporting package…';
+    });
+    try {
+      final support = await getApplicationSupportDirectory();
+      final dir = Directory(p.join(support.path, 'resident'))
+        ..createSync(recursive: true);
+      final rows = await inspectExportedDeckConfigs(dir: dir.path);
+      final lines = rows
+          .map(
+            (row) =>
+                '${row.name}: new ${row.newPerDay}/day, review ${row.reviewsPerDay}/day',
+          )
+          .join('\n');
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _status = 'deck_config.config protobuf\n$lines';
+      });
+    } catch (err) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _status = 'Inspect failed: $err');
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -82,6 +116,11 @@ class _HomePageState extends State<HomePage> {
             FilledButton(
               onPressed: _busy ? null : _open,
               child: const Text('Open collection'),
+            ),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: _busy ? null : _inspect,
+              child: const Text('Inspect deck configs'),
             ),
             const SizedBox(height: 16),
             Text(_status, key: const Key('smoke-status')),

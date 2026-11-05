@@ -8,6 +8,7 @@ import 'frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `call`, `decode_backend_error`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `fmt`
 
 /// Point rslib's temp files at an app-writable directory.
 ///
@@ -49,6 +50,14 @@ ServiceMethodIndex? serviceMethodIndex({
 /// The rslib version string compiled into this binary (`26.09.3` for the pin).
 String ankiVersion() => RustLib.instance.api.crateApiAnkiVersion();
 
+/// Export the collection in `dir` through `run_service_method`, then read the
+/// package offline.
+///
+/// `collection.anki21b` is zstd-compressed SQLite. Each `deck_config.config`
+/// value is a `DeckConfig.Config` protobuf.
+Future<List<DeckConfigRow>> inspectExportedDeckConfigs({required String dir}) =>
+    RustLib.instance.api.crateApiInspectExportedDeckConfigs(dir: dir);
+
 /// Open a collection at `dir`, read deck names, and close it.
 ///
 /// This is the host/Android smoke path: `BackendInit` and `OpenCollection` go
@@ -59,6 +68,38 @@ Future<String> smokeOpenCollection({required String dir}) =>
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AnkiBackend>>
 abstract class AnkiBackend implements RustOpaqueInterface {}
+
+/// One row of `deck_config` after prost-decoding the `config` blob.
+///
+/// `new_per_day` and `reviews_per_day` come from `DeckConfig.Config`. The
+/// column is not JSON.
+class DeckConfigRow {
+  final PlatformInt64 id;
+  final String name;
+  final int newPerDay;
+  final int reviewsPerDay;
+
+  const DeckConfigRow({
+    required this.id,
+    required this.name,
+    required this.newPerDay,
+    required this.reviewsPerDay,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^ name.hashCode ^ newPerDay.hashCode ^ reviewsPerDay.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DeckConfigRow &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
+          newPerDay == other.newPerDay &&
+          reviewsPerDay == other.reviewsPerDay;
+}
 
 /// Bytes returned by `run_service_method`.
 ///
