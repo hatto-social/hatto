@@ -29,14 +29,10 @@ void main() {
     );
   });
 
-  test('open creates the documents file and stamps the draft schema', () {
+  test('open stamps user_version and device_id only', () {
     final path = sideDbPath(dir.path);
-    expect(File(path).existsSync(), isFalse);
-
     final side = SideDb.open(path: path, deviceId: 'device-a');
     expect(side.schemaVersion, sideDbSchemaVersion);
-    side.putRevlogOrigin(revlogId: 4, job: 'import');
-    side.markServerUnsynced(unitKind: sideDbUnitDeck, unitKey: 'deck-1');
     side.close();
 
     final raw = sqlite3.open(path);
@@ -46,10 +42,8 @@ void main() {
       sideDbSchemaVersion,
     );
     expect(
-      raw
-          .select("SELECT value FROM meta WHERE key = 'schema_version'")
-          .first['value'],
-      '$sideDbSchemaVersion',
+      raw.select("SELECT value FROM meta WHERE key = 'schema_version'"),
+      isEmpty,
     );
     expect(
       raw
@@ -57,83 +51,123 @@ void main() {
           .first['value'],
       'device-a',
     );
-  });
-
-  test('reopen keeps rows and does not duplicate origins', () {
-    final path = sideDbPath(dir.path);
-    final first = SideDb.open(path: path, deviceId: 'device-a');
-    first.putRevlogOrigin(revlogId: 1, job: 'import');
-    first.putRevlogOrigin(revlogId: 1, job: 'import');
-    first.putRevlogOrigin(revlogId: 1, job: 'fsrs');
-    first.markServerUnsynced(unitKind: sideDbUnitImport, unitKey: 'batch-9');
-    first.close();
-
-    final second = SideDb.open(path: path, deviceId: 'device-a');
-    addTearDown(second.close);
-    expect(second.schemaVersion, sideDbSchemaVersion);
-    expect(second.revlogOrigins(revlogId: 1).map((row) => row.job), [
-      'fsrs',
-      'import',
+    expect(_columns(raw, 'meta'), ['key', 'value']);
+    expect(_columns(raw, 'deck_map'), [
+      'deck_guid',
+      'rslib_deck_id',
+      'import_batch_id',
+      'origin_kind',
+      'origin_role',
+      'source_sha256',
+      'server_unsynced',
     ]);
     expect(
-      second.isServerUnsynced(unitKind: sideDbUnitImport, unitKey: 'batch-9'),
-      isTrue,
+      raw
+          .select("PRAGMA table_info(deck_map)")
+          .where((row) => row['name'] == 'server_unsynced')
+          .single['dflt_value'],
+      '1',
     );
-    second.deleteRevlogOrigin(revlogId: 1, job: 'import');
-    expect(second.revlogOrigins().single.job, 'fsrs');
+    expect(_columns(raw, 'note_map'), ['note_guid', 'rslib_note_id']);
+    expect(_columns(raw, 'edit_journal'), [
+      'id',
+      'op',
+      'entity_kind',
+      'guid',
+      'field',
+      'hlc',
+      'payload',
+    ]);
+    expect(_columns(raw, 'revlog_origin'), ['revlog_id', 'job']);
+    expect(_columns(raw, 'media_key'), ['filename', 'content_key']);
+    expect(_columns(raw, 'intent'), ['id', 'op', 'target_key', 'expected']);
+    for (final name in [
+      'deck_map_import_batch_id',
+      'revlog_origin_job',
+      'media_key_content_key',
+    ]) {
+      expect(
+        raw.select('SELECT name FROM sqlite_master WHERE name = ?', [name]),
+        isNotEmpty,
+        reason: name,
+      );
+    }
   });
 
-  test('a skeleton file at user_version 0 migrates and keeps the journal', () {
+  test('one revlog id keeps a single job', () {
+    final side = SideDb.openInMemory();
+    addTearDown(side.close);
+    side.putRevlogOrigin(revlogId: 1, job: 'a');
+    side.putRevlogOrigin(revlogId: 1, job: 'a');
+    side.putRevlogOrigin(revlogId: 1, job: 'b');
+    expect(side.revlogOrigins().single.job, 'b');
+    side.deleteRevlogOrigin(1);
+    expect(side.revlogOrigins(), isEmpty);
+    expect(
+      () => side.putRevlogOrigin(revlogId: 1, job: ''),
+      throwsA(isA<SideDbException>()),
+    );
+  });
+
+  test('deck flag defaults to unsynced and imports group by batch id', () {
+    final side = SideDb.openInMemory();
+    addTearDown(side.close);
+    side.putDeck(deckGuid: 'deck-b', rslibDeckId: 2, importBatchId: 'batch');
+    side.putDeck(
+      deckGuid: 'deck-a',
+      rslibDeckId: 1,
+      importBatchId: 'batch',
+      originKind: 'apkg',
+    );
+    side.putDeck(deckGuid: 'deck-c', rslibDeckId: 3, importBatchId: 'other');
+
+    expect(side.deckServerUnsynced('deck-a'), isTrue);
+    expect(side.unsyncedDecks().map((row) => row.deckGuid), [
+      'deck-a',
+      'deck-b',
+      'deck-c',
+    ]);
+    expect(side.decksForImport('batch').map((row) => row.deckGuid), [
+      'deck-a',
+      'deck-b',
+    ]);
+    expect(side.decksForImport('batch').first.originKind, 'apkg');
+
+    side.setDeckServerUnsynced(deckGuid: 'deck-a', unsynced: false);
+    expect(side.deckServerUnsynced('deck-a'), isFalse);
+    expect(side.decksForImport('batch').map((row) => row.serverUnsynced), [
+      false,
+      true,
+    ]);
+
+    side.putDeck(deckGuid: 'deck-a', rslibDeckId: 1, importBatchId: 'batch-2');
+    expect(side.decksForImport('batch').map((row) => row.deckGuid), ['deck-b']);
+    expect(side.decksForImport('batch-2').single.deckGuid, 'deck-a');
+
+    expect(
+      () => side.putDeck(deckGuid: 'deck-d', rslibDeckId: 1),
+      throwsA(isA<SqliteException>()),
+    );
+    expect(
+      () => side.setDeckServerUnsynced(deckGuid: 'missing', unsynced: false),
+      throwsA(isA<SideDbException>()),
+    );
+  });
+
+  test('user_version 0 with existing tables is rejected', () {
     final path = sideDbPath(dir.path);
     File(path).parent.createSync(recursive: true);
     final raw = sqlite3.open(path);
-    raw.execute('''
-      CREATE TABLE edit_journal (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        entity_kind TEXT NOT NULL,
-        guid TEXT NOT NULL,
-        field TEXT,
-        hlc TEXT NOT NULL,
-        device_id TEXT NOT NULL,
-        created_at INTEGER NOT NULL
-      )
-      ''');
-    raw.execute(
-      'INSERT INTO edit_journal(entity_kind, guid, field, hlc, device_id, created_at) '
-      "VALUES ('note', 'note-guid', 'front', 'device:1:1', 'device', 1)",
+    raw.execute('CREATE TABLE edit_journal (id INTEGER PRIMARY KEY)');
+    raw.close();
+
+    expect(
+      () => SideDb.open(path: path, deviceId: 'device-a'),
+      throwsA(isA<SideDbException>()),
     );
-    raw.execute('PRAGMA user_version = 0');
-    raw.close();
-
-    final side = SideDb.open(path: path, deviceId: 'device-a');
-    addTearDown(side.close);
-    expect(side.schemaVersion, sideDbSchemaVersion);
-    expect(side.journalRows().single.guid, 'note-guid');
-    expect(side.revlogOrigins(), isEmpty);
-    expect(side.pendingIntentCount(), 0);
-  });
-
-  test('user_version 1 runs only the unsynced-marker step', () {
-    final path = sideDbPath(dir.path);
-    final side = SideDb.open(path: path, deviceId: 'device-a');
-    side.putRevlogOrigin(revlogId: 7, job: 'import');
-    final intentId = side.beginIntent(op: 'answer', targetKey: 'card-1');
-    side.close();
-
-    final raw = sqlite3.open(path);
-    raw.execute('DROP TABLE server_unsynced');
-    raw.execute('PRAGMA user_version = 1');
-    raw.close();
-
-    final again = SideDb.open(path: path, deviceId: 'device-a');
+    final again = sqlite3.open(path);
     addTearDown(again.close);
-    expect(again.schemaVersion, sideDbSchemaVersion);
-    expect(again.revlogOrigins().single.revlogId, 7);
-    expect(again.serverUnsyncedRows(), isEmpty);
-    expect(again.pendingIntents().single.id, intentId);
-    expect(again.pendingIntents().single.op, 'answer');
-    expect(again.pendingIntents().single.targetKey, 'card-1');
-    expect(again.pendingIntents().single.status, 'pending');
+    expect(again.select('PRAGMA user_version').first.values.first, 0);
   });
 
   test('a newer schema than this app is rejected', () {
@@ -149,51 +183,18 @@ void main() {
     );
   });
 
-  test('deck and import markers are separate rows', () {
-    final side = SideDb.openInMemory();
-    addTearDown(side.close);
-    side.markServerUnsynced(unitKind: sideDbUnitDeck, unitKey: 'shared');
-    side.markServerUnsynced(unitKind: sideDbUnitImport, unitKey: 'shared');
-    side.markServerUnsynced(unitKind: sideDbUnitDeck, unitKey: 'shared');
-    expect(side.serverUnsyncedRows(), hasLength(2));
-    expect(
-      side.serverUnsyncedRows(unitKind: sideDbUnitDeck).single.unitKind,
-      sideDbUnitDeck,
-    );
+  test('reopen keeps a version 1 file', () {
+    final path = sideDbPath(dir.path);
+    final first = SideDb.open(path: path, deviceId: 'device-a');
+    final intentId = first.beginIntent(op: 'answer', targetKey: 'card-1');
+    first.close();
 
-    side.clearServerUnsynced(unitKind: sideDbUnitDeck, unitKey: 'shared');
-    expect(
-      side.isServerUnsynced(unitKind: sideDbUnitDeck, unitKey: 'shared'),
-      isFalse,
-    );
-    expect(
-      side.isServerUnsynced(unitKind: sideDbUnitImport, unitKey: 'shared'),
-      isTrue,
-    );
-    side.clearServerUnsynced(unitKind: sideDbUnitImport, unitKey: 'missing');
-    expect(
-      side.isServerUnsynced(unitKind: sideDbUnitImport, unitKey: 'shared'),
-      isTrue,
-    );
-  });
-
-  test('draft writes reject an empty origin or an unknown unit', () {
-    final side = SideDb.openInMemory();
-    addTearDown(side.close);
-    expect(
-      () => side.putRevlogOrigin(revlogId: 1, job: ''),
-      throwsA(isA<SideDbException>()),
-    );
-    expect(
-      () => side.markServerUnsynced(unitKind: 'note', unitKey: 'n'),
-      throwsA(isA<SideDbException>()),
-    );
-    expect(
-      () => side.markServerUnsynced(unitKind: sideDbUnitDeck, unitKey: ''),
-      throwsA(isA<SideDbException>()),
-    );
-    expect(side.revlogOrigins(), isEmpty);
-    expect(side.serverUnsyncedRows(), isEmpty);
+    final second = SideDb.open(path: path, deviceId: 'device-a');
+    addTearDown(second.close);
+    expect(second.schemaVersion, sideDbSchemaVersion);
+    expect(second.pendingIntents().single.id, intentId);
+    expect(second.pendingIntents().single.op, 'answer');
+    expect(second.pendingIntents().single.targetKey, 'card-1');
   });
 
   test('user_version set inside a transaction rolls back with it', () {
@@ -204,4 +205,11 @@ void main() {
     db.execute('ROLLBACK');
     expect(db.select('PRAGMA user_version').first.values.first, 0);
   });
+}
+
+List<String> _columns(Database db, String table) {
+  return [
+    for (final row in db.select('PRAGMA table_info($table)'))
+      row['name'] as String,
+  ];
 }

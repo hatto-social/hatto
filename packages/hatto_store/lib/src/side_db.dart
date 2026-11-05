@@ -1,22 +1,15 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:sqlite3/sqlite3.dart';
 
 import 'schema.dart';
 
-/// Draft unit kind for [SideDb.markServerUnsynced]. A deck guid.
-const String sideDbUnitDeck = 'deck';
-
-/// Draft unit kind for [SideDb.markServerUnsynced]. An import batch id.
-const String sideDbUnitImport = 'import';
-
 /// Hatto metadata stored outside the resident Anki collection.
 ///
-/// The collection file stays an rslib database. This file is a draft: schema
-/// version, `revlog_origin`, deck/import `server_unsynced` markers, and the
-/// write-wrapper intent journal. Skeleton guid maps and media keys are still
-/// created and are not a stable contract. `deck_map.server_unsynced` is not
-/// written; the marker table is.
+/// The collection file stays an rslib database. This file is a draft at
+/// [sideDbSchemaVersion]. `deck_map.server_unsynced` is the unsynced flag.
+/// `import_batch_id` groups decks from one import.
 class SideDb {
   SideDb._(this._db, this.deviceId);
 
@@ -65,8 +58,8 @@ class SideDb {
     _db.execute('BEGIN IMMEDIATE');
     try {
       _db.execute(
-        'INSERT INTO intent(op, target_key, expected, status, created_at) VALUES (?, ?, ?, ?, ?)',
-        [op, targetKey, expected, 'pending', _now()],
+        'INSERT INTO intent(op, target_key, expected) VALUES (?, ?, ?)',
+        [op, targetKey, expected],
       );
       final id = _db.lastInsertRowId;
       _db.execute('COMMIT');
@@ -77,22 +70,26 @@ class SideDb {
     }
   }
 
+  /// Deletes the intent and appends one journal row. `field` is null in v0.
   void completeIntent({
     required int intentId,
+    required String op,
     required String entityKind,
     required String guid,
-    String? field,
+    Uint8List? payload,
   }) {
     final hlc = nextHlc();
     _db.execute('BEGIN IMMEDIATE');
     try {
+      final rows = _db.select('SELECT id FROM intent WHERE id = ?', [intentId]);
+      if (rows.isEmpty) {
+        throw SideDbException('intent $intentId is not pending');
+      }
+      _db.execute('DELETE FROM intent WHERE id = ?', [intentId]);
       _db.execute(
-        "UPDATE intent SET status = 'done' WHERE id = ? AND status = 'pending'",
-        [intentId],
-      );
-      _db.execute(
-        'INSERT INTO edit_journal(entity_kind, guid, field, hlc, device_id, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-        [entityKind, guid, field, hlc, deviceId, _now()],
+        'INSERT INTO edit_journal(op, entity_kind, guid, field, hlc, payload) '
+        'VALUES (?, ?, ?, NULL, ?, ?)',
+        [op, entityKind, guid, hlc, payload],
       );
       _db.execute('COMMIT');
     } catch (err) {
@@ -102,23 +99,21 @@ class SideDb {
   }
 
   void abandonIntent(int intentId) {
-    _db.execute(
-      "UPDATE intent SET status = 'abandoned' WHERE id = ? AND status = 'pending'",
-      [intentId],
-    );
+    final rows = _db.select('SELECT id FROM intent WHERE id = ?', [intentId]);
+    if (rows.isEmpty) {
+      throw SideDbException('intent $intentId is not pending');
+    }
+    _db.execute('DELETE FROM intent WHERE id = ?', [intentId]);
   }
 
   int pendingIntentCount() {
-    final rows = _db.select(
-      "SELECT COUNT(*) AS n FROM intent WHERE status = 'pending'",
-    );
+    final rows = _db.select('SELECT COUNT(*) AS n FROM intent');
     return rows.first['n'] as int;
   }
 
   List<IntentRow> pendingIntents() {
     final rows = _db.select(
-      'SELECT id, op, target_key, expected, status, created_at FROM intent '
-      "WHERE status = 'pending' ORDER BY id",
+      'SELECT id, op, target_key, expected FROM intent ORDER BY id',
     );
     return [
       for (final row in rows)
@@ -127,23 +122,17 @@ class SideDb {
           op: row['op'] as String,
           targetKey: row['target_key'] as String,
           expected: row['expected'] as String?,
-          status: row['status'] as String,
-          createdAt: row['created_at'] as int,
         ),
     ];
   }
 
-  /// Records the draft origin label for one revlog id.
-  ///
-  /// [job] is the import or optimizer job that produced the row. The same
-  /// pair is ignored the second time.
   void putRevlogOrigin({required int revlogId, required String job}) {
     if (job.isEmpty) {
       throw const SideDbException('revlog origin job is empty');
     }
     _db.execute(
       'INSERT INTO revlog_origin(revlog_id, job) VALUES (?, ?) '
-      'ON CONFLICT(revlog_id, job) DO NOTHING',
+      'ON CONFLICT(revlog_id) DO UPDATE SET job = excluded.job',
       [revlogId, job],
     );
   }
@@ -151,10 +140,10 @@ class SideDb {
   List<RevlogOriginRow> revlogOrigins({int? revlogId}) {
     final rows = revlogId == null
         ? _db.select(
-            'SELECT revlog_id, job FROM revlog_origin ORDER BY revlog_id, job',
+            'SELECT revlog_id, job FROM revlog_origin ORDER BY revlog_id',
           )
         : _db.select(
-            'SELECT revlog_id, job FROM revlog_origin WHERE revlog_id = ? ORDER BY job',
+            'SELECT revlog_id, job FROM revlog_origin WHERE revlog_id = ?',
             [revlogId],
           );
     return [
@@ -166,83 +155,119 @@ class SideDb {
     ];
   }
 
-  void deleteRevlogOrigin({required int revlogId, required String job}) {
-    _db.execute('DELETE FROM revlog_origin WHERE revlog_id = ? AND job = ?', [
-      revlogId,
-      job,
-    ]);
+  void deleteRevlogOrigin(int revlogId) {
+    _db.execute('DELETE FROM revlog_origin WHERE revlog_id = ?', [revlogId]);
   }
 
-  /// Marks a deck guid or an import batch as not reflected on a server.
-  ///
-  /// v0 has no server. The flag is local state for a later sync. [unitKind]
-  /// is [sideDbUnitDeck] or [sideDbUnitImport].
-  void markServerUnsynced({required String unitKind, required String unitKey}) {
-    _checkUnit(unitKind, unitKey);
-    _db.execute(
-      'INSERT INTO server_unsynced(unit_kind, unit_key, marked_at) VALUES (?, ?, ?) '
-      'ON CONFLICT(unit_kind, unit_key) DO UPDATE SET marked_at = excluded.marked_at',
-      [unitKind, unitKey, _now()],
-    );
-  }
-
-  void clearServerUnsynced({
-    required String unitKind,
-    required String unitKey,
+  /// Inserts or replaces one deck. [serverUnsynced] defaults to the column
+  /// default, 1.
+  void putDeck({
+    required String deckGuid,
+    required int rslibDeckId,
+    String? importBatchId,
+    String? originKind,
+    String? originRole,
+    String? sourceSha256,
+    bool serverUnsynced = true,
   }) {
-    _checkUnit(unitKind, unitKey);
-    _db.execute(
-      'DELETE FROM server_unsynced WHERE unit_kind = ? AND unit_key = ?',
-      [unitKind, unitKey],
-    );
-  }
-
-  bool isServerUnsynced({required String unitKind, required String unitKey}) {
-    _checkUnit(unitKind, unitKey);
-    final rows = _db.select(
-      'SELECT 1 AS n FROM server_unsynced WHERE unit_kind = ? AND unit_key = ?',
-      [unitKind, unitKey],
-    );
-    return rows.isNotEmpty;
-  }
-
-  List<ServerUnsyncedRow> serverUnsyncedRows({String? unitKind}) {
-    if (unitKind != null) {
-      _checkUnitKind(unitKind);
+    if (deckGuid.isEmpty) {
+      throw const SideDbException('deck guid is empty');
     }
-    final rows = unitKind == null
-        ? _db.select(
-            'SELECT unit_kind, unit_key, marked_at FROM server_unsynced '
-            'ORDER BY unit_kind, unit_key',
-          )
-        : _db.select(
-            'SELECT unit_kind, unit_key, marked_at FROM server_unsynced '
-            'WHERE unit_kind = ? ORDER BY unit_key',
-            [unitKind],
-          );
-    return [
-      for (final row in rows)
-        ServerUnsyncedRow(
-          unitKind: row['unit_kind'] as String,
-          unitKey: row['unit_key'] as String,
-          markedAt: row['marked_at'] as int,
-        ),
-    ];
+    _db.execute(
+      'INSERT INTO deck_map(deck_guid, rslib_deck_id, import_batch_id, '
+      'origin_kind, origin_role, source_sha256, server_unsynced) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?) '
+      'ON CONFLICT(deck_guid) DO UPDATE SET '
+      'rslib_deck_id = excluded.rslib_deck_id, '
+      'import_batch_id = excluded.import_batch_id, '
+      'origin_kind = excluded.origin_kind, '
+      'origin_role = excluded.origin_role, '
+      'source_sha256 = excluded.source_sha256, '
+      'server_unsynced = excluded.server_unsynced',
+      [
+        deckGuid,
+        rslibDeckId,
+        importBatchId,
+        originKind,
+        originRole,
+        sourceSha256,
+        serverUnsynced ? 1 : 0,
+      ],
+    );
+  }
+
+  void setDeckServerUnsynced({
+    required String deckGuid,
+    required bool unsynced,
+  }) {
+    if (deckGuid.isEmpty) {
+      throw const SideDbException('deck guid is empty');
+    }
+    _db.execute('UPDATE deck_map SET server_unsynced = ? WHERE deck_guid = ?', [
+      unsynced ? 1 : 0,
+      deckGuid,
+    ]);
+    if (_db.updatedRows == 0) {
+      throw SideDbException('deck $deckGuid is not in deck_map');
+    }
+  }
+
+  DeckMapRow? deck(String deckGuid) {
+    final rows = _db.select(
+      'SELECT deck_guid, rslib_deck_id, import_batch_id, origin_kind, '
+      'origin_role, source_sha256, server_unsynced FROM deck_map '
+      'WHERE deck_guid = ?',
+      [deckGuid],
+    );
+    if (rows.isEmpty) {
+      return null;
+    }
+    return _deckRow(rows.first);
+  }
+
+  bool deckServerUnsynced(String deckGuid) {
+    final row = deck(deckGuid);
+    if (row == null) {
+      throw SideDbException('deck $deckGuid is not in deck_map');
+    }
+    return row.serverUnsynced;
+  }
+
+  List<DeckMapRow> unsyncedDecks() {
+    final rows = _db.select(
+      'SELECT deck_guid, rslib_deck_id, import_batch_id, origin_kind, '
+      'origin_role, source_sha256, server_unsynced FROM deck_map '
+      'WHERE server_unsynced != 0 ORDER BY deck_guid',
+    );
+    return [for (final row in rows) _deckRow(row)];
+  }
+
+  /// Decks that share one import batch.
+  List<DeckMapRow> decksForImport(String importBatchId) {
+    final rows = _db.select(
+      'SELECT deck_guid, rslib_deck_id, import_batch_id, origin_kind, '
+      'origin_role, source_sha256, server_unsynced FROM deck_map '
+      'WHERE import_batch_id = ? ORDER BY deck_guid',
+      [importBatchId],
+    );
+    return [for (final row in rows) _deckRow(row)];
   }
 
   List<JournalRow> journalRows() {
     final rows = _db.select(
-      'SELECT id, entity_kind, guid, field, hlc, device_id FROM edit_journal ORDER BY id',
+      'SELECT id, op, entity_kind, guid, field, hlc, payload '
+      'FROM edit_journal ORDER BY id',
     );
     return [
       for (final row in rows)
         JournalRow(
           id: row['id'] as int,
+          op: row['op'] as String,
           entityKind: row['entity_kind'] as String,
           guid: row['guid'] as String,
           field: row['field'] as String?,
           hlc: row['hlc'] as String,
-          deviceId: row['device_id'] as String,
+          payload: row['payload'] as Uint8List?,
         ),
     ];
   }
@@ -250,43 +275,43 @@ class SideDb {
   void _migrate() {
     applySideDbMigrations(_db);
     _db.execute(
-      "INSERT INTO meta(key, value) VALUES ('device_id', ?) ON CONFLICT(key) DO NOTHING",
+      "INSERT INTO meta(key, value) VALUES ('device_id', ?) "
+      'ON CONFLICT(key) DO NOTHING',
       [deviceId],
     );
   }
 
-  void _checkUnit(String unitKind, String unitKey) {
-    _checkUnitKind(unitKind);
-    if (unitKey.isEmpty) {
-      throw const SideDbException('server-unsynced unit key is empty');
-    }
+  DeckMapRow _deckRow(Row row) {
+    return DeckMapRow(
+      deckGuid: row['deck_guid'] as String,
+      rslibDeckId: row['rslib_deck_id'] as int,
+      importBatchId: row['import_batch_id'] as String?,
+      originKind: row['origin_kind'] as String?,
+      originRole: row['origin_role'] as String?,
+      sourceSha256: row['source_sha256'] as String?,
+      serverUnsynced: (row['server_unsynced'] as int) != 0,
+    );
   }
-
-  void _checkUnitKind(String unitKind) {
-    if (unitKind != sideDbUnitDeck && unitKind != sideDbUnitImport) {
-      throw SideDbException('unknown server-unsynced unit kind: $unitKind');
-    }
-  }
-
-  int _now() => DateTime.now().millisecondsSinceEpoch;
 }
 
 class JournalRow {
   const JournalRow({
     required this.id,
+    required this.op,
     required this.entityKind,
     required this.guid,
     required this.field,
     required this.hlc,
-    required this.deviceId,
+    required this.payload,
   });
 
   final int id;
+  final String op;
   final String entityKind;
   final String guid;
   final String? field;
   final String hlc;
-  final String deviceId;
+  final Uint8List? payload;
 }
 
 class IntentRow {
@@ -295,16 +320,12 @@ class IntentRow {
     required this.op,
     required this.targetKey,
     required this.expected,
-    required this.status,
-    required this.createdAt,
   });
 
   final int id;
   final String op;
   final String targetKey;
   final String? expected;
-  final String status;
-  final int createdAt;
 }
 
 class RevlogOriginRow {
@@ -314,14 +335,22 @@ class RevlogOriginRow {
   final String job;
 }
 
-class ServerUnsyncedRow {
-  const ServerUnsyncedRow({
-    required this.unitKind,
-    required this.unitKey,
-    required this.markedAt,
+class DeckMapRow {
+  const DeckMapRow({
+    required this.deckGuid,
+    required this.rslibDeckId,
+    required this.importBatchId,
+    required this.originKind,
+    required this.originRole,
+    required this.sourceSha256,
+    required this.serverUnsynced,
   });
 
-  final String unitKind;
-  final String unitKey;
-  final int markedAt;
+  final String deckGuid;
+  final int rslibDeckId;
+  final String? importBatchId;
+  final String? originKind;
+  final String? originRole;
+  final String? sourceSha256;
+  final bool serverUnsynced;
 }
