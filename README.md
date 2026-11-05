@@ -1,6 +1,6 @@
 # Hatto
 
-Hatto Social v0 is a local-first Android app. There is no server in this version. Study data lives on the device: one resident [Anki](https://github.com/ankitects/anki) collection, plus a Hatto side database next to it.
+Hatto Social v0 is a local-first Android app. There is no server in this version. Study data lives on the device: one resident [Anki](https://github.com/ankitects/anki) collection, plus a Hatto side database in the app documents directory.
 
 The collection engine is Anki's Rust library **rslib**, pinned to **26.09.3** and not patched. The app talks to it only through rslib's protobuf backend (`init_backend` with a `BackendInit` message, then `Backend::run_service_method`). Service and method numbers are generated at build time from that tag's `.proto` files, because those numbers are not a stable ABI.
 
@@ -20,7 +20,7 @@ third_party/anki/            Anki git submodule, tag 26.09.3, unmodified
 
 Dart packages share one pub workspace (`pubspec.yaml` at the repo root). Rust has one Cargo workspace whose only member is the bridge. Anki stays a separate Cargo workspace; `Cargo.toml` excludes `third_party/anki` so the pin is consumed as a path dependency instead of being edited.
 
-`packages/hatto_store` does not link rslib. Writes will go through one wrapper that records an intent in the side database, calls the bridge, then commits the journal row. The allowlist in front of rslib `RunDbCommand` is empty on purpose: the concrete read list is still open, and every statement is rejected until it is filled in. v0 features beyond opening a collection (import, scheduling, backup) are not implemented here.
+`packages/hatto_store` does not link rslib. It opens `<documents>/hatto/hatto.sqlite` with `package:sqlite3`, which ships its own SQLite through a Dart native-asset hook. That library is not the one rslib bundles (rusqlite 0.36, feature `bundled`, linked into `librslib_bridge.so`). The schema is one draft `user_version` step. `deck_map.server_unsynced` (default 1) is the unsynced flag for a deck. Notes, cards, and media do not store their own flag; they follow the deck that owns them. `import_batch_id` groups an import. A copied original apkg lives at `<documents>/hatto/imports/<sha256>`, and that sha256 is `deck_map.source_sha256`. There is no path column. A file at `user_version` 0 that already has tables is rejected. `meta` stores `device_id` only. Writes will go through one wrapper that records an intent in the side database, calls the bridge, then commits the journal row. The allowlist in front of rslib `RunDbCommand` is empty on purpose: the concrete read list is still open, and every statement is rejected until it is filled in. v0 features beyond opening a collection (import, scheduling, backup) are not implemented here.
 
 ## Prerequisites
 
@@ -51,7 +51,7 @@ tools/smoke-host.sh
 That runs:
 
 1. `cargo test -p rslib_bridge` — opens a new collection through `run_service_method`, checks the linked rslib version is 26.09.3, checks the Default deck is listed, and checks a second backend cannot open the same file (`DB_ERROR`, kind 5).
-2. `dart test packages/hatto_store` — side database, intent/journal wrapper, SQL allowlist.
+2. `dart test packages/hatto_store` — side database migrations, intent/journal wrapper, SQL allowlist. Run inside the package so the sqlite3 native-asset hook builds.
 3. `flutter test` in `apps/mobile` — the same collection open, through the generated Dart bridge, plus a widget check that the home screen renders. The test process is Linux, so it loads `apps/mobile/build/native_assets/linux/librslib_bridge.so`. An Android build loads `librslib_bridge.so` from the APK by name instead.
 
 `prepare_runtime` sets `TMPDIR` before rslib touches temp files. The smoke helper does that with a directory next to the collection. On Android the app does it with the cache directory before any other bridge call.
@@ -84,4 +84,4 @@ Not verified in this workspace: the Android SDK/NDK are not installed, so `flutt
 
 ## What this skeleton does not do
 
-Import, scheduling, note editing, FSRS optimization, and backup/restore are specified for v0 and are not implemented yet. The side database has the tables those features need (guid maps, journal, `revlog_origin`, media keys, intents) and the write wrapper records intent then journal, but nothing calls rslib for those operations yet. Startup reconciliation of a pending intent is not implemented.
+Import, scheduling, note editing, FSRS optimization, and backup/restore are specified for v0 and are not implemented yet. The side database schema is a single draft version (`PRAGMA user_version` 1). The app opens that file from the documents directory at startup. Original apkg files are copied to `<documents>/hatto/imports/<sha256>` (`storeImportArchive`); the side database stores the sha256 and not the path. Whether a note, card, or media file is unsynced is the `server_unsynced` flag of its deck. The write wrapper records an intent, calls rslib, then deletes the intent and appends the journal row (`field` null, `payload` the protobuf input). A failed call deletes the intent. A thrown call leaves it. Startup reconciliation of a pending intent is not implemented.

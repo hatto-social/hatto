@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hatto_mobile/main.dart';
 import 'package:hatto_store/hatto_store.dart';
 import 'package:path/path.dart' as p;
 import 'package:rslib_bridge/rslib_bridge.dart' hide ProtoResponse;
@@ -18,13 +19,15 @@ void main() {
     expect(summary.split('decks=').last.split(','), contains('Default'));
     expect(File(p.join(dir.path, 'collection.anki2')).existsSync(), isTrue);
 
-    final side = SideDb.open(
-      path: p.join(dir.path, 'hatto.sqlite'),
-      deviceId: 'smoke-device',
-    );
+    final docs = Directory(p.join(dir.path, 'documents'))..createSync();
+    final side = openSideDatabase(docs.path);
     addTearDown(side.close);
+    expect(side.schemaVersion, sideDbSchemaVersion);
     expect(side.pendingIntentCount(), 0);
-    expect(File(p.join(dir.path, 'hatto.sqlite')).existsSync(), isTrue);
+    final sideFile = File(sideDbPath(docs.path));
+    expect(sideFile.existsSync(), isTrue);
+    expect(p.basename(sideFile.path), 'hatto.sqlite');
+    expect(sideFile.path, isNot(p.join(dir.path, 'collection.anki2')));
 
     final rows = await inspectExportedDeckConfigs(dir: dir.path);
     final preset = rows.singleWhere((row) => row.name == 'Default');

@@ -24,7 +24,6 @@ void main() {
       op: 'update_note',
       entityKind: 'note',
       guid: 'note-guid',
-      field: 'front',
       service: 1,
       method: 2,
       input: Uint8List.fromList([9]),
@@ -36,9 +35,11 @@ void main() {
     final second = SideDb.open(path: path, deviceId: 'device-a');
     final rows = second.journalRows();
     expect(rows, hasLength(1));
+    expect(rows.single.op, 'update_note');
     expect(rows.single.entityKind, 'note');
     expect(rows.single.guid, 'note-guid');
-    expect(rows.single.field, 'front');
+    expect(rows.single.field, isNull);
+    expect(rows.single.payload, Uint8List.fromList([9]));
     expect(rows.single.hlc, startsWith('device-a:'));
     expect(second.pendingIntentCount(), 0);
     second.close();

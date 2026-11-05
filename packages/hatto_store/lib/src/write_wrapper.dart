@@ -6,10 +6,11 @@ import 'side_db.dart';
 /// One rslib write, serialized through the side DB.
 ///
 /// Order, matching the v0 crash rule: record an intent, call rslib, then in one
-/// side-DB transaction mark the intent done and append the journal row.
-/// A returned backend error abandons the intent. A thrown error leaves it
-/// pending so a later startup can reconcile it. Reconciliation itself is not
-/// implemented in this skeleton.
+/// side-DB transaction delete the intent and append the journal row. The
+/// journal `field` is null in v0. `payload` is the protobuf input.
+/// A returned backend error deletes the intent. A thrown error leaves the
+/// intent row so a later startup can reconcile it. Reconciliation itself is
+/// not implemented in this skeleton.
 typedef ProtoCommand = Future<ProtoResponse> Function(
   int service,
   int method,
@@ -26,7 +27,6 @@ class WriteWrapper {
     required String op,
     required String entityKind,
     required String guid,
-    String? field,
     required int service,
     required int method,
     required Uint8List input,
@@ -45,9 +45,10 @@ class WriteWrapper {
     }
     db.completeIntent(
       intentId: intentId,
+      op: op,
       entityKind: entityKind,
       guid: guid,
-      field: field,
+      payload: input,
     );
     return response;
   }

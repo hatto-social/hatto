@@ -11,7 +11,20 @@ Future<void> main() async {
   await initRslibBridge();
   final cache = await getTemporaryDirectory();
   prepareRuntime(tmpDir: cache.path);
+  // The side database is Hatto metadata. The Anki collection stays under
+  // application support and is opened only by rslib.
+  final docs = await getApplicationDocumentsDirectory();
+  final side = openSideDatabase(docs.path);
+  side.close();
   runApp(const HattoApp());
+}
+
+/// Opens the draft side database in [documentsDirectory].
+SideDb openSideDatabase(String documentsDirectory) {
+  return SideDb.open(
+    path: sideDbPath(documentsDirectory),
+    deviceId: 'local-device',
+  );
 }
 
 class HattoApp extends StatelessWidget {
@@ -40,21 +53,20 @@ class _HomePageState extends State<HomePage> {
       _status = 'Opening collection…';
     });
     try {
+      final docs = await getApplicationDocumentsDirectory();
+      final side = openSideDatabase(docs.path);
+      final pending = side.pendingIntentCount();
+      final version = side.schemaVersion;
+      side.close();
       final support = await getApplicationSupportDirectory();
       final dir = Directory(p.join(support.path, 'resident'))
         ..createSync(recursive: true);
       final summary = await smokeOpenCollection(dir: dir.path);
-      final side = SideDb.open(
-        path: p.join(dir.path, 'hatto.sqlite'),
-        deviceId: 'local-device',
-      );
-      final pending = side.pendingIntentCount();
-      side.close();
       if (!mounted) {
         return;
       }
       setState(() {
-        _status = '$summary\nside db pending intents: $pending';
+        _status = '$summary\nside db v$version, pending intents: $pending';
       });
     } catch (err) {
       if (!mounted) {
