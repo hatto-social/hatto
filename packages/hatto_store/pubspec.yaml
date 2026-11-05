@@ -11,6 +11,8 @@ environment:
 
 dependencies:
   path: ^1.9.1
+  # Own SQLite via native-asset hooks. Do not point this at rusqlite or at
+  # the process symbol table: rslib already bundles a second SQLite.
   sqlite3: ^3.8.0
 
 dev_dependencies:
