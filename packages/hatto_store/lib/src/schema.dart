@@ -8,7 +8,10 @@ import 'package:sqlite3/sqlite3.dart';
 /// `device_id` only.
 ///
 /// `edit_journal.field` is null in v0. `deck_map.server_unsynced` defaults to
-/// 1 and is the unsynced flag. `import_batch_id` groups decks from one import.
+/// 1 and is the unsynced flag for that deck. Notes, cards, and media do not
+/// store their own flag; they follow the deck that owns them.
+/// `import_batch_id` groups decks from one import. `source_sha256` is the
+/// file name of the copied apkg under `<documents>/hatto/imports/`, not a path.
 ///
 /// The file is opened with `package:sqlite3`, which ships its own SQLite
 /// library. rslib 26.09.3 links a different copy (rusqlite 0.36, feature

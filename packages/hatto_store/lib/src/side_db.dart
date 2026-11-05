@@ -8,8 +8,10 @@ import 'schema.dart';
 /// Hatto metadata stored outside the resident Anki collection.
 ///
 /// The collection file stays an rslib database. This file is a draft at
-/// [sideDbSchemaVersion]. `deck_map.server_unsynced` is the unsynced flag.
-/// `import_batch_id` groups decks from one import.
+/// [sideDbSchemaVersion]. `deck_map.server_unsynced` is the unsynced flag for
+/// that deck. Notes, cards, and media do not store their own flag; they follow
+/// the deck that owns them. `import_batch_id` groups decks from one import.
+/// `source_sha256` names the copied apkg under `<documents>/hatto/imports/`.
 class SideDb {
   SideDb._(this._db, this.deviceId);
 
@@ -160,7 +162,10 @@ class SideDb {
   }
 
   /// Inserts or replaces one deck. [serverUnsynced] defaults to the column
-  /// default, 1.
+  /// default, 1. [sourceSha256] is the imports file name, not a path.
+  ///
+  /// A note, card, or media file has no unsynced column. Use the flag of the
+  /// deck that owns it.
   void putDeck({
     required String deckGuid,
     required int rslibDeckId,
