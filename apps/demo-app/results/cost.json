@@ -1,0 +1,9 @@
+{
+  "bytes": 3899392,
+  "buildMs": 239.381433,
+  "copyMs": 3.9127770000000055,
+  "fsyncMs": 0.5234990000000153,
+  "integrityMs": 24.770685000000014,
+  "integrityOk": true,
+  "mutableAppendMs": 74.79841199999998
+}

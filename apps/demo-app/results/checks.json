@@ -1,0 +1,222 @@
+{
+  "kill-points": [
+    {
+      "point": "afterTempWrite",
+      "version": 1,
+      "pointerOk": true,
+      "outboxOk": true,
+      "orphans": 0,
+      "temps": 1,
+      "pointerProblems": [],
+      "outboxProblems": []
+    },
+    {
+      "point": "beforeFsync",
+      "version": 1,
+      "pointerOk": true,
+      "outboxOk": true,
+      "orphans": 0,
+      "temps": 1,
+      "pointerProblems": [],
+      "outboxProblems": []
+    },
+    {
+      "point": "afterFsync",
+      "version": 1,
+      "pointerOk": true,
+      "outboxOk": true,
+      "orphans": 0,
+      "temps": 1,
+      "pointerProblems": [],
+      "outboxProblems": []
+    },
+    {
+      "point": "beforeRename",
+      "version": 1,
+      "pointerOk": true,
+      "outboxOk": true,
+      "orphans": 0,
+      "temps": 1,
+      "pointerProblems": [],
+      "outboxProblems": []
+    },
+    {
+      "point": "afterRename",
+      "version": 1,
+      "pointerOk": true,
+      "outboxOk": true,
+      "orphans": 1,
+      "temps": 0,
+      "pointerProblems": [],
+      "outboxProblems": []
+    },
+    {
+      "point": "beforePointerTx",
+      "version": 1,
+      "pointerOk": true,
+      "outboxOk": true,
+      "orphans": 1,
+      "temps": 0,
+      "pointerProblems": [],
+      "outboxProblems": []
+    },
+    {
+      "point": "insidePointerTx",
+      "version": 1,
+      "pointerOk": true,
+      "outboxOk": true,
+      "orphans": 1,
+      "temps": 0,
+      "pointerProblems": [],
+      "outboxProblems": []
+    },
+    {
+      "point": "afterPointerCommit",
+      "version": 2,
+      "pointerOk": true,
+      "outboxOk": true,
+      "orphans": 0,
+      "temps": 0,
+      "pointerProblems": [],
+      "outboxProblems": []
+    }
+  ],
+  "lru-small": {
+    "capBytes": 131072,
+    "residentBytes": 131072,
+    "handles": 4,
+    "pinned": 1,
+    "opens": 24,
+    "hits": 0,
+    "evictions": 20,
+    "overCap": false,
+    "fds": 4
+  },
+  "migration": {
+    "inPlace": "database is locked",
+    "sourceAfterHold": 1,
+    "freshVersion": 1,
+    "copiedVersion": 2,
+    "hist": 1
+  },
+  "export-checkpoint": {
+    "walBefore": 12392,
+    "plainHist": 0,
+    "plainVersion": 1,
+    "flushedHist": 1,
+    "flushedVersion": 2
+  },
+  "wal-readers": {
+    "grown": 494432,
+    "walWhileHeld": 494432,
+    "walAfter": 0,
+    "controlWal": 0,
+    "controlBusy": 0,
+    "passive": {
+      "busy": 0,
+      "log": 120,
+      "checkpointed": 0,
+      "ms": 0.03983800000003157
+    },
+    "truncate": {
+      "busy": 1,
+      "log": 120,
+      "checkpointed": 0,
+      "ms": 301.477178
+    },
+    "released": {
+      "busy": 0,
+      "log": 0,
+      "checkpointed": 0,
+      "ms": 2.741903000000093
+    }
+  },
+  "cache": {
+    "staleVersion": 2,
+    "pointer": 3,
+    "skew": true
+  },
+  "advisory-lock": {
+    "pooledLeftovers": 8,
+    "dedicatedDuring": 1,
+    "dedicatedAfter": 0
+  },
+  "event-loop": {
+    "publishMs": 62.216891999999916,
+    "maxGapMs": 58.4198879999999,
+    "intervalMs": 5
+  },
+  "unique-path-race": {
+    "pointerOk": true,
+    "orphans": 1
+  },
+  "same-path-clobber": {
+    "pointerOk": false,
+    "pointerProblems": [
+      "fc522916-73b9-40e7-9738-d0c591c9f0e1 pointer v2/49cc1a10f650b5a9fa606f012055603b2b63add9c75f46d500d0226e6ea80be1 but file v2/2cbef6aa6e609289f71aa42719f923db23eb7691be2a5e1b886c9c2e8382391d",
+      "fc522916-73b9-40e7-9738-d0c591c9f0e1 historical v2 bytes do not match the version row"
+    ]
+  },
+  "stale-gc": {
+    "deleted": 1,
+    "pointerOk": false,
+    "problems": [
+      "d3e4152b-48d7-4aaf-aff9-528443c223a9 pointer 2 file missing"
+    ]
+  },
+  "mutable-split-loose": {
+    "type": "result",
+    "mixed": true,
+    "version": 1,
+    "histMax": 2,
+    "hash": "407cdaa4560f01f529c4fba8b499a05ef22dd6ec747e8b96d884cc05aab59d80"
+  },
+  "mutable-split-tx": {
+    "type": "result",
+    "mixed": false,
+    "version": 2,
+    "histMax": 2,
+    "hash": "076b72b3e3adff094eb8329b5be170594b2242906004ffc8172c763f09f70fdc"
+  },
+  "application-mix": {
+    "mixed": true,
+    "first": 1,
+    "second": 2
+  },
+  "gc-open-fd": {
+    "type": "result",
+    "mixed": false,
+    "version": 1,
+    "hash": "407cdaa4560f01f529c4fba8b499a05ef22dd6ec747e8b96d884cc05aab59d80",
+    "stillMatches": true,
+    "readError": null
+  },
+  "immutable-readers": {
+    "totals": {
+      "reads": 10941,
+      "errors": 0,
+      "mixed": 0,
+      "skew": 0
+    },
+    "sampleErrors": []
+  },
+  "mutable-skew": {
+    "skew": 2014,
+    "mixed": 0,
+    "errors": 0,
+    "reads": 6666
+  },
+  "immutable-uri": {
+    "heldBefore": 1,
+    "heldAfter": 1,
+    "heldError": null,
+    "reopened": 2
+  },
+  "torn-without-integrity": {
+    "pointerOk": false,
+    "problems": [
+      "9774b217-f38b-4705-94cf-720bde4655d3 pointer file corrupt: file is not a database",
+      "9774b217-f38b-4705-94cf-720bde4655d3 historical v2 bytes do not match the version row"
+    ]
+  }
+}

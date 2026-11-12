@@ -1,0 +1,110 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Users, ACL, activities, deck metadata, and the version pointer.
+/// Card / field / hist rows are not stored here.
+model User {
+  id        String    @id
+  handle    String    @unique
+  createdAt DateTime  @default(now()) @map("created_at")
+  decks     Deck[]
+  acls      DeckAcl[]
+
+  @@map("users")
+}
+
+model Deck {
+  id             String        @id
+  ownerId        String        @map("owner_id")
+  owner          User          @relation(fields: [ownerId], references: [id])
+  title          String
+  strategy       String
+  currentVersion Int           @default(0) @map("current_version")
+  currentPath    String?       @map("current_path")
+  contentHash    String?       @map("content_hash")
+  byteSize       Int           @default(0) @map("byte_size")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  acls           DeckAcl[]
+  versions       DeckVersion[]
+  activities     Activity[]
+  outbox         Outbox[]
+  leases         ReadLease[]
+
+  @@index([ownerId])
+  @@map("decks")
+}
+
+model DeckVersion {
+  deckId      String   @map("deck_id")
+  version     Int
+  path        String
+  contentHash String   @map("content_hash")
+  byteSize    Int      @map("byte_size")
+  createdAt   DateTime @default(now()) @map("created_at")
+  deck        Deck     @relation(fields: [deckId], references: [id], onDelete: Cascade)
+
+  @@id([deckId, version])
+  @@index([path])
+  @@map("deck_versions")
+}
+
+model DeckAcl {
+  deckId String @map("deck_id")
+  userId String @map("user_id")
+  role   String
+  deck   Deck   @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([deckId, userId])
+  @@map("deck_acl")
+}
+
+/// Local ActivityPub-shaped record. Payload is version metadata, not card bodies.
+model Activity {
+  id        String   @id
+  deckId    String   @map("deck_id")
+  actorId   String   @map("actor_id")
+  type      String
+  version   Int
+  payload   Json
+  createdAt DateTime @default(now()) @map("created_at")
+  deck      Deck     @relation(fields: [deckId], references: [id], onDelete: Cascade)
+
+  @@index([deckId, version])
+  @@map("activities")
+}
+
+model Outbox {
+  id          String    @id
+  deckId      String    @map("deck_id")
+  version     Int
+  type        String
+  payload     Json
+  createdAt   DateTime  @default(now()) @map("created_at")
+  deliveredAt DateTime? @map("delivered_at")
+  deck        Deck      @relation(fields: [deckId], references: [id], onDelete: Cascade)
+
+  @@unique([deckId, version, type])
+  @@map("outbox")
+}
+
+/// Optional read pin. The ADR does not require this; the spike uses it to test GC.
+model ReadLease {
+  id        String   @id
+  deckId    String   @map("deck_id")
+  version   Int
+  path      String
+  holder    String
+  expiresAt DateTime @map("expires_at")
+  deck      Deck     @relation(fields: [deckId], references: [id], onDelete: Cascade)
+
+  @@index([deckId, version])
+  @@index([expiresAt])
+  @@map("read_leases")
+}
