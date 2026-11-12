@@ -116,19 +116,19 @@
       "busy": 0,
       "log": 120,
       "checkpointed": 0,
-      "ms": 0.03983800000003157
+      "ms": 0.04064200000004803
     },
     "truncate": {
       "busy": 1,
       "log": 120,
       "checkpointed": 0,
-      "ms": 301.477178
+      "ms": 301.27140900000006
     },
     "released": {
       "busy": 0,
       "log": 0,
       "checkpointed": 0,
-      "ms": 2.741903000000093
+      "ms": 3.4103059999999914
     }
   },
   "cache": {
@@ -137,13 +137,13 @@
     "skew": true
   },
   "advisory-lock": {
-    "pooledLeftovers": 8,
+    "pooledLeftovers": 6,
     "dedicatedDuring": 1,
     "dedicatedAfter": 0
   },
   "event-loop": {
-    "publishMs": 62.216891999999916,
-    "maxGapMs": 58.4198879999999,
+    "publishMs": 62.861606000000165,
+    "maxGapMs": 59.414392000000134,
     "intervalMs": 5
   },
   "unique-path-race": {
@@ -153,15 +153,15 @@
   "same-path-clobber": {
     "pointerOk": false,
     "pointerProblems": [
-      "fc522916-73b9-40e7-9738-d0c591c9f0e1 pointer v2/49cc1a10f650b5a9fa606f012055603b2b63add9c75f46d500d0226e6ea80be1 but file v2/2cbef6aa6e609289f71aa42719f923db23eb7691be2a5e1b886c9c2e8382391d",
-      "fc522916-73b9-40e7-9738-d0c591c9f0e1 historical v2 bytes do not match the version row"
+      "1a6b2b39-ce8a-4b11-af52-16e95f7524c1 pointer v2/49cc1a10f650b5a9fa606f012055603b2b63add9c75f46d500d0226e6ea80be1 but file v2/2cbef6aa6e609289f71aa42719f923db23eb7691be2a5e1b886c9c2e8382391d",
+      "1a6b2b39-ce8a-4b11-af52-16e95f7524c1 historical v2 bytes do not match the version row"
     ]
   },
   "stale-gc": {
     "deleted": 1,
     "pointerOk": false,
     "problems": [
-      "d3e4152b-48d7-4aaf-aff9-528443c223a9 pointer 2 file missing"
+      "028ef218-7adc-40f7-822b-90f6ec92c6ee pointer 2 file missing"
     ]
   },
   "mutable-split-loose": {
@@ -193,7 +193,7 @@
   },
   "immutable-readers": {
     "totals": {
-      "reads": 10941,
+      "reads": 10747,
       "errors": 0,
       "mixed": 0,
       "skew": 0
@@ -201,10 +201,10 @@
     "sampleErrors": []
   },
   "mutable-skew": {
-    "skew": 2014,
+    "skew": 2018,
     "mixed": 0,
     "errors": 0,
-    "reads": 6666
+    "reads": 6232
   },
   "immutable-uri": {
     "heldBefore": 1,
@@ -215,8 +215,8 @@
   "torn-without-integrity": {
     "pointerOk": false,
     "problems": [
-      "9774b217-f38b-4705-94cf-720bde4655d3 pointer file corrupt: file is not a database",
-      "9774b217-f38b-4705-94cf-720bde4655d3 historical v2 bytes do not match the version row"
+      "bf072378-46cb-4f4d-b6bd-6a55efc129f3 pointer file corrupt: file is not a database",
+      "bf072378-46cb-4f4d-b6bd-6a55efc129f3 historical v2 bytes do not match the version row"
     ]
   }
 }

@@ -1,0 +1,420 @@
+{
+  "fedify": "2.4.5",
+  "cdn": "static-file-server",
+  "cdnOrigin": "http://127.0.0.1:37201",
+  "alice": "http://127.0.0.1:38059",
+  "bob": "http://127.0.0.1:36207",
+  "signedUrlTtlMs": 1500,
+  "context": {
+    "missing": "Dereferencing a URL did not result in a valid JSON-LD object. Possible causes are an inaccessible URL perhaps due to a same-origin policy (ensure the server uses CORS if you are using client-side JavaScript), too many redirects, a non-JSON response, or more than one HTTP Link Header was provided for a remote context. URL: \"https://hatto.invalid/ns.jsonld\".",
+    "served": {
+      "error": null,
+      "hattoRev": 1,
+      "type": [
+        "hatto:Deck",
+        "Object"
+      ]
+    }
+  },
+  "publicUpdate": {
+    "deliver": {
+      "error": null,
+      "posts": [
+        {
+          "status": 202,
+          "object": "http://127.0.0.1:38059/decks/public-deck/revs/2",
+          "hattoKeys": []
+        }
+      ]
+    },
+    "listener": [
+      {
+        "id": "http://127.0.0.1:38059/activities/decks/public-deck/revs/2",
+        "object": "http://127.0.0.1:38059/decks/public-deck/revs/2",
+        "fetchStatus": 200,
+        "fetchBody": {
+          "@context": [
+            "https://www.w3.org/ns/activitystreams",
+            {
+              "hatto": "https://hatto.social/ns#",
+              "rev": "hatto:rev",
+              "guid": "hatto:guid",
+              "event": "hatto:event",
+              "deck": {
+                "@id": "hatto:deck",
+                "@type": "@id"
+              },
+              "streakDays": "hatto:streakDays",
+              "reviewCount": "hatto:reviewCount",
+              "measurementSource": "hatto:measurementSource"
+            }
+          ],
+          "id": "http://127.0.0.1:38059/decks/public-deck/revs/2",
+          "type": [
+            "hatto:Deck",
+            "Object"
+          ],
+          "name": "공개 덱",
+          "hatto:rev": 2,
+          "hatto:guid": "public-deck",
+          "url": {
+            "type": "Link",
+            "href": "http://127.0.0.1:37201/snapshots/public-deck/2",
+            "mediaType": "application/octet-stream",
+            "digestMultibase": "u2Y_RqSYPhXGpTkVKD__xPDb0M7suBcYiPgp7PcMnx1Q"
+          }
+        },
+        "looked": {
+          "@context": [
+            "https://www.w3.org/ns/activitystreams",
+            {
+              "hatto": "https://hatto.social/ns#",
+              "rev": "hatto:rev",
+              "guid": "hatto:guid",
+              "event": "hatto:event",
+              "deck": {
+                "@id": "hatto:deck",
+                "@type": "@id"
+              },
+              "streakDays": "hatto:streakDays",
+              "reviewCount": "hatto:reviewCount",
+              "measurementSource": "hatto:measurementSource"
+            }
+          ],
+          "id": "http://127.0.0.1:38059/decks/public-deck/revs/2",
+          "type": [
+            "hatto:Deck",
+            "Object"
+          ],
+          "name": "공개 덱",
+          "hatto:rev": 2,
+          "hatto:guid": "public-deck",
+          "url": {
+            "type": "Link",
+            "href": "http://127.0.0.1:37201/snapshots/public-deck/2",
+            "mediaType": "application/octet-stream",
+            "digestMultibase": "u2Y_RqSYPhXGpTkVKD__xPDb0M7suBcYiPgp7PcMnx1Q"
+          }
+        },
+        "lookError": null
+      }
+    ],
+    "dispatcherStatus": 200,
+    "dispatcherBody": {
+      "@context": [
+        "https://www.w3.org/ns/activitystreams",
+        {
+          "hatto": "https://hatto.social/ns#",
+          "rev": "hatto:rev",
+          "guid": "hatto:guid",
+          "event": "hatto:event",
+          "deck": {
+            "@id": "hatto:deck",
+            "@type": "@id"
+          },
+          "streakDays": "hatto:streakDays",
+          "reviewCount": "hatto:reviewCount",
+          "measurementSource": "hatto:measurementSource"
+        }
+      ],
+      "id": "http://127.0.0.1:38059/decks/public-deck/revs/2",
+      "type": [
+        "hatto:Deck",
+        "Object"
+      ],
+      "name": "공개 덱",
+      "hatto:rev": 2,
+      "hatto:guid": "public-deck",
+      "url": {
+        "type": "Link",
+        "href": "http://127.0.0.1:37201/snapshots/public-deck/2",
+        "mediaType": "application/octet-stream",
+        "digestMultibase": "u2Y_RqSYPhXGpTkVKD__xPDb0M7suBcYiPgp7PcMnx1Q"
+      }
+    },
+    "snapshotStatus": 200,
+    "snapshotBytes": 18,
+    "digestOk": true
+  },
+  "embed": {
+    "singleParse": "Invalid type: hatto:Deck",
+    "singlePost": {
+      "status": 400,
+      "keyId": "http://127.0.0.1:38059/users/alice#main-key",
+      "error": null,
+      "body": "Invalid activity."
+    },
+    "arraySend": {
+      "error": null,
+      "posts": [
+        {
+          "status": 202,
+          "object": "Object",
+          "hattoKeys": []
+        }
+      ]
+    },
+    "arrayCompact": {
+      "type": "Object",
+      "keys": [
+        "id",
+        "type",
+        "name"
+      ],
+      "hattoRev": null
+    },
+    "arrayPost": {
+      "status": 202,
+      "keyId": "http://127.0.0.1:38059/users/alice#main-key",
+      "error": null,
+      "body": ""
+    },
+    "listener": [
+      {
+        "id": "http://127.0.0.1:38059/activities/decks/embed/revs/2",
+        "embedded": {
+          "id": "http://127.0.0.1:38059/decks/embed/revs/2",
+          "type": "Object",
+          "name": "임베드"
+        }
+      },
+      {
+        "id": "http://127.0.0.1:38059/activities/decks/embed/revs/2-raw",
+        "embedded": {
+          "id": "http://127.0.0.1:38059/decks/embed/revs/2",
+          "type": [
+            "hatto:Deck",
+            "Object"
+          ],
+          "name": "임베드",
+          "hatto:rev": 2,
+          "hatto:guid": "embed"
+        }
+      }
+    ],
+    "wire": [
+      {
+        "status": 202,
+        "object": "Object",
+        "hattoKeys": []
+      },
+      {
+        "status": 202,
+        "object": [
+          "hatto:Deck",
+          "Object"
+        ],
+        "hattoKeys": [
+          "hatto:rev",
+          "hatto:guid"
+        ]
+      }
+    ]
+  },
+  "createNote": {
+    "directCompact": {
+      "type": "Note",
+      "keys": [
+        "id",
+        "type",
+        "content"
+      ],
+      "hatto": [],
+      "tag": null,
+      "attachment": null,
+      "url": null
+    },
+    "directSend": {
+      "error": null,
+      "posts": [
+        {
+          "status": 202,
+          "object": "Note",
+          "hattoKeys": []
+        }
+      ]
+    },
+    "standardCompact": {
+      "type": "Note",
+      "keys": [
+        "id",
+        "type",
+        "attachment",
+        "content",
+        "tag",
+        "url"
+      ],
+      "hatto": [],
+      "tag": {
+        "type": "Link",
+        "href": "http://127.0.0.1:38059/decks/social",
+        "name": "deck-published"
+      },
+      "attachment": {
+        "type": "http://schema.org#PropertyValue",
+        "http://schema.org#value": "deck-published",
+        "name": "hatto:event"
+      },
+      "url": {
+        "type": "Link",
+        "href": "http://127.0.0.1:38059/decks/social",
+        "mediaType": "application/activity+json",
+        "name": "deck"
+      }
+    },
+    "standardSend": {
+      "error": null,
+      "posts": [
+        {
+          "status": 202,
+          "object": "Note",
+          "hattoKeys": []
+        }
+      ]
+    },
+    "separateSend": {
+      "error": null,
+      "posts": [
+        {
+          "status": 202,
+          "object": "http://127.0.0.1:38059/notes/separate",
+          "hattoKeys": []
+        }
+      ]
+    },
+    "separateDispatcher": {
+      "status": 200,
+      "body": {
+        "@context": [
+          "https://www.w3.org/ns/activitystreams",
+          {
+            "hatto": "https://hatto.social/ns#",
+            "rev": "hatto:rev",
+            "guid": "hatto:guid",
+            "event": "hatto:event",
+            "deck": {
+              "@id": "hatto:deck",
+              "@type": "@id"
+            },
+            "streakDays": "hatto:streakDays",
+            "reviewCount": "hatto:reviewCount",
+            "measurementSource": "hatto:measurementSource"
+          }
+        ],
+        "id": "http://127.0.0.1:38059/notes/separate",
+        "type": "Note",
+        "content": "덱을 공개했습니다",
+        "hatto:deck": "http://127.0.0.1:38059/decks/social",
+        "hatto:event": "deck-published",
+        "hatto:streakDays": 12,
+        "hatto:reviewCount": 40,
+        "hatto:measurementSource": "self-reported-device"
+      }
+    },
+    "listener": [
+      {
+        "id": "http://127.0.0.1:38059/activities/notes/separate",
+        "object": "http://127.0.0.1:38059/notes/separate",
+        "fetchStatus": 200,
+        "fetchBody": {
+          "@context": [
+            "https://www.w3.org/ns/activitystreams",
+            {
+              "hatto": "https://hatto.social/ns#",
+              "rev": "hatto:rev",
+              "guid": "hatto:guid",
+              "event": "hatto:event",
+              "deck": {
+                "@id": "hatto:deck",
+                "@type": "@id"
+              },
+              "streakDays": "hatto:streakDays",
+              "reviewCount": "hatto:reviewCount",
+              "measurementSource": "hatto:measurementSource"
+            }
+          ],
+          "id": "http://127.0.0.1:38059/notes/separate",
+          "type": "Note",
+          "content": "덱을 공개했습니다",
+          "hatto:deck": "http://127.0.0.1:38059/decks/social",
+          "hatto:event": "deck-published",
+          "hatto:streakDays": 12,
+          "hatto:reviewCount": 40,
+          "hatto:measurementSource": "self-reported-device"
+        },
+        "looked": {
+          "@context": [
+            "https://www.w3.org/ns/activitystreams",
+            {
+              "hatto": "https://hatto.social/ns#",
+              "rev": "hatto:rev",
+              "guid": "hatto:guid",
+              "event": "hatto:event",
+              "deck": {
+                "@id": "hatto:deck",
+                "@type": "@id"
+              },
+              "streakDays": "hatto:streakDays",
+              "reviewCount": "hatto:reviewCount",
+              "measurementSource": "hatto:measurementSource"
+            }
+          ],
+          "id": "http://127.0.0.1:38059/notes/separate",
+          "type": "Note",
+          "content": "덱을 공개했습니다",
+          "hatto:deck": "http://127.0.0.1:38059/decks/social",
+          "hatto:event": "deck-published",
+          "hatto:streakDays": 12,
+          "hatto:reviewCount": 40,
+          "hatto:measurementSource": "self-reported-device"
+        },
+        "lookError": null
+      }
+    ]
+  },
+  "dedup": {
+    "duplicate": {
+      "calls": [
+        1,
+        1
+      ],
+      "reducer": {
+        "applied": 1,
+        "duplicates": 1,
+        "head": 1
+      },
+      "inbox": [
+        202,
+        202,
+        202
+      ]
+    },
+    "reverse": {
+      "arrival": [
+        3,
+        1
+      ],
+      "head": 3,
+      "olderKept": 1,
+      "stored": [
+        1,
+        3
+      ]
+    }
+  },
+  "privateDeck": {
+    "unsignedStatus": 404,
+    "strangerStatus": 404,
+    "strangerKeyId": "http://127.0.0.1:38059/users/alice#main-key",
+    "ownerStatus": 200,
+    "ownerKeyId": "http://127.0.0.1:36207/users/bob#main-key",
+    "ownerError": null,
+    "lastSigner": "http://127.0.0.1:36207/users/bob",
+    "ownerHattoRev": 1,
+    "ownerHattoGuid": "private-deck",
+    "snapshotStatus": 200,
+    "digestOk": true,
+    "expiredStatus": 404,
+    "href": "http://127.0.0.1:37201/snapshots/private-deck/1?exp=1794481848236&sig=K4L1GwCRe6iazNk3Hs0N4Zkblvi0mc4OgZd0nM4IgnI"
+  }
+}

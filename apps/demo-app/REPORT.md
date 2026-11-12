@@ -104,3 +104,26 @@ outbox는 포인터와 같은 트랜잭션이면 행의 유실과 중복은 없�
 핸들 LRU는 핀이 있는 fd를 닫지 않아야 하고, 상한보다 큰 파일 하나는 열어야 한다. 상한은 프로세스마다이다. `better-sqlite3` 호출은 그 스레드를 막는다. 큰 발행은 그 프로세스의 다른 요청도 같이 멈춘다. 읽기를 다른 스레드에 두면 그 정지는 읽기로 번지지 않았고, 불변 파일에서는 버전 섞임도 없었다.
 
 본문 캐시는 버전 키일 때만 포인터와 맞다. 포인터 조회를 빼지 않으면 핫 덱의 시간에서 큰 부분은 Postgres에 남는다. 포인터를 오래 캐시하면 읽기는 이전 버전을 본다. 그 지연을 허용할지는 이번 실험 밖의 제품 결정이다.
+
+## Fedify로 덱 rev를 주고받기
+
+이 절은 `@fedify/fedify` 2.4.5를 고정해, origin이 다른 인스턴스 두 개를 `127.0.0.1`의 빈 포트에 띄우고 실제로 POST한 결과다. 스냅샷 바이트는 S3나 MinIO가 아니라 같은 머신의 정적 파일 서버가 내보냈다. Docker가 없어 그 둘을 띄우지 못했다. 파일 서버는 공개 객체는 경로만으로 주고, 비공개 객체는 `exp`와 HMAC `sig`가 맞고 만료 전일 때만 준다. 측정 명령은 `npx tsc -p tsconfig.json && node --test --test-concurrency=1 dist/test/fedify.test.js`이고, 직전 실행의 테스트 시간은 2.97초였다. 원본은 `results/fedify.json`이다. 아래 상태 코드와 필드 유무는 그 실행에서 받은 응답이다.
+
+`sendActivity`는 활동을 보내기 전에 `toJsonLd({ format: "compact" })`로 다시 만든다. 이 경로는 알고 있는 어휘 필드만 남긴다. 객체 디스패처는 `toJsonLd`에 format을 넘기지 않아서, `fromJsonLd`가 캐시한 원문 JSON이 그대로 나간다. 그래서 같은 문서라도 보내는 함수가 다르면 `hatto:` 필드의 운명이 갈린다.
+
+공개 덱 rev 2는 Update의 `object`에 객체를 넣지 않고 `/decks/{guid}/revs/2` URI만 넣었다. Activity id는 그 guid와 rev로 고정했고, `orderingKey`에는 guid를 넣었으며 `immediate: true`라 큐는 없었다. 받는 인박스는 202를 한 번 반환했다. 와이어의 object는 URI 문자열이었고 `hatto:` 키는 없었다. 그 URI를 서명 없이 GET하자 200이었고, 본문에 `type: ["hatto:Deck", "Object"]`, `hatto:rev: 2`, `hatto:guid: "public-deck"`, `url.type: "Link"`, `mediaType: "application/octet-stream"`, `digestMultibase`가 그대로 있었다. 받는 쪽 `lookupObject`가 다시 읽은 JSON도 같은 필드였다. Link의 href로 정적 파일 서버를 GET하자 200, 본문 18바이트였고, 그 바이트의 SHA-256을 multibase `u`로 인코딩한 값이 `digestMultibase`와 같았다.
+
+대조군은 두 가지다. 타입이 문자열 `"hatto:Deck"` 하나인 객체를 임베드한 Update는 `fromJsonLd`가 `Invalid type: hatto:Deck`으로 거절했다. 그 JSON을 서명한 POST로 인박스에 넣자 400이었고 본문은 `Invalid activity.`였다. 타입을 `["hatto:Deck", "Object"]`로 하고 `hatto:rev`를 넣은 뒤 `sendActivity`로 보내면, compact 결과는 `type: "Object"`와 `id`, `name`만 남고 `hatto:rev`는 null이었다. 인박스는 202였고, 리스너가 본 임베드 객체에도 `hatto:` 필드는 없었다. 같은 배열 타입과 `hatto:rev`, `hatto:guid`를 원문 JSON 그대로 다른 Activity id로 서명 POST하자 인박스는 202였고, 리스너가 파싱한 객체에는 타입 배열과 `hatto:rev: 2`, `hatto:guid: "embed"`가 남아 있었다. 받는 파서는 배열 타입과 확장 필드를 버릴 수 있다. 지우는 쪽은 `sendActivity`의 compact다.
+
+소셜 이벤트를 `Create{Note}`에 싣고 Hatto 데이터는 `hatto:` 확장 속성에 둔다는 전제는, 이 버전의 `sendActivity`와는 맞지 않는다. Note에 `hatto:deck`, `hatto:event`, `hatto:streakDays: 12`, `hatto:reviewCount: 40`, `hatto:measurementSource: "self-reported-device"`를 넣고 compact하면 남은 키는 `id`, `type`, `content`뿐이었다. 그 Create를 보내면 인박스는 202였고 와이어의 임베드 객체에 `hatto:` 키는 0개였다. 수신 측은 그 숫자를 복원할 수 없다.
+
+같은 내용을 표준 필드에 옮겨 compact하면 남는다. `tag`는 Link로 href와 name `deck-published`가 있고, `url`은 Link로 href와 `mediaType: "application/activity+json"`과 name `deck`이 있다. `attachment`는 `http://schema.org#PropertyValue`이고 name은 문자열 `hatto:event`, 값은 `deck-published`다. 스키마 용어가 짧은 이름으로 줄지는 않았지만 값 자체는 와이어에 있다. 이 방식으로는 덱 IRI와 이벤트 이름을 전달할 수 있다. `hatto:streakDays` 같은 확장 속성이 수신 객체의 필드로 살아 있는 것은 아니다.
+
+그 필드가 살아남은 경로는 디스패처다. Create의 object를 Note URI만 두고, `/notes/{id}` 디스패처가 원문 JSON을 `fromJsonLd`로 만들어 반환하게 하자 GET은 200이었고 `hatto:deck`, `hatto:event`, `hatto:streakDays`, `hatto:reviewCount`, `hatto:measurementSource`가 모두 있었다. 받는 인스턴스의 `lookupObject`도 같은 다섯 필드를 돌려줬다. 따라서 Create{Note}로 연합한다는 문장은 이렇게 고치는 편이 측정과 맞다. `sendActivity`가 compact하는 Note에는 `content`와 `tag`, `attachment`, `url`만 둔다. `hatto:deck`, `hatto:event`, 횟수, 측정 출처는 그 Note에 넣지 말고, 서버 디스패처가 원문으로 내보내는 객체의 필드로 둔 뒤 Create나 Update는 그 객체의 URI만 보낸다. 단일 타입 `hatto:Deck`을 Update에 임베드하는 길은 400이라 쓸 수 없다. 배열 타입을 임베드해도 `sendActivity`가 compact하는 순간 확장 필드는 사라진다.
+
+미리 로드되지 않은 `@context` URL은 파싱을 멈춘다. `https://hatto.invalid/ns.jsonld`를 컨텍스트에 넣자 `Dereferencing a URL did not result in a valid JSON-LD object`로 끝났고, 오류 문자열에 그 URL이 있었다. 같은 문서를 인스턴스가 `/contexts/hatto.jsonld`로 제공하고, ActivityStreams 컨텍스트는 Fedify에 이미 있는 로더에 맡기자 `fromJsonLd`가 성공했고 `hatto:rev`는 1이었다. 인라인 컨텍스트는 원격 조회가 없어서 위의 성공 경로들이 그 방식을 썼다.
+
+같은 Activity를 다시 보내는 동작과, rev가 역순으로 오는 동작은 갈린다. rev 1을 같은 Activity id로 두 번 보내고, 이어서 다른 Activity id로 같은 rev를 한 번 더 보냈다. 인박스는 세 번 모두 202였다. 리스너가 본 rev 목록은 `[1, 1]`이라 같은 id의 두 번째 POST는 리스너까지 오지 않았다. 다른 id의 재전송은 리스너에 도착했고, 앱의 `(guid, rev)` 환원기는 적용 1, 중복 1, head 1이었다. Fedify의 짧은 중복 제거는 Activity id에 기대고, 같은 rev를 다른 id로 다시 보내면 앱이 막아야 한다. rev 3을 보낸 다음 rev 1을 보내자 도착 순서는 `[3, 1]`이었고 head는 3에 남았으며, 늦은 rev 1은 저장만 되고 head를 뒤로 밀지 않았다(`olderKept: 1`, 저장된 rev `[1, 3]`). `orderingKey`는 guid로 넘겼지만 `immediate: true`라 큐가 없었고, 이 실행은 보낸 순서 그대로 도착했다. 큐가 역순을 막아 주는지는 재지 않았다.
+
+비공개 덱은 서명 없는 GET이 404였다. 허용 목록에 없는 alice가 자기 키로 서명한 GET도 404였다. 허용된 bob의 서명 GET은 200이었고, 디스패처가 본 서명 주체는 bob의 액터 id였다. 응답의 `hatto:rev`는 1, `hatto:guid`는 `private-deck`이었고, Link의 href는 정적 파일 서버의 서명 URL이었다. 그 URL은 200과 함께 다이제스트가 맞았다. 서명 URL의 수명은 1500ms였고, 그 시간에 250ms를 더 기다린 같은 URL은 404였다. 공개 객체와 달리 비공개 응답에는 만료 없는 CDN 경로를 넣지 않았다.
+

@@ -32,4 +32,6 @@ npm run stress
 
 `DATABASE_URL`의 기본값은 `.env.example`에 있다. `npm test`는 장애 주입과 불변식이고, `npm run stress`는 다수 읽기, LRU, WAL, 큰 덱이다. 테스트는 `--test-concurrency=1`이다. 둘은 같은 데이터베이스를 비우고 쓰므로 겹쳐 돌리지 않는다.
 
-결과 요약은 `results/summary.json`과 `results/checks.json`에 남는다. `dist/`와 덱 파일은 커밋하지 않는다.
+결과 요약은 `results/summary.json`과 `results/checks.json`에 남는다. Fedify 송수신 결과는 `results/fedify.json`이다. `dist/`와 덱 파일은 커밋하지 않는다.
+
+`npm test`에는 Fedify 2.4.5 인스턴스 두 개와 스냅샷용 정적 파일 서버가 들어 있다. Docker가 없어 MinIO는 쓰지 않았다. 그 측정은 [REPORT.md](REPORT.md)의 Fedify 섹션에 있다.
