@@ -38,8 +38,13 @@ export type Peer = {
   lastSigner: string | null;
   revs: Map<string, DeckRev>;
   notes: Map<string, unknown>;
+  /** Exact JSON object the rev dispatcher parses, when the caller wants a stable body. */
+  documents: Map<string, unknown>;
   onUpdate: (listener: PeerListener) => void;
   onCreate: (listener: PeerListener) => void;
+  onOffer: (listener: PeerListener) => void;
+  onAccept: (listener: PeerListener) => void;
+  onReject: (listener: PeerListener) => void;
   stop: () => Promise<void>;
 };
 
@@ -50,6 +55,7 @@ export async function startPeer(name: string, cdn: SnapshotCdn): Promise<Peer> {
   const ed = await fedify.generateCryptoKeyPair("Ed25519");
   const revs = new Map<string, DeckRev>();
   const notes = new Map<string, unknown>();
+  const documents = new Map<string, unknown>();
   const inboxPosts: InboxPost[] = [];
   const state: { lastSigner: string | null; federation: Peer["federation"] | null } = {
     lastSigner: null,
@@ -115,12 +121,24 @@ export async function startPeer(name: string, cdn: SnapshotCdn): Promise<Peer> {
     .setKeyPairsDispatcher(async () => [keys, ed]);
   const updateListeners: PeerListener[] = [];
   const createListeners: PeerListener[] = [];
+  const offerListeners: PeerListener[] = [];
+  const acceptListeners: PeerListener[] = [];
+  const rejectListeners: PeerListener[] = [];
   federation.setInboxListeners("/users/{identifier}/inbox")
     .on(vocab.Update, async (ctx, activity) => {
       for (const listener of updateListeners) await listener(ctx, activity);
     })
     .on(vocab.Create, async (ctx, activity) => {
       for (const listener of createListeners) await listener(ctx, activity);
+    })
+    .on(vocab.Offer, async (ctx, activity) => {
+      for (const listener of offerListeners) await listener(ctx, activity);
+    })
+    .on(vocab.Accept, async (ctx, activity) => {
+      for (const listener of acceptListeners) await listener(ctx, activity);
+    })
+    .on(vocab.Reject, async (ctx, activity) => {
+      for (const listener of rejectListeners) await listener(ctx, activity);
     });
   federation.setObjectDispatcher(vocab.Object, "/decks/{+key}", async (ctx, values) => {
       const parsed = parseDeckKey(String(values.key));
@@ -141,7 +159,7 @@ export async function startPeer(name: string, cdn: SnapshotCdn): Promise<Peer> {
       const href = rev.isPrivate
         ? cdn.signedUrl(rev.guid, rev.rev, SIGNED_URL_TTL_MS).url
         : cdn.publicUrl(rev.guid, rev.rev);
-      const document = {
+      const document = documents.get(`${parsed.guid}/${parsed.rev}`) ?? {
         "@context": INLINE_CONTEXTS,
         id: `${origin}/decks/${rev.guid}/revs/${rev.rev}`,
         type: ["hatto:Deck", "Object"],
@@ -179,11 +197,21 @@ export async function startPeer(name: string, cdn: SnapshotCdn): Promise<Peer> {
     },
     revs,
     notes,
+    documents,
     onUpdate(listener) {
       updateListeners.push(listener);
     },
     onCreate(listener) {
       createListeners.push(listener);
+    },
+    onOffer(listener) {
+      offerListeners.push(listener);
+    },
+    onAccept(listener) {
+      acceptListeners.push(listener);
+    },
+    onReject(listener) {
+      rejectListeners.push(listener);
     },
     async stop() {
       await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));

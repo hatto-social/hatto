@@ -28,6 +28,7 @@ export async function runFedifyLab(): Promise<Json> {
     report.createNote = await createNotes(alice, bob);
     report.dedup = await dedupAndOrder(alice, bob, cdn);
     report.privateDeck = await privateDeck(alice, bob, cdn);
+    report.forkMr = await forkAndMerge(alice, bob, cdn);
   } finally {
     await alice.stop();
     await bob.stop();
@@ -416,6 +417,285 @@ async function privateDeck(alice: Peer, bob: Peer, cdn: SnapshotCdn): Promise<Js
   };
 }
 
+async function forkAndMerge(alice: Peer, bob: Peer, cdn: SnapshotCdn): Promise<Json> {
+  const sourceGuid = "fork-source";
+  const forkGuid = "fork-copy";
+  const sourceRev = revUri(alice, sourceGuid, 4);
+  const deckUri = `${alice.origin}/decks/${sourceGuid}`;
+  const forkRev = revUri(bob, forkGuid, 1);
+  const sourceBytes = Buffer.from("fork-source-rev-4");
+  const forkBytes = Buffer.from("fork-copy-rev-1");
+  const sourceDigest = digestMultibase(sourceBytes);
+  const forkDigest = digestMultibase(forkBytes);
+  cdn.put({ guid: sourceGuid, rev: 4, bytes: sourceBytes, isPrivate: false });
+  cdn.put({ guid: forkGuid, rev: 1, bytes: forkBytes, isPrivate: false });
+  alice.revs.set(`${sourceGuid}/4`, revRecord(sourceGuid, 4, "원본", sourceBytes, sourceDigest));
+  bob.revs.set(`${forkGuid}/1`, revRecord(forkGuid, 1, "포크", forkBytes, forkDigest));
+  const forkDocument = {
+    "@context": INLINE_CONTEXTS,
+    id: forkRev,
+    type: ["hatto:Deck", "Object"],
+    name: "포크",
+    "hatto:rev": 1,
+    "hatto:guid": forkGuid,
+    url: {
+      type: "Link",
+      href: cdn.publicUrl(forkGuid, 1),
+      mediaType: "application/octet-stream",
+      digestMultibase: forkDigest,
+    },
+  };
+  bob.documents.set(`${forkGuid}/1`, forkDocument);
+  const originalText = JSON.stringify(forkDocument);
+
+  const uriCreate = new bob.vocab.Create({
+    id: new URL(forkActivityId(bob, forkGuid, 1)),
+    actor: new URL(bob.actorId),
+    object: new URL(forkRev),
+    origin: new URL(sourceRev),
+    contexts: [new URL(deckUri)],
+    to: new URL(alice.actorId),
+  });
+  const uriHeard: Json[] = [];
+  alice.onCreate(async (_ctx, activity) => {
+    const json = (await asActivity(activity).toJsonLd()) as Json;
+    if (json.id !== forkActivityId(bob, forkGuid, 1)) return;
+    uriHeard.push(activityFields(json));
+  });
+  const uriSend = await deliver(bob, alice, uriCreate, forkGuid);
+
+  const embeddedObject = await bob.vocab.Object.fromJsonLd(forkDocument);
+  const embeddedCreate = new bob.vocab.Create({
+    id: new URL(forkActivityId(bob, forkGuid, 2)),
+    actor: new URL(bob.actorId),
+    object: embeddedObject,
+    origin: new URL(sourceRev),
+    contexts: [new URL(deckUri)],
+    to: new URL(alice.actorId),
+  });
+  const embeddedHeard: Json[] = [];
+  alice.onCreate(async (_ctx, activity) => {
+    const json = (await asActivity(activity).toJsonLd()) as Json;
+    if (json.id !== forkActivityId(bob, forkGuid, 2)) return;
+    embeddedHeard.push(activityFields(json));
+  });
+  const embeddedSend = await deliver(bob, alice, embeddedCreate, forkGuid);
+
+  const unsigned = await fetch(forkRev, { headers: { accept: "application/activity+json" } });
+  const unsignedBody = await unsigned.text();
+  const signed = await signedGet(alice, forkRev);
+  const signedBody = signed.status === 200 ? await signed.response.text() : "";
+  const parsed = parseJson(unsignedBody);
+  const schemaErrors = validateRev(parsed, {
+    id: forkRev,
+    guid: forkGuid,
+    rev: 1,
+    digest: forkDigest,
+  });
+  const href = linkHref(parsed);
+  const snapshot = href ? await fetch(href) : null;
+  const snapshotBytes = snapshot ? Buffer.from(await snapshot.arrayBuffer()) : Buffer.alloc(0);
+
+  const controlDocument = {
+    "@context": INLINE_CONTEXTS,
+    id: forkActivityId(bob, forkGuid, 9),
+    type: "Create",
+    actor: bob.actorId,
+    to: alice.actorId,
+    object: forkRev,
+    origin: sourceRev,
+    context: deckUri,
+    "hatto:origin": sourceRev,
+    "hatto:context": deckUri,
+  };
+  let controlParse: string | null = null;
+  let controlSend: Json | null = null;
+  try {
+    const control = await bob.vocab.Create.fromJsonLd(controlDocument);
+    const compact = (await control.toJsonLd({ format: "compact" })) as Json;
+    controlParse = JSON.stringify(activityFields(compact));
+    controlSend = await deliver(bob, alice, control, forkGuid);
+  } catch (error) {
+    controlParse = message(error);
+  }
+
+  const offerId = `${bob.origin}/activities/mrs/mr-accept`;
+  const offer = new bob.vocab.Offer({
+    id: new URL(offerId),
+    actor: new URL(bob.actorId),
+    object: new URL(forkRev),
+    target: new URL(deckUri),
+    to: new URL(alice.actorId),
+  });
+  const offerHeard: Json[] = [];
+  alice.onOffer(async (_ctx, activity) => {
+    const json = (await asActivity(activity).toJsonLd()) as Json;
+    if (json.id !== offerId) return;
+    offerHeard.push(activityFields(json));
+  });
+  const offerSend = await deliver(bob, alice, offer, "mr-accept");
+  const acceptId = `${alice.origin}/activities/mrs/mr-accept/accept`;
+  const accept = new alice.vocab.Accept({
+    id: new URL(acceptId),
+    actor: new URL(alice.actorId),
+    object: new URL(offerId),
+    to: new URL(bob.actorId),
+  });
+  const acceptHeard: Json[] = [];
+  bob.onAccept(async (_ctx, activity) => {
+    const json = (await asActivity(activity).toJsonLd()) as Json;
+    if (json.id !== acceptId) return;
+    acceptHeard.push(activityFields(json));
+  });
+  const acceptSend = await deliver(alice, bob, accept, "mr-accept");
+
+  const rejectOfferId = `${bob.origin}/activities/mrs/mr-reject`;
+  const rejectOffer = new bob.vocab.Offer({
+    id: new URL(rejectOfferId),
+    actor: new URL(bob.actorId),
+    object: new URL(forkRev),
+    target: new URL(deckUri),
+    to: new URL(alice.actorId),
+  });
+  const rejectOfferHeard: Json[] = [];
+  alice.onOffer(async (_ctx, activity) => {
+    const json = (await asActivity(activity).toJsonLd()) as Json;
+    if (json.id !== rejectOfferId) return;
+    rejectOfferHeard.push(activityFields(json));
+  });
+  const rejectOfferSend = await deliver(bob, alice, rejectOffer, "mr-reject");
+  const rejectId = `${alice.origin}/activities/mrs/mr-reject/reject`;
+  const reject = new alice.vocab.Reject({
+    id: new URL(rejectId),
+    actor: new URL(alice.actorId),
+    object: new URL(rejectOfferId),
+    to: new URL(bob.actorId),
+  });
+  const rejectHeard: Json[] = [];
+  bob.onReject(async (_ctx, activity) => {
+    const json = (await asActivity(activity).toJsonLd()) as Json;
+    if (json.id !== rejectId) return;
+    rejectHeard.push(activityFields(json));
+  });
+  const rejectSend = await deliver(alice, bob, reject, "mr-reject");
+
+  const dupId = `${bob.origin}/activities/mrs/mr-dup`;
+  const dupLog = { offers: 0, duplicates: 0 };
+  alice.onOffer(async (_ctx, activity) => {
+    const json = (await asActivity(activity).toJsonLd()) as Json;
+    if (json.id !== dupId) return;
+    if (dupLog.offers === 0) dupLog.offers += 1;
+    else dupLog.duplicates += 1;
+  });
+  const dupOffer = new bob.vocab.Offer({
+    id: new URL(dupId),
+    actor: new URL(bob.actorId),
+    object: new URL(forkRev),
+    target: new URL(deckUri),
+    to: new URL(alice.actorId),
+  });
+  const dupFirst = await deliver(bob, alice, dupOffer, "mr-dup");
+  const dupSecond = await deliver(bob, alice, dupOffer, "mr-dup");
+
+  const earlyOfferId = `${bob.origin}/activities/mrs/mr-early`;
+  const earlyAcceptId = `${alice.origin}/activities/mrs/mr-early/accept`;
+  const early: string[] = [];
+  alice.onAccept(async (_ctx, activity) => {
+    const json = (await asActivity(activity).toJsonLd()) as Json;
+    if (json.id !== earlyAcceptId) return;
+    early.push("accept");
+  });
+  alice.onOffer(async (_ctx, activity) => {
+    const json = (await asActivity(activity).toJsonLd()) as Json;
+    if (json.id !== earlyOfferId) return;
+    early.push("offer");
+  });
+  const earlyAccept = new alice.vocab.Accept({
+    id: new URL(earlyAcceptId),
+    actor: new URL(alice.actorId),
+    object: new URL(earlyOfferId),
+    to: new URL(alice.actorId),
+  });
+  const earlyOffer = new bob.vocab.Offer({
+    id: new URL(earlyOfferId),
+    actor: new URL(bob.actorId),
+    object: new URL(forkRev),
+    target: new URL(deckUri),
+    to: new URL(alice.actorId),
+  });
+  const earlyAcceptSend = await deliver(alice, alice, earlyAccept, "mr-early");
+  const earlyOfferSend = await deliver(bob, alice, earlyOffer, "mr-early");
+
+  return {
+    uriSend,
+    uriWire: uriSend,
+    uriHeard,
+    embeddedSend,
+    embeddedHeard,
+    fetch: {
+      unsignedStatus: unsigned.status,
+      signedStatus: signed.status,
+      byteEqualToOriginal: unsignedBody === originalText,
+      signedByteEqual: signedBody === unsignedBody,
+      unsignedBytes: Buffer.byteLength(unsignedBody),
+      originalBytes: Buffer.byteLength(originalText),
+      schemaErrors,
+      snapshotStatus: snapshot?.status ?? null,
+      snapshotBytes: snapshotBytes.length,
+      digestOk: href ? digestMatches(snapshotBytes, forkDigest) : false,
+    },
+    control: { parsed: controlParse, send: controlSend },
+    acceptFlow: { offerSend, offerHeard, acceptSend, acceptHeard },
+    rejectFlow: { offerSend: rejectOfferSend, offerHeard: rejectOfferHeard, rejectSend, rejectHeard },
+    duplicateOffer: {
+      listenerOffers: dupLog.offers,
+      listenerDuplicates: dupLog.duplicates,
+      first: dupFirst,
+      second: dupSecond,
+    },
+    acceptBeforeOffer: { order: early, acceptSend: earlyAcceptSend, offerSend: earlyOfferSend },
+  };
+}
+
+function revRecord(guid: string, rev: number, title: string, bytes: Buffer, digest: string) {
+  return { guid, rev, title, bytes, digest, isPrivate: false, readers: new Set<string>() };
+}
+
+function forkActivityId(peer: Peer, guid: string, rev: number): string {
+  return `${peer.origin}/activities/forks/${guid}/revs/${rev}`;
+}
+
+function activityFields(json: Json): Json {
+  const objectValue = json.object;
+  const embedded = typeof objectValue === "object" && objectValue != null ? (objectValue as Json) : null;
+  return {
+    type: json.type ?? null,
+    object: typeof objectValue === "string" ? objectValue : embedded?.type ?? null,
+    embeddedKeys: embedded ? Object.keys(embedded) : [],
+    embeddedHatto: embedded ? Object.keys(embedded).filter((key) => key.startsWith("hatto:")) : [],
+    embeddedUrl: embedded?.url ?? null,
+    origin: json.origin ?? null,
+    context: json.context ?? null,
+    target: json.target ?? null,
+    hatto: Object.keys(json).filter((key) => key.startsWith("hatto:")),
+  };
+}
+
+function validateRev(json: Json, expected: { id: string; guid: string; rev: number; digest: string }): string[] {
+  const errors: string[] = [];
+  const types = Array.isArray(json.type) ? json.type.map(String) : [String(json.type ?? "")];
+  if (!types.includes("hatto:Deck") || !types.includes("Object")) errors.push("type");
+  if (json.id !== expected.id) errors.push("id");
+  if (json["hatto:rev"] !== expected.rev) errors.push("rev");
+  if (json["hatto:guid"] !== expected.guid) errors.push("guid");
+  const url = typeof json.url === "object" && json.url != null ? (json.url as Json) : {};
+  if (url.type !== "Link") errors.push("url.type");
+  if (typeof url.href !== "string") errors.push("url.href");
+  if (url.mediaType !== "application/octet-stream") errors.push("url.mediaType");
+  if (url.digestMultibase !== expected.digest) errors.push("url.digestMultibase");
+  return errors;
+}
+
 async function deliver(
   sender: Peer,
   receiver: Peer,
@@ -549,8 +829,14 @@ function summarizePost(post: { status: number; body: string }): Json {
   const embedded = typeof objectValue === "object" && objectValue != null ? (objectValue as Json) : null;
   return {
     status: post.status,
+    type: json.type ?? null,
     object: typeof objectValue === "string" ? objectValue : embedded?.type ?? null,
+    origin: json.origin ?? null,
+    context: json.context ?? null,
+    target: json.target ?? null,
     hattoKeys: embedded ? Object.keys(embedded).filter((key) => key.startsWith("hatto:") || key === "rev" || key === "guid") : [],
+    activityHatto: Object.keys(json).filter((key) => key.startsWith("hatto:")),
+    objectUrl: embedded?.url ?? null,
   };
 }
 

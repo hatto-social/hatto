@@ -1,9 +1,9 @@
 {
   "fedify": "2.4.5",
   "cdn": "static-file-server",
-  "cdnOrigin": "http://127.0.0.1:37201",
-  "alice": "http://127.0.0.1:38059",
-  "bob": "http://127.0.0.1:36207",
+  "cdnOrigin": "http://127.0.0.1:33701",
+  "alice": "http://127.0.0.1:39893",
+  "bob": "http://127.0.0.1:37289",
   "signedUrlTtlMs": 1500,
   "context": {
     "missing": "Dereferencing a URL did not result in a valid JSON-LD object. Possible causes are an inaccessible URL perhaps due to a same-origin policy (ensure the server uses CORS if you are using client-side JavaScript), too many redirects, a non-JSON response, or more than one HTTP Link Header was provided for a remote context. URL: \"https://hatto.invalid/ns.jsonld\".",
@@ -22,15 +22,21 @@
       "posts": [
         {
           "status": 202,
-          "object": "http://127.0.0.1:38059/decks/public-deck/revs/2",
-          "hattoKeys": []
+          "type": "Update",
+          "object": "http://127.0.0.1:39893/decks/public-deck/revs/2",
+          "origin": null,
+          "context": null,
+          "target": null,
+          "hattoKeys": [],
+          "activityHatto": [],
+          "objectUrl": null
         }
       ]
     },
     "listener": [
       {
-        "id": "http://127.0.0.1:38059/activities/decks/public-deck/revs/2",
-        "object": "http://127.0.0.1:38059/decks/public-deck/revs/2",
+        "id": "http://127.0.0.1:39893/activities/decks/public-deck/revs/2",
+        "object": "http://127.0.0.1:39893/decks/public-deck/revs/2",
         "fetchStatus": 200,
         "fetchBody": {
           "@context": [
@@ -49,7 +55,7 @@
               "measurementSource": "hatto:measurementSource"
             }
           ],
-          "id": "http://127.0.0.1:38059/decks/public-deck/revs/2",
+          "id": "http://127.0.0.1:39893/decks/public-deck/revs/2",
           "type": [
             "hatto:Deck",
             "Object"
@@ -59,7 +65,7 @@
           "hatto:guid": "public-deck",
           "url": {
             "type": "Link",
-            "href": "http://127.0.0.1:37201/snapshots/public-deck/2",
+            "href": "http://127.0.0.1:33701/snapshots/public-deck/2",
             "mediaType": "application/octet-stream",
             "digestMultibase": "u2Y_RqSYPhXGpTkVKD__xPDb0M7suBcYiPgp7PcMnx1Q"
           }
@@ -81,7 +87,7 @@
               "measurementSource": "hatto:measurementSource"
             }
           ],
-          "id": "http://127.0.0.1:38059/decks/public-deck/revs/2",
+          "id": "http://127.0.0.1:39893/decks/public-deck/revs/2",
           "type": [
             "hatto:Deck",
             "Object"
@@ -91,7 +97,7 @@
           "hatto:guid": "public-deck",
           "url": {
             "type": "Link",
-            "href": "http://127.0.0.1:37201/snapshots/public-deck/2",
+            "href": "http://127.0.0.1:33701/snapshots/public-deck/2",
             "mediaType": "application/octet-stream",
             "digestMultibase": "u2Y_RqSYPhXGpTkVKD__xPDb0M7suBcYiPgp7PcMnx1Q"
           }
@@ -117,7 +123,7 @@
           "measurementSource": "hatto:measurementSource"
         }
       ],
-      "id": "http://127.0.0.1:38059/decks/public-deck/revs/2",
+      "id": "http://127.0.0.1:39893/decks/public-deck/revs/2",
       "type": [
         "hatto:Deck",
         "Object"
@@ -127,7 +133,7 @@
       "hatto:guid": "public-deck",
       "url": {
         "type": "Link",
-        "href": "http://127.0.0.1:37201/snapshots/public-deck/2",
+        "href": "http://127.0.0.1:33701/snapshots/public-deck/2",
         "mediaType": "application/octet-stream",
         "digestMultibase": "u2Y_RqSYPhXGpTkVKD__xPDb0M7suBcYiPgp7PcMnx1Q"
       }
@@ -140,7 +146,7 @@
     "singleParse": "Invalid type: hatto:Deck",
     "singlePost": {
       "status": 400,
-      "keyId": "http://127.0.0.1:38059/users/alice#main-key",
+      "keyId": "http://127.0.0.1:39893/users/alice#main-key",
       "error": null,
       "body": "Invalid activity."
     },
@@ -149,8 +155,14 @@
       "posts": [
         {
           "status": 202,
+          "type": "Update",
           "object": "Object",
-          "hattoKeys": []
+          "origin": null,
+          "context": null,
+          "target": null,
+          "hattoKeys": [],
+          "activityHatto": [],
+          "objectUrl": null
         }
       ]
     },
@@ -165,23 +177,23 @@
     },
     "arrayPost": {
       "status": 202,
-      "keyId": "http://127.0.0.1:38059/users/alice#main-key",
+      "keyId": "http://127.0.0.1:39893/users/alice#main-key",
       "error": null,
       "body": ""
     },
     "listener": [
       {
-        "id": "http://127.0.0.1:38059/activities/decks/embed/revs/2",
+        "id": "http://127.0.0.1:39893/activities/decks/embed/revs/2",
         "embedded": {
-          "id": "http://127.0.0.1:38059/decks/embed/revs/2",
+          "id": "http://127.0.0.1:39893/decks/embed/revs/2",
           "type": "Object",
           "name": "임베드"
         }
       },
       {
-        "id": "http://127.0.0.1:38059/activities/decks/embed/revs/2-raw",
+        "id": "http://127.0.0.1:39893/activities/decks/embed/revs/2-raw",
         "embedded": {
-          "id": "http://127.0.0.1:38059/decks/embed/revs/2",
+          "id": "http://127.0.0.1:39893/decks/embed/revs/2",
           "type": [
             "hatto:Deck",
             "Object"
@@ -195,19 +207,31 @@
     "wire": [
       {
         "status": 202,
+        "type": "Update",
         "object": "Object",
-        "hattoKeys": []
+        "origin": null,
+        "context": null,
+        "target": null,
+        "hattoKeys": [],
+        "activityHatto": [],
+        "objectUrl": null
       },
       {
         "status": 202,
+        "type": "Update",
         "object": [
           "hatto:Deck",
           "Object"
         ],
+        "origin": null,
+        "context": null,
+        "target": null,
         "hattoKeys": [
           "hatto:rev",
           "hatto:guid"
-        ]
+        ],
+        "activityHatto": [],
+        "objectUrl": null
       }
     ]
   },
@@ -229,8 +253,14 @@
       "posts": [
         {
           "status": 202,
+          "type": "Create",
           "object": "Note",
-          "hattoKeys": []
+          "origin": null,
+          "context": null,
+          "target": null,
+          "hattoKeys": [],
+          "activityHatto": [],
+          "objectUrl": null
         }
       ]
     },
@@ -247,7 +277,7 @@
       "hatto": [],
       "tag": {
         "type": "Link",
-        "href": "http://127.0.0.1:38059/decks/social",
+        "href": "http://127.0.0.1:39893/decks/social",
         "name": "deck-published"
       },
       "attachment": {
@@ -257,7 +287,7 @@
       },
       "url": {
         "type": "Link",
-        "href": "http://127.0.0.1:38059/decks/social",
+        "href": "http://127.0.0.1:39893/decks/social",
         "mediaType": "application/activity+json",
         "name": "deck"
       }
@@ -267,8 +297,19 @@
       "posts": [
         {
           "status": 202,
+          "type": "Create",
           "object": "Note",
-          "hattoKeys": []
+          "origin": null,
+          "context": null,
+          "target": null,
+          "hattoKeys": [],
+          "activityHatto": [],
+          "objectUrl": {
+            "type": "Link",
+            "href": "http://127.0.0.1:39893/decks/social",
+            "mediaType": "application/activity+json",
+            "name": "deck"
+          }
         }
       ]
     },
@@ -277,8 +318,14 @@
       "posts": [
         {
           "status": 202,
-          "object": "http://127.0.0.1:38059/notes/separate",
-          "hattoKeys": []
+          "type": "Create",
+          "object": "http://127.0.0.1:39893/notes/separate",
+          "origin": null,
+          "context": null,
+          "target": null,
+          "hattoKeys": [],
+          "activityHatto": [],
+          "objectUrl": null
         }
       ]
     },
@@ -301,10 +348,10 @@
             "measurementSource": "hatto:measurementSource"
           }
         ],
-        "id": "http://127.0.0.1:38059/notes/separate",
+        "id": "http://127.0.0.1:39893/notes/separate",
         "type": "Note",
         "content": "덱을 공개했습니다",
-        "hatto:deck": "http://127.0.0.1:38059/decks/social",
+        "hatto:deck": "http://127.0.0.1:39893/decks/social",
         "hatto:event": "deck-published",
         "hatto:streakDays": 12,
         "hatto:reviewCount": 40,
@@ -313,8 +360,8 @@
     },
     "listener": [
       {
-        "id": "http://127.0.0.1:38059/activities/notes/separate",
-        "object": "http://127.0.0.1:38059/notes/separate",
+        "id": "http://127.0.0.1:39893/activities/notes/separate",
+        "object": "http://127.0.0.1:39893/notes/separate",
         "fetchStatus": 200,
         "fetchBody": {
           "@context": [
@@ -333,10 +380,10 @@
               "measurementSource": "hatto:measurementSource"
             }
           ],
-          "id": "http://127.0.0.1:38059/notes/separate",
+          "id": "http://127.0.0.1:39893/notes/separate",
           "type": "Note",
           "content": "덱을 공개했습니다",
-          "hatto:deck": "http://127.0.0.1:38059/decks/social",
+          "hatto:deck": "http://127.0.0.1:39893/decks/social",
           "hatto:event": "deck-published",
           "hatto:streakDays": 12,
           "hatto:reviewCount": 40,
@@ -359,10 +406,10 @@
               "measurementSource": "hatto:measurementSource"
             }
           ],
-          "id": "http://127.0.0.1:38059/notes/separate",
+          "id": "http://127.0.0.1:39893/notes/separate",
           "type": "Note",
           "content": "덱을 공개했습니다",
-          "hatto:deck": "http://127.0.0.1:38059/decks/social",
+          "hatto:deck": "http://127.0.0.1:39893/decks/social",
           "hatto:event": "deck-published",
           "hatto:streakDays": 12,
           "hatto:reviewCount": 40,
@@ -405,16 +452,330 @@
   "privateDeck": {
     "unsignedStatus": 404,
     "strangerStatus": 404,
-    "strangerKeyId": "http://127.0.0.1:38059/users/alice#main-key",
+    "strangerKeyId": "http://127.0.0.1:39893/users/alice#main-key",
     "ownerStatus": 200,
-    "ownerKeyId": "http://127.0.0.1:36207/users/bob#main-key",
+    "ownerKeyId": "http://127.0.0.1:37289/users/bob#main-key",
     "ownerError": null,
-    "lastSigner": "http://127.0.0.1:36207/users/bob",
+    "lastSigner": "http://127.0.0.1:37289/users/bob",
     "ownerHattoRev": 1,
     "ownerHattoGuid": "private-deck",
     "snapshotStatus": 200,
     "digestOk": true,
     "expiredStatus": 404,
-    "href": "http://127.0.0.1:37201/snapshots/private-deck/1?exp=1794481848236&sig=K4L1GwCRe6iazNk3Hs0N4Zkblvi0mc4OgZd0nM4IgnI"
+    "href": "http://127.0.0.1:33701/snapshots/private-deck/1?exp=1794482997089&sig=qRGDzsppDyyHz_qHQv83CAPADcyDaTB2Jc5lhzCV9b0"
+  },
+  "forkMr": {
+    "uriSend": {
+      "error": null,
+      "posts": [
+        {
+          "status": 202,
+          "type": "Create",
+          "object": "http://127.0.0.1:37289/decks/fork-copy/revs/1",
+          "origin": "http://127.0.0.1:39893/decks/fork-source/revs/4",
+          "context": "http://127.0.0.1:39893/decks/fork-source",
+          "target": null,
+          "hattoKeys": [],
+          "activityHatto": [],
+          "objectUrl": null
+        }
+      ]
+    },
+    "uriWire": {
+      "error": null,
+      "posts": [
+        {
+          "status": 202,
+          "type": "Create",
+          "object": "http://127.0.0.1:37289/decks/fork-copy/revs/1",
+          "origin": "http://127.0.0.1:39893/decks/fork-source/revs/4",
+          "context": "http://127.0.0.1:39893/decks/fork-source",
+          "target": null,
+          "hattoKeys": [],
+          "activityHatto": [],
+          "objectUrl": null
+        }
+      ]
+    },
+    "uriHeard": [
+      {
+        "type": "Create",
+        "object": "http://127.0.0.1:37289/decks/fork-copy/revs/1",
+        "embeddedKeys": [],
+        "embeddedHatto": [],
+        "embeddedUrl": null,
+        "origin": "http://127.0.0.1:39893/decks/fork-source/revs/4",
+        "context": "http://127.0.0.1:39893/decks/fork-source",
+        "target": null,
+        "hatto": []
+      }
+    ],
+    "embeddedSend": {
+      "error": null,
+      "posts": [
+        {
+          "status": 202,
+          "type": "Create",
+          "object": "Object",
+          "origin": "http://127.0.0.1:39893/decks/fork-source/revs/4",
+          "context": "http://127.0.0.1:39893/decks/fork-source",
+          "target": null,
+          "hattoKeys": [],
+          "activityHatto": [],
+          "objectUrl": {
+            "type": "Link",
+            "href": "http://127.0.0.1:33701/snapshots/fork-copy/1",
+            "mediaType": "application/octet-stream"
+          }
+        }
+      ]
+    },
+    "embeddedHeard": [
+      {
+        "type": "Create",
+        "object": "Object",
+        "embeddedKeys": [
+          "id",
+          "type",
+          "name",
+          "url"
+        ],
+        "embeddedHatto": [],
+        "embeddedUrl": {
+          "type": "Link",
+          "href": "http://127.0.0.1:33701/snapshots/fork-copy/1",
+          "mediaType": "application/octet-stream"
+        },
+        "origin": "http://127.0.0.1:39893/decks/fork-source/revs/4",
+        "context": "http://127.0.0.1:39893/decks/fork-source",
+        "target": null,
+        "hatto": []
+      }
+    ],
+    "fetch": {
+      "unsignedStatus": 200,
+      "signedStatus": 200,
+      "byteEqualToOriginal": true,
+      "signedByteEqual": true,
+      "unsignedBytes": 624,
+      "originalBytes": 624,
+      "schemaErrors": [],
+      "snapshotStatus": 200,
+      "snapshotBytes": 15,
+      "digestOk": true
+    },
+    "control": {
+      "parsed": "{\"type\":\"Create\",\"object\":\"http://127.0.0.1:37289/decks/fork-copy/revs/1\",\"embeddedKeys\":[],\"embeddedHatto\":[],\"embeddedUrl\":null,\"origin\":\"http://127.0.0.1:39893/decks/fork-source/revs/4\",\"context\":\"http://127.0.0.1:39893/decks/fork-source\",\"target\":null,\"hatto\":[]}",
+      "send": {
+        "error": null,
+        "posts": [
+          {
+            "status": 202,
+            "type": "Create",
+            "object": "http://127.0.0.1:37289/decks/fork-copy/revs/1",
+            "origin": "http://127.0.0.1:39893/decks/fork-source/revs/4",
+            "context": "http://127.0.0.1:39893/decks/fork-source",
+            "target": null,
+            "hattoKeys": [],
+            "activityHatto": [],
+            "objectUrl": null
+          }
+        ]
+      }
+    },
+    "acceptFlow": {
+      "offerSend": {
+        "error": null,
+        "posts": [
+          {
+            "status": 202,
+            "type": "Offer",
+            "object": "http://127.0.0.1:37289/decks/fork-copy/revs/1",
+            "origin": null,
+            "context": null,
+            "target": "http://127.0.0.1:39893/decks/fork-source",
+            "hattoKeys": [],
+            "activityHatto": [],
+            "objectUrl": null
+          }
+        ]
+      },
+      "offerHeard": [
+        {
+          "type": "Offer",
+          "object": "http://127.0.0.1:37289/decks/fork-copy/revs/1",
+          "embeddedKeys": [],
+          "embeddedHatto": [],
+          "embeddedUrl": null,
+          "origin": null,
+          "context": null,
+          "target": "http://127.0.0.1:39893/decks/fork-source",
+          "hatto": []
+        }
+      ],
+      "acceptSend": {
+        "error": null,
+        "posts": [
+          {
+            "status": 202,
+            "type": "Accept",
+            "object": "http://127.0.0.1:37289/activities/mrs/mr-accept",
+            "origin": null,
+            "context": null,
+            "target": null,
+            "hattoKeys": [],
+            "activityHatto": [],
+            "objectUrl": null
+          }
+        ]
+      },
+      "acceptHeard": [
+        {
+          "type": "Accept",
+          "object": "http://127.0.0.1:37289/activities/mrs/mr-accept",
+          "embeddedKeys": [],
+          "embeddedHatto": [],
+          "embeddedUrl": null,
+          "origin": null,
+          "context": null,
+          "target": null,
+          "hatto": []
+        }
+      ]
+    },
+    "rejectFlow": {
+      "offerSend": {
+        "error": null,
+        "posts": [
+          {
+            "status": 202,
+            "type": "Offer",
+            "object": "http://127.0.0.1:37289/decks/fork-copy/revs/1",
+            "origin": null,
+            "context": null,
+            "target": "http://127.0.0.1:39893/decks/fork-source",
+            "hattoKeys": [],
+            "activityHatto": [],
+            "objectUrl": null
+          }
+        ]
+      },
+      "offerHeard": [
+        {
+          "type": "Offer",
+          "object": "http://127.0.0.1:37289/decks/fork-copy/revs/1",
+          "embeddedKeys": [],
+          "embeddedHatto": [],
+          "embeddedUrl": null,
+          "origin": null,
+          "context": null,
+          "target": "http://127.0.0.1:39893/decks/fork-source",
+          "hatto": []
+        }
+      ],
+      "rejectSend": {
+        "error": null,
+        "posts": [
+          {
+            "status": 202,
+            "type": "Reject",
+            "object": "http://127.0.0.1:37289/activities/mrs/mr-reject",
+            "origin": null,
+            "context": null,
+            "target": null,
+            "hattoKeys": [],
+            "activityHatto": [],
+            "objectUrl": null
+          }
+        ]
+      },
+      "rejectHeard": [
+        {
+          "type": "Reject",
+          "object": "http://127.0.0.1:37289/activities/mrs/mr-reject",
+          "embeddedKeys": [],
+          "embeddedHatto": [],
+          "embeddedUrl": null,
+          "origin": null,
+          "context": null,
+          "target": null,
+          "hatto": []
+        }
+      ]
+    },
+    "duplicateOffer": {
+      "listenerOffers": 1,
+      "listenerDuplicates": 0,
+      "first": {
+        "error": null,
+        "posts": [
+          {
+            "status": 202,
+            "type": "Offer",
+            "object": "http://127.0.0.1:37289/decks/fork-copy/revs/1",
+            "origin": null,
+            "context": null,
+            "target": "http://127.0.0.1:39893/decks/fork-source",
+            "hattoKeys": [],
+            "activityHatto": [],
+            "objectUrl": null
+          }
+        ]
+      },
+      "second": {
+        "error": null,
+        "posts": [
+          {
+            "status": 202,
+            "type": "Offer",
+            "object": "http://127.0.0.1:37289/decks/fork-copy/revs/1",
+            "origin": null,
+            "context": null,
+            "target": "http://127.0.0.1:39893/decks/fork-source",
+            "hattoKeys": [],
+            "activityHatto": [],
+            "objectUrl": null
+          }
+        ]
+      }
+    },
+    "acceptBeforeOffer": {
+      "order": [
+        "accept",
+        "offer"
+      ],
+      "acceptSend": {
+        "error": null,
+        "posts": [
+          {
+            "status": 202,
+            "type": "Accept",
+            "object": "http://127.0.0.1:37289/activities/mrs/mr-early",
+            "origin": null,
+            "context": null,
+            "target": null,
+            "hattoKeys": [],
+            "activityHatto": [],
+            "objectUrl": null
+          }
+        ]
+      },
+      "offerSend": {
+        "error": null,
+        "posts": [
+          {
+            "status": 202,
+            "type": "Offer",
+            "object": "http://127.0.0.1:37289/decks/fork-copy/revs/1",
+            "origin": null,
+            "context": null,
+            "target": "http://127.0.0.1:39893/decks/fork-source",
+            "hattoKeys": [],
+            "activityHatto": [],
+            "objectUrl": null
+          }
+        ]
+      }
+    }
   }
 }
