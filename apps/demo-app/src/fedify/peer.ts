@@ -1,5 +1,6 @@
 import http from "node:http";
 import type { Federation } from "@fedify/fedify";
+import { IdempotenceClock } from "./clock-kv";
 import { INLINE_CONTEXTS, contextDocument } from "./context-doc";
 import type { SnapshotCdn } from "./snapshot-cdn";
 
@@ -14,6 +15,8 @@ export type DeckRev = {
   digest: string;
   isPrivate: boolean;
   readers: Set<string>;
+  owner?: string;
+  origin?: string;
 };
 
 export type InboxPost = {
@@ -40,6 +43,9 @@ export type Peer = {
   notes: Map<string, unknown>;
   /** Exact JSON object the rev dispatcher parses, when the caller wants a stable body. */
   documents: Map<string, unknown>;
+  /** Compact activity JSON keyed by pathname, so the activity id answers GET. */
+  activities: Map<string, unknown>;
+  clock: IdempotenceClock;
   onUpdate: (listener: PeerListener) => void;
   onCreate: (listener: PeerListener) => void;
   onOffer: (listener: PeerListener) => void;
@@ -56,6 +62,8 @@ export async function startPeer(name: string, cdn: SnapshotCdn): Promise<Peer> {
   const revs = new Map<string, DeckRev>();
   const notes = new Map<string, unknown>();
   const documents = new Map<string, unknown>();
+  const activities = new Map<string, unknown>();
+  const clock = new IdempotenceClock();
   const inboxPosts: InboxPost[] = [];
   const state: { lastSigner: string | null; federation: Peer["federation"] | null } = {
     lastSigner: null,
@@ -101,7 +109,7 @@ export async function startPeer(name: string, cdn: SnapshotCdn): Promise<Peer> {
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const origin = peerOrigin(server);
   const federation = fedify.createFederation<void>({
-    kv: new fedify.MemoryKvStore(),
+    kv: clock,
     origin,
     allowPrivateAddress: true,
   });
@@ -141,9 +149,11 @@ export async function startPeer(name: string, cdn: SnapshotCdn): Promise<Peer> {
       for (const listener of rejectListeners) await listener(ctx, activity);
     });
   federation.setObjectDispatcher(vocab.Object, "/decks/{+key}", async (ctx, values) => {
-      const parsed = parseDeckKey(String(values.key));
-      if (!parsed) return null;
-      const rev = revs.get(`${parsed.guid}/${parsed.rev}`);
+      const key = String(values.key);
+      const parsed = parseDeckKey(key);
+      const rev = parsed
+        ? revs.get(`${parsed.guid}/${parsed.rev}`)
+        : currentRev(revs, key);
       if (!rev) return null;
       let signerHref: string | null = null;
       try {
@@ -156,6 +166,18 @@ export async function startPeer(name: string, cdn: SnapshotCdn): Promise<Peer> {
       if (rev.isPrivate) {
         if (state.lastSigner == null || !rev.readers.has(state.lastSigner)) return null;
       }
+      if (!parsed) {
+        return vocab.Object.fromJsonLd({
+          "@context": INLINE_CONTEXTS,
+          id: `${origin}/decks/${rev.guid}`,
+          type: ["hatto:Deck", "Object"],
+          name: rev.title,
+          ...(rev.owner ? { attributedTo: rev.owner } : {}),
+          ...(rev.origin ? { origin: rev.origin } : {}),
+          "hatto:rev": rev.rev,
+          "hatto:guid": rev.guid,
+        });
+      }
       const href = rev.isPrivate
         ? cdn.signedUrl(rev.guid, rev.rev, SIGNED_URL_TTL_MS).url
         : cdn.publicUrl(rev.guid, rev.rev);
@@ -164,6 +186,8 @@ export async function startPeer(name: string, cdn: SnapshotCdn): Promise<Peer> {
         id: `${origin}/decks/${rev.guid}/revs/${rev.rev}`,
         type: ["hatto:Deck", "Object"],
         name: rev.title,
+        ...(rev.owner ? { attributedTo: rev.owner } : {}),
+        ...(rev.origin ? { origin: rev.origin } : {}),
         "hatto:rev": rev.rev,
         "hatto:guid": rev.guid,
         url: {
@@ -175,6 +199,43 @@ export async function startPeer(name: string, cdn: SnapshotCdn): Promise<Peer> {
       };
       return vocab.Object.fromJsonLd(document);
     });
+  const activityDispatcher = (
+    prefix: string,
+    parse: (document: unknown) => Promise<InstanceType<VocabModule["Object"]>>,
+  ) => {
+    return async (_ctx: unknown, values: Record<string, string>) => {
+      const key = values.key ?? values.guid;
+      if (!key) return null;
+      const document = activities.get(`${prefix}/${key}`);
+      if (!document) return null;
+      return parse(document);
+    };
+  };
+  federation.setObjectDispatcher(
+    vocab.Create,
+    "/activities/forks/{+key}",
+    activityDispatcher("/activities/forks", (document) => vocab.Create.fromJsonLd(document)),
+  );
+  federation.setObjectDispatcher(
+    vocab.Offer,
+    "/activities/offers/{+key}",
+    activityDispatcher("/activities/offers", (document) => vocab.Offer.fromJsonLd(document)),
+  );
+  federation.setObjectDispatcher(
+    vocab.Accept,
+    "/activities/accepts/{+key}",
+    activityDispatcher("/activities/accepts", (document) => vocab.Accept.fromJsonLd(document)),
+  );
+  federation.setObjectDispatcher(
+    vocab.Reject,
+    "/activities/rejects/{+key}",
+    activityDispatcher("/activities/rejects", (document) => vocab.Reject.fromJsonLd(document)),
+  );
+  federation.setObjectDispatcher(
+    vocab.Article,
+    "/activities/merges/{+key}",
+    activityDispatcher("/activities/merges", (document) => vocab.Article.fromJsonLd(document)),
+  );
   federation.setObjectDispatcher(vocab.Note, "/notes/{id}", async (_ctx, values) => {
     const document = notes.get(String(values.id));
     if (!document) return null;
@@ -198,6 +259,8 @@ export async function startPeer(name: string, cdn: SnapshotCdn): Promise<Peer> {
     revs,
     notes,
     documents,
+    activities,
+    clock,
     onUpdate(listener) {
       updateListeners.push(listener);
     },
@@ -223,6 +286,15 @@ function peerOrigin(server: http.Server): string {
   const address = server.address();
   if (address == null || typeof address === "string") throw new Error("peer did not bind");
   return `http://127.0.0.1:${address.port}`;
+}
+
+function currentRev(revs: Map<string, DeckRev>, guid: string): DeckRev | undefined {
+  let found: DeckRev | undefined;
+  for (const rev of revs.values()) {
+    if (rev.guid !== guid) continue;
+    if (!found || rev.rev > found.rev) found = rev;
+  }
+  return found;
 }
 
 export function parseDeckKey(key: string): { guid: string; rev: number } | null {

@@ -42,3 +42,20 @@ export class RevReducer {
     return "older";
   }
 }
+
+/** App-level dedup for merge requests. The key is the Offer id. */
+export class OfferDedup {
+  readonly seen = new Set<string>();
+  applied = 0;
+  duplicates = 0;
+
+  apply(offerId: string): "applied" | "duplicate" {
+    if (this.seen.has(offerId)) {
+      this.duplicates += 1;
+      return "duplicate";
+    }
+    this.seen.add(offerId);
+    this.applied += 1;
+    return "applied";
+  }
+}

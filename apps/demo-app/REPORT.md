@@ -107,7 +107,7 @@ outbox는 포인터와 같은 트랜잭션이면 행의 유실과 중복은 없�
 
 ## Fedify로 덱 rev를 주고받기
 
-이 절은 `@fedify/fedify` 2.4.5를 고정해, origin이 다른 인스턴스 두 개를 `127.0.0.1`의 빈 포트에 띄우고 실제로 POST한 결과다. 스냅샷 바이트는 S3나 MinIO가 아니라 같은 머신의 정적 파일 서버가 내보냈다. Docker가 없어 그 둘을 띄우지 못했다. 파일 서버는 공개 객체는 경로만으로 주고, 비공개 객체는 `exp`와 HMAC `sig`가 맞고 만료 전일 때만 준다. 측정 명령은 `npx tsc -p tsconfig.json && node --test --test-concurrency=1 dist/test/fedify.test.js`이고, 그 단독 실행은 4.10초였다. 바로 이어서 돌린 `npm test` 31개 중 이 테스트는 3.16초였다. 원본은 `results/fedify.json`이다. 아래 상태 코드와 필드 유무는 그 실행에서 받은 응답이다.
+이 절은 `@fedify/fedify` 2.4.5를 고정해, origin이 다른 인스턴스 두 개를 `127.0.0.1`의 빈 포트에 띄우고 실제로 POST한 결과다. 스냅샷 바이트는 S3나 MinIO가 아니라 같은 머신의 정적 파일 서버가 내보냈다. Docker가 없어 그 둘을 띄우지 못했다. 파일 서버는 공개 객체는 경로만으로 주고, 비공개 객체는 `exp`와 HMAC `sig`가 맞고 만료 전일 때만 준다. 측정 명령은 `npx tsc -p tsconfig.json && node --test --test-concurrency=1 dist/test/fedify.test.js`이고, 그 단독 실행은 3.93초였다. 이어서 돌린 `npm test` 31개 중 이 테스트는 3.57초였고, 아래 시계 시각은 그 실행의 `results/fedify.json`이다. 원본은 `results/fedify.json`이다. 아래 상태 코드와 필드 유무는 그 실행에서 받은 응답이다.
 
 `sendActivity`는 활동을 보내기 전에 `toJsonLd({ format: "compact" })`로 다시 만든다. 이 경로는 알고 있는 어휘 필드만 남긴다. 객체 디스패처는 `toJsonLd`에 format을 넘기지 않아서, `fromJsonLd`가 캐시한 원문 JSON이 그대로 나간다. 그래서 같은 문서라도 보내는 함수가 다르면 `hatto:` 필드의 운명이 갈린다.
 
@@ -123,22 +123,26 @@ outbox는 포인터와 같은 트랜잭션이면 행의 유실과 중복은 없�
 
 미리 로드되지 않은 `@context` URL은 파싱을 멈춘다. `https://hatto.invalid/ns.jsonld`를 컨텍스트에 넣자 `Dereferencing a URL did not result in a valid JSON-LD object`로 끝났고, 오류 문자열에 그 URL이 있었다. 같은 문서를 인스턴스가 `/contexts/hatto.jsonld`로 제공하고, ActivityStreams 컨텍스트는 Fedify에 이미 있는 로더에 맡기자 `fromJsonLd`가 성공했고 `hatto:rev`는 1이었다. 인라인 컨텍스트는 원격 조회가 없어서 위의 성공 경로들이 그 방식을 썼다.
 
-같은 Activity를 다시 보내는 동작과, rev가 역순으로 오는 동작은 갈린다. rev 1을 같은 Activity id로 두 번 보내고, 이어서 다른 Activity id로 같은 rev를 한 번 더 보냈다. 인박스는 세 번 모두 202였다. 리스너가 본 rev 목록은 `[1, 1]`이라 같은 id의 두 번째 POST는 리스너까지 오지 않았다. 다른 id의 재전송은 리스너에 도착했고, 앱의 `(guid, rev)` 환원기는 적용 1, 중복 1, head 1이었다. Fedify의 짧은 중복 제거는 Activity id에 기대고, 같은 rev를 다른 id로 다시 보내면 앱이 막아야 한다. rev 3을 보낸 다음 rev 1을 보내자 도착 순서는 `[3, 1]`이었고 head는 3에 남았으며, 늦은 rev 1은 저장만 되고 head를 뒤로 밀지 않았다(`olderKept: 1`, 저장된 rev `[1, 3]`). `orderingKey`는 guid로 넘겼지만 `immediate: true`라 큐가 없었고, 이 실행은 보낸 순서 그대로 도착했다. 큐가 역순을 막아 주는지는 재지 않았다.
+같은 Activity를 다시 보내는 동작과, rev가 역순으로 오는 동작은 갈린다. rev 1을 같은 Activity id로 두 번 보내고, 이어서 다른 Activity id로 같은 rev를 한 번 더 보냈다. 인박스는 세 번 모두 202였다. 리스너가 본 rev 목록은 `[1, 1]`이다. 이 숫자는 활동 id를 자르지 않고, object URI를 GET한 본문의 `hatto:rev`다. 같은 id의 두 번째 POST는 리스너까지 오지 않았다. 다른 id의 재전송은 리스너에 도착했고, 앱의 `(guid, rev)` 환원기는 적용 1, 중복 1, head 1이었다. Fedify의 짧은 중복 제거는 Activity id에 기대고, 같은 rev를 다른 id로 다시 보내면 앱이 막아야 한다. rev 3을 보낸 다음 rev 1을 보내자 도착 순서는 `[3, 1]`이었고 head는 3에 남았으며, 늦은 rev 1은 저장만 되고 head를 뒤로 밀지 않았다(`olderKept: 1`, 저장된 rev `[1, 3]`). `orderingKey`는 guid로 넘겼지만 `immediate: true`라 큐가 없었고, 이 실행은 보낸 순서 그대로 도착했다. 큐가 역순을 막아 주는지는 재지 않았다.
 
 비공개 덱은 서명 없는 GET이 404였다. 허용 목록에 없는 alice가 자기 키로 서명한 GET도 404였다. 허용된 bob의 서명 GET은 200이었고, 디스패처가 본 서명 주체는 bob의 액터 id였다. 응답의 `hatto:rev`는 1, `hatto:guid`는 `private-deck`이었고, Link의 href는 정적 파일 서버의 서명 URL이었다. 그 URL은 200과 함께 다이제스트가 맞았다. 서명 URL의 수명은 1500ms였고, 그 시간에 250ms를 더 기다린 같은 URL은 404였다. 공개 객체와 달리 비공개 응답에는 만료 없는 CDN 경로를 넣지 않았다.
 
 ### Fork·MR
 
-Fork와 Merge Request도 같은 두 인스턴스와 같은 정적 파일 서버로 주고받았다. 활동에는 표준 필드와 URI만 넣고, 덱 본문의 `hatto:` 필드는 그 URI가 가리키는 디스패처 응답에만 두었다. 디스패처는 `fromJsonLd`가 돌려준 객체를 `clone`하지 않고 반환한다. 이 실행에서 그 응답의 HTTP 본문은 624바이트였고, 디스패처에 넣은 JSON을 `JSON.stringify`한 결과와 바이트가 같았다. Alice가 서명한 GET의 본문도 그 624바이트와 같았다.
+Fork와 Merge Request도 같은 두 인스턴스와 같은 정적 파일 서버로 주고받았다. 활동에는 표준 필드와 URI만 넣었다. 포크가 어느 rev에서 갈라졌는지는 덱 원문 JSON의 `origin`에 두었고, Create의 `origin`에는 같은 rev URI를 라우팅용으로 한 번 더 실었다. 디스패처는 `fromJsonLd`가 돌려준 객체를 `clone`하지 않고 반환한다. 그 원문을 서명 없이 GET한 본문은 733바이트였고, 넣어 둔 JSON을 `JSON.stringify`한 결과와 바이트가 같았다. Alice가 서명한 GET도 그 733바이트와 같았다. 스키마 검사 오류는 0개였다. 검사한 항목은 type에 `hatto:Deck`과 `Object`가 같이 있는지, id, `origin`이 원본 `/decks/fork-source/revs/4`인지, `hatto:rev: 1`, `hatto:guid: "fork-copy"`, Link의 href·mediaType·digestMultibase다. 스냅샷 GET은 200, 본문 15바이트였고 다이제스트가 맞았다.
 
-Fork는 Bob이 Alice에게 `Create`를 보내는 형태다. object는 새 덱 `/decks/fork-copy/revs/1`이고, origin은 원본 `/decks/fork-source/revs/4`, context는 원본 덱 `/decks/fork-source`다. object를 URI만 넣었을 때 인박스는 202였고, 리스너가 읽은 활동의 type은 `Create`, object와 origin과 context는 보낸 URI 그대로였다. `target`은 null이고 `hatto:` 키는 없었다. object를 객체로 임베드했을 때도 인박스는 202였고 origin과 context는 같은 URI로 남았다. 임베드된 객체의 키는 `id`, `type`, `name`, `url`뿐이었고 `hatto:` 키는 없었다. 그 `url`은 Link로 href와 `mediaType: "application/octet-stream"`은 있었으나 `digestMultibase`는 없었다. 임베드한 Create를 compact하면 다이제스트가 빠진다.
+Create의 object를 포크 rev URI만 넣고 `context`에 원본 덱 URI를 넣으면 인박스는 202였고, 리스너가 읽은 `origin`은 원본 rev URI, `context`는 원본 덱 URI였다. `context`를 빼면 인박스도 202였고 `origin`은 같은 rev URI로 남았으며 `context`는 null이었다. 두 활동의 `hatto:` 키는 없었다. object를 객체로 임베드한 Create도 인박스는 202였고 활동의 `origin`과 `context`는 남았다. 임베드된 객체의 키는 `id`, `type`, `attributedTo`, `name`, `url`뿐이었다. `hatto:` 키는 없었고, 원문에 있던 `origin`도 임베드 안에서는 null이었다. `url`의 `digestMultibase`도 없었다. 포크 원본은 임베드된 객체가 아니라 URI 뒤의 원문이 가지고 있다.
 
-URI만 넣은 쪽은 수신자가 그 URI를 다시 읽는다. 서명 없는 GET과 서명된 GET 모두 200이었고, 스키마 검사 오류는 0개였다. 검사한 항목은 type에 `hatto:Deck`과 `Object`가 같이 있는지, id와 `hatto:rev: 1`, `hatto:guid: "fork-copy"`, Link의 href·mediaType·digestMultibase다. 스냅샷 GET은 200, 본문 15바이트였고 다이제스트가 맞았다.
+같은 `origin`과 `context`를 `hatto:origin`, `hatto:context`로도 넣어 compact하면 그 두 키는 없어지고 표준 필드만 남는다. 그 Create의 인박스도 202였고, 와이어의 활동에 `hatto:` 키는 없었다.
 
-같은 origin과 context를 `hatto:origin`, `hatto:context`로도 넣어 compact하면 그 두 키는 없어지고, 표준 `origin`과 `context`만 남는다. 그 Create를 보낸 인박스도 202였고, 와이어의 활동에 `hatto:` 키는 없었다. 표준 필드는 라우팅에 쓸 수 있고, 같은 값을 확장 속성으로 옮기면 compact에서 사라진다.
+Merge Request는 `Offer`다. id에는 포크 guid `fork-copy`, rev `1`, target의 host와 덱 guid, 제출 순번이 들어 간다. 순번 1과 순번 2의 id는 달랐다. object는 포크 rev URI, target은 원본 덱 URI, `summary`는 `포크를 머지해 주세요`, `content`는 `fork-copy의 rev 1을 원본에 반영하고 싶습니다`다. compact와 와이어와 Alice의 리스너가 그 네 값을 그대로 봤고 인박스는 202였다. object의 host와 actor의 host는 같았고, 공개 덱이라 읽기 권한 검사는 통과했다.
 
-Merge Request는 `Offer`다. object는 포크 rev URI, target은 원본 덱 URI다. Alice의 Offer 리스너가 받았고 type은 `Offer`, target은 원본 덱 URI, object는 포크 rev URI였다. 인박스는 202였다. Alice가 `Accept`로 답할 때 object는 그 Offer의 URI만 넣었다. Bob의 Accept 리스너가 받았고 type은 `Accept`, object는 Offer URI였다. 인박스는 202였다. 다른 id의 Offer에 대한 `Reject`도 Bob의 Reject 리스너까지 갔고 type은 `Reject`, object는 그 Offer URI, 인박스는 202였다. Fedify 2.4.5는 Offer, Accept, Reject와 `target`을 만들고 보내고 리스너로 받을 수 있다. Accept와 Reject에는 target을 넣지 않았고, 받은 값도 null이었다.
+Alice의 `Accept`는 object에 그 Offer id만 넣었다. 하나는 `result`에 Alice가 만든 Article URI `/activities/merges/fork-copy/revs/1/n/1`을 넣었고, 다른 하나는 `result`에 병합 뒤 rev URI `/decks/fork-source/revs/5`를 넣었다. 둘 다 compact와 와이어와 Bob의 리스너에 `result`가 남았고 인박스는 202였다. Bob이 target 덱을 GET하자 200이었고 `attributedTo`는 Alice의 액터 id라, Accept를 보낸 actor가 소유자라는 검사는 통과했다. `Reject`의 `content`는 `범위가 원본과 다릅니다`였고, compact와 리스너에 그 문자열이 남았으며 object는 거절한 Offer의 id, 인박스는 202였다. 이 실험에서 만든 활동 id 21개를 GET하면 모두 200이었고, 응답의 id는 요청한 URI와 같았다. 21개 안에는 Create, Offer, Accept, Reject, 병합 Article, 병합 rev가 들어 있다.
 
-같은 Offer id를 두 번 보내면 인박스는 둘 다 202였다. 리스너는 한 번만 불렸고, 앱이 세는 중복은 0이었다. 같은 id의 두 번째는 리스너 앞에서 걸러진다. Accept를 Offer보다 먼저 Alice의 인박스에 넣고 그 다음 Offer를 넣으면 리스너 순서는 `accept`, `offer`였고 둘 다 202였다. 일찍 온 Accept를 큐에 붙잡아 두었다가 Offer 뒤에 적용하는 처리는 만들지 않았다. `orderingKey`는 포크 guid와 MR id로 넘겼지만 `immediate: true`라 큐가 없었고, 큐가 순서를 되돌리는지는 재지 않았다.
+수신 검사는 인박스가 받은 뒤의 앱 판단이다. object host가 actor host와 다른 Offer도 인박스는 202였고, 앱의 host 검사는 실패했다. 그 Offer의 읽기 검사는 공개 덱이라 통과했다. target이 비공개이고 Bob이 읽기 허용 목록에 있으면 읽기 검사는 통과했고, Bob의 서명 GET은 200이었다. 허용 목록에 없으면 읽기 검사는 실패했고, 서명 없는 GET과 Bob의 서명 GET은 둘 다 404였다. Bob이 자기 인박스에 넣은 Accept는 object가 Alice 덱을 향한 Offer였고, 소유자 검사는 실패했다. 그 Accept의 인박스도 202였다.
+
+순서는 활동 id의 숫자를 쓰지 않았다. 활동 id는 `/revs/9`와 `/revs/8`인데 object가 가리키는 원문의 `hatto:rev`는 2와 1이었다. 9를 먼저 보내고 8을 나중에 보내면 리스너가 읽은 `hatto:rev`는 `[2, 1]`이고 head는 2, 늦은 1은 `olderKept: 1`로 남았다. 인박스는 둘 다 202였다. id만 잘랐으면 `[9, 8]`이 되었을 값이고, 환원기는 그 숫자를 쓰지 않았다.
+
+같은 Offer id를 두 번 보내면 인박스는 둘 다 202였고 리스너는 한 번이었다. Fedify가 그 id에 저장한 값은 TTL을 시간 단위로 반올림한 `PT24H`였다. 벽시계로 24시간을 기다리지는 않았다. 기다린 시간은 0ms다. 수신 쪽 KV의 그 키만 가상 시계로 옮겼다. 시계는 `2026-11-12T11:39:43.243Z`에서 `2026-11-13T11:39:43.243Z`로 24시간 갔고, 키는 아직 살아 있었으며 같은 Offer를 다시 보내도 리스너는 1에 머물렀다. 한 시간을 더 옮겨 `2026-11-13T12:39:43.243Z`가 되자 키는 없어졌고, 같은 Offer의 인박스는 다시 202, 리스너는 2가 되었다. 앱의 중복 키는 Offer id다. 그때 적용 1, 중복 1이었다. 순번만 2로 바꾼 재제출은 id가 달랐고 리스너가 한 번 더 불렸으며, 적용 2, 중복 1이었다. Accept를 Offer보다 먼저 Alice의 인박스에 넣으면 리스너 순서는 `accept`, `offer`였고 둘 다 202였다. 일찍 온 Accept를 붙잡아 두는 큐는 만들지 않았다. `orderingKey`는 넘겼지만 `immediate: true`라, 큐가 순서를 되돌리는지는 재지 않았다.
 
 

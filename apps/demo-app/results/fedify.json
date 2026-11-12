@@ -1,9 +1,9 @@
 {
   "fedify": "2.4.5",
   "cdn": "static-file-server",
-  "cdnOrigin": "http://127.0.0.1:33701",
-  "alice": "http://127.0.0.1:39893",
-  "bob": "http://127.0.0.1:37289",
+  "cdnOrigin": "http://127.0.0.1:44001",
+  "alice": "http://127.0.0.1:34491",
+  "bob": "http://127.0.0.1:38351",
   "signedUrlTtlMs": 1500,
   "context": {
     "missing": "Dereferencing a URL did not result in a valid JSON-LD object. Possible causes are an inaccessible URL perhaps due to a same-origin policy (ensure the server uses CORS if you are using client-side JavaScript), too many redirects, a non-JSON response, or more than one HTTP Link Header was provided for a remote context. URL: \"https://hatto.invalid/ns.jsonld\".",
@@ -23,7 +23,10 @@
         {
           "status": 202,
           "type": "Update",
-          "object": "http://127.0.0.1:39893/decks/public-deck/revs/2",
+          "object": "http://127.0.0.1:34491/decks/public-deck/revs/2",
+          "summary": null,
+          "content": null,
+          "result": null,
           "origin": null,
           "context": null,
           "target": null,
@@ -35,8 +38,8 @@
     },
     "listener": [
       {
-        "id": "http://127.0.0.1:39893/activities/decks/public-deck/revs/2",
-        "object": "http://127.0.0.1:39893/decks/public-deck/revs/2",
+        "id": "http://127.0.0.1:34491/activities/decks/public-deck/revs/2",
+        "object": "http://127.0.0.1:34491/decks/public-deck/revs/2",
         "fetchStatus": 200,
         "fetchBody": {
           "@context": [
@@ -55,7 +58,7 @@
               "measurementSource": "hatto:measurementSource"
             }
           ],
-          "id": "http://127.0.0.1:39893/decks/public-deck/revs/2",
+          "id": "http://127.0.0.1:34491/decks/public-deck/revs/2",
           "type": [
             "hatto:Deck",
             "Object"
@@ -65,7 +68,7 @@
           "hatto:guid": "public-deck",
           "url": {
             "type": "Link",
-            "href": "http://127.0.0.1:33701/snapshots/public-deck/2",
+            "href": "http://127.0.0.1:44001/snapshots/public-deck/2",
             "mediaType": "application/octet-stream",
             "digestMultibase": "u2Y_RqSYPhXGpTkVKD__xPDb0M7suBcYiPgp7PcMnx1Q"
           }
@@ -87,7 +90,7 @@
               "measurementSource": "hatto:measurementSource"
             }
           ],
-          "id": "http://127.0.0.1:39893/decks/public-deck/revs/2",
+          "id": "http://127.0.0.1:34491/decks/public-deck/revs/2",
           "type": [
             "hatto:Deck",
             "Object"
@@ -97,7 +100,7 @@
           "hatto:guid": "public-deck",
           "url": {
             "type": "Link",
-            "href": "http://127.0.0.1:33701/snapshots/public-deck/2",
+            "href": "http://127.0.0.1:44001/snapshots/public-deck/2",
             "mediaType": "application/octet-stream",
             "digestMultibase": "u2Y_RqSYPhXGpTkVKD__xPDb0M7suBcYiPgp7PcMnx1Q"
           }
@@ -123,7 +126,7 @@
           "measurementSource": "hatto:measurementSource"
         }
       ],
-      "id": "http://127.0.0.1:39893/decks/public-deck/revs/2",
+      "id": "http://127.0.0.1:34491/decks/public-deck/revs/2",
       "type": [
         "hatto:Deck",
         "Object"
@@ -133,7 +136,7 @@
       "hatto:guid": "public-deck",
       "url": {
         "type": "Link",
-        "href": "http://127.0.0.1:33701/snapshots/public-deck/2",
+        "href": "http://127.0.0.1:44001/snapshots/public-deck/2",
         "mediaType": "application/octet-stream",
         "digestMultibase": "u2Y_RqSYPhXGpTkVKD__xPDb0M7suBcYiPgp7PcMnx1Q"
       }
@@ -146,7 +149,7 @@
     "singleParse": "Invalid type: hatto:Deck",
     "singlePost": {
       "status": 400,
-      "keyId": "http://127.0.0.1:39893/users/alice#main-key",
+      "keyId": "http://127.0.0.1:34491/users/alice#main-key",
       "error": null,
       "body": "Invalid activity."
     },
@@ -157,6 +160,9 @@
           "status": 202,
           "type": "Update",
           "object": "Object",
+          "summary": null,
+          "content": null,
+          "result": null,
           "origin": null,
           "context": null,
           "target": null,
@@ -177,23 +183,23 @@
     },
     "arrayPost": {
       "status": 202,
-      "keyId": "http://127.0.0.1:39893/users/alice#main-key",
+      "keyId": "http://127.0.0.1:34491/users/alice#main-key",
       "error": null,
       "body": ""
     },
     "listener": [
       {
-        "id": "http://127.0.0.1:39893/activities/decks/embed/revs/2",
+        "id": "http://127.0.0.1:34491/activities/decks/embed/revs/2",
         "embedded": {
-          "id": "http://127.0.0.1:39893/decks/embed/revs/2",
+          "id": "http://127.0.0.1:34491/decks/embed/revs/2",
           "type": "Object",
           "name": "임베드"
         }
       },
       {
-        "id": "http://127.0.0.1:39893/activities/decks/embed/revs/2-raw",
+        "id": "http://127.0.0.1:34491/activities/decks/embed/revs/2-raw",
         "embedded": {
-          "id": "http://127.0.0.1:39893/decks/embed/revs/2",
+          "id": "http://127.0.0.1:34491/decks/embed/revs/2",
           "type": [
             "hatto:Deck",
             "Object"
@@ -209,6 +215,9 @@
         "status": 202,
         "type": "Update",
         "object": "Object",
+        "summary": null,
+        "content": null,
+        "result": null,
         "origin": null,
         "context": null,
         "target": null,
@@ -223,6 +232,9 @@
           "hatto:Deck",
           "Object"
         ],
+        "summary": null,
+        "content": null,
+        "result": null,
         "origin": null,
         "context": null,
         "target": null,
@@ -255,6 +267,9 @@
           "status": 202,
           "type": "Create",
           "object": "Note",
+          "summary": null,
+          "content": null,
+          "result": null,
           "origin": null,
           "context": null,
           "target": null,
@@ -277,7 +292,7 @@
       "hatto": [],
       "tag": {
         "type": "Link",
-        "href": "http://127.0.0.1:39893/decks/social",
+        "href": "http://127.0.0.1:34491/decks/social",
         "name": "deck-published"
       },
       "attachment": {
@@ -287,7 +302,7 @@
       },
       "url": {
         "type": "Link",
-        "href": "http://127.0.0.1:39893/decks/social",
+        "href": "http://127.0.0.1:34491/decks/social",
         "mediaType": "application/activity+json",
         "name": "deck"
       }
@@ -299,6 +314,9 @@
           "status": 202,
           "type": "Create",
           "object": "Note",
+          "summary": null,
+          "content": null,
+          "result": null,
           "origin": null,
           "context": null,
           "target": null,
@@ -306,7 +324,7 @@
           "activityHatto": [],
           "objectUrl": {
             "type": "Link",
-            "href": "http://127.0.0.1:39893/decks/social",
+            "href": "http://127.0.0.1:34491/decks/social",
             "mediaType": "application/activity+json",
             "name": "deck"
           }
@@ -319,7 +337,10 @@
         {
           "status": 202,
           "type": "Create",
-          "object": "http://127.0.0.1:39893/notes/separate",
+          "object": "http://127.0.0.1:34491/notes/separate",
+          "summary": null,
+          "content": null,
+          "result": null,
           "origin": null,
           "context": null,
           "target": null,
@@ -348,10 +369,10 @@
             "measurementSource": "hatto:measurementSource"
           }
         ],
-        "id": "http://127.0.0.1:39893/notes/separate",
+        "id": "http://127.0.0.1:34491/notes/separate",
         "type": "Note",
         "content": "덱을 공개했습니다",
-        "hatto:deck": "http://127.0.0.1:39893/decks/social",
+        "hatto:deck": "http://127.0.0.1:34491/decks/social",
         "hatto:event": "deck-published",
         "hatto:streakDays": 12,
         "hatto:reviewCount": 40,
@@ -360,8 +381,8 @@
     },
     "listener": [
       {
-        "id": "http://127.0.0.1:39893/activities/notes/separate",
-        "object": "http://127.0.0.1:39893/notes/separate",
+        "id": "http://127.0.0.1:34491/activities/notes/separate",
+        "object": "http://127.0.0.1:34491/notes/separate",
         "fetchStatus": 200,
         "fetchBody": {
           "@context": [
@@ -380,10 +401,10 @@
               "measurementSource": "hatto:measurementSource"
             }
           ],
-          "id": "http://127.0.0.1:39893/notes/separate",
+          "id": "http://127.0.0.1:34491/notes/separate",
           "type": "Note",
           "content": "덱을 공개했습니다",
-          "hatto:deck": "http://127.0.0.1:39893/decks/social",
+          "hatto:deck": "http://127.0.0.1:34491/decks/social",
           "hatto:event": "deck-published",
           "hatto:streakDays": 12,
           "hatto:reviewCount": 40,
@@ -406,10 +427,10 @@
               "measurementSource": "hatto:measurementSource"
             }
           ],
-          "id": "http://127.0.0.1:39893/notes/separate",
+          "id": "http://127.0.0.1:34491/notes/separate",
           "type": "Note",
           "content": "덱을 공개했습니다",
-          "hatto:deck": "http://127.0.0.1:39893/decks/social",
+          "hatto:deck": "http://127.0.0.1:34491/decks/social",
           "hatto:event": "deck-published",
           "hatto:streakDays": 12,
           "hatto:reviewCount": 40,
@@ -420,6 +441,7 @@
     ]
   },
   "dedup": {
+    "revSource": "hatto:rev",
     "duplicate": {
       "calls": [
         1,
@@ -452,129 +474,229 @@
   "privateDeck": {
     "unsignedStatus": 404,
     "strangerStatus": 404,
-    "strangerKeyId": "http://127.0.0.1:39893/users/alice#main-key",
+    "strangerKeyId": "http://127.0.0.1:34491/users/alice#main-key",
     "ownerStatus": 200,
-    "ownerKeyId": "http://127.0.0.1:37289/users/bob#main-key",
+    "ownerKeyId": "http://127.0.0.1:38351/users/bob#main-key",
     "ownerError": null,
-    "lastSigner": "http://127.0.0.1:37289/users/bob",
+    "lastSigner": "http://127.0.0.1:38351/users/bob",
     "ownerHattoRev": 1,
     "ownerHattoGuid": "private-deck",
     "snapshotStatus": 200,
     "digestOk": true,
     "expiredStatus": 404,
-    "href": "http://127.0.0.1:33701/snapshots/private-deck/1?exp=1794482997089&sig=qRGDzsppDyyHz_qHQv83CAPADcyDaTB2Jc5lhzCV9b0"
+    "href": "http://127.0.0.1:44001/snapshots/private-deck/1?exp=1794483585547&sig=dYj-qI712mT4xXWko4w6IoKOoJTWqoPcbmnFVK9XZtw"
   },
   "forkMr": {
-    "uriSend": {
-      "error": null,
-      "posts": [
-        {
-          "status": 202,
-          "type": "Create",
-          "object": "http://127.0.0.1:37289/decks/fork-copy/revs/1",
-          "origin": "http://127.0.0.1:39893/decks/fork-source/revs/4",
-          "context": "http://127.0.0.1:39893/decks/fork-source",
-          "target": null,
-          "hattoKeys": [],
-          "activityHatto": [],
-          "objectUrl": null
-        }
-      ]
-    },
-    "uriWire": {
-      "error": null,
-      "posts": [
-        {
-          "status": 202,
-          "type": "Create",
-          "object": "http://127.0.0.1:37289/decks/fork-copy/revs/1",
-          "origin": "http://127.0.0.1:39893/decks/fork-source/revs/4",
-          "context": "http://127.0.0.1:39893/decks/fork-source",
-          "target": null,
-          "hattoKeys": [],
-          "activityHatto": [],
-          "objectUrl": null
-        }
-      ]
-    },
-    "uriHeard": [
-      {
+    "withContext": {
+      "compact": {
+        "id": "http://127.0.0.1:38351/activities/forks/fork-copy/revs/1/context",
         "type": "Create",
-        "object": "http://127.0.0.1:37289/decks/fork-copy/revs/1",
+        "summary": null,
+        "content": null,
+        "result": null,
+        "object": "http://127.0.0.1:38351/decks/fork-copy/revs/1",
         "embeddedKeys": [],
         "embeddedHatto": [],
+        "embeddedOrigin": null,
         "embeddedUrl": null,
-        "origin": "http://127.0.0.1:39893/decks/fork-source/revs/4",
-        "context": "http://127.0.0.1:39893/decks/fork-source",
+        "origin": "http://127.0.0.1:34491/decks/fork-source/revs/4",
+        "context": "http://127.0.0.1:34491/decks/fork-source",
         "target": null,
         "hatto": []
-      }
-    ],
-    "embeddedSend": {
-      "error": null,
-      "posts": [
-        {
-          "status": 202,
-          "type": "Create",
-          "object": "Object",
-          "origin": "http://127.0.0.1:39893/decks/fork-source/revs/4",
-          "context": "http://127.0.0.1:39893/decks/fork-source",
-          "target": null,
-          "hattoKeys": [],
-          "activityHatto": [],
-          "objectUrl": {
-            "type": "Link",
-            "href": "http://127.0.0.1:33701/snapshots/fork-copy/1",
-            "mediaType": "application/octet-stream"
-          }
-        }
-      ]
-    },
-    "embeddedHeard": [
-      {
-        "type": "Create",
-        "object": "Object",
-        "embeddedKeys": [
-          "id",
-          "type",
-          "name",
-          "url"
-        ],
-        "embeddedHatto": [],
-        "embeddedUrl": {
-          "type": "Link",
-          "href": "http://127.0.0.1:33701/snapshots/fork-copy/1",
-          "mediaType": "application/octet-stream"
-        },
-        "origin": "http://127.0.0.1:39893/decks/fork-source/revs/4",
-        "context": "http://127.0.0.1:39893/decks/fork-source",
-        "target": null,
-        "hatto": []
-      }
-    ],
-    "fetch": {
-      "unsignedStatus": 200,
-      "signedStatus": 200,
-      "byteEqualToOriginal": true,
-      "signedByteEqual": true,
-      "unsignedBytes": 624,
-      "originalBytes": 624,
-      "schemaErrors": [],
-      "snapshotStatus": 200,
-      "snapshotBytes": 15,
-      "digestOk": true
-    },
-    "control": {
-      "parsed": "{\"type\":\"Create\",\"object\":\"http://127.0.0.1:37289/decks/fork-copy/revs/1\",\"embeddedKeys\":[],\"embeddedHatto\":[],\"embeddedUrl\":null,\"origin\":\"http://127.0.0.1:39893/decks/fork-source/revs/4\",\"context\":\"http://127.0.0.1:39893/decks/fork-source\",\"target\":null,\"hatto\":[]}",
+      },
       "send": {
         "error": null,
         "posts": [
           {
             "status": 202,
             "type": "Create",
-            "object": "http://127.0.0.1:37289/decks/fork-copy/revs/1",
-            "origin": "http://127.0.0.1:39893/decks/fork-source/revs/4",
-            "context": "http://127.0.0.1:39893/decks/fork-source",
+            "object": "http://127.0.0.1:38351/decks/fork-copy/revs/1",
+            "summary": null,
+            "content": null,
+            "result": null,
+            "origin": "http://127.0.0.1:34491/decks/fork-source/revs/4",
+            "context": "http://127.0.0.1:34491/decks/fork-source",
+            "target": null,
+            "hattoKeys": [],
+            "activityHatto": [],
+            "objectUrl": null
+          }
+        ]
+      },
+      "heard": {
+        "id": "http://127.0.0.1:38351/activities/forks/fork-copy/revs/1/context",
+        "type": "Create",
+        "summary": null,
+        "content": null,
+        "result": null,
+        "object": "http://127.0.0.1:38351/decks/fork-copy/revs/1",
+        "embeddedKeys": [],
+        "embeddedHatto": [],
+        "embeddedOrigin": null,
+        "embeddedUrl": null,
+        "origin": "http://127.0.0.1:34491/decks/fork-source/revs/4",
+        "context": "http://127.0.0.1:34491/decks/fork-source",
+        "target": null,
+        "hatto": []
+      }
+    },
+    "withoutContext": {
+      "compact": {
+        "id": "http://127.0.0.1:38351/activities/forks/fork-copy/revs/1/plain",
+        "type": "Create",
+        "summary": null,
+        "content": null,
+        "result": null,
+        "object": "http://127.0.0.1:38351/decks/fork-copy/revs/1",
+        "embeddedKeys": [],
+        "embeddedHatto": [],
+        "embeddedOrigin": null,
+        "embeddedUrl": null,
+        "origin": "http://127.0.0.1:34491/decks/fork-source/revs/4",
+        "context": null,
+        "target": null,
+        "hatto": []
+      },
+      "send": {
+        "error": null,
+        "posts": [
+          {
+            "status": 202,
+            "type": "Create",
+            "object": "http://127.0.0.1:38351/decks/fork-copy/revs/1",
+            "summary": null,
+            "content": null,
+            "result": null,
+            "origin": "http://127.0.0.1:34491/decks/fork-source/revs/4",
+            "context": null,
+            "target": null,
+            "hattoKeys": [],
+            "activityHatto": [],
+            "objectUrl": null
+          }
+        ]
+      },
+      "heard": {
+        "id": "http://127.0.0.1:38351/activities/forks/fork-copy/revs/1/plain",
+        "type": "Create",
+        "summary": null,
+        "content": null,
+        "result": null,
+        "object": "http://127.0.0.1:38351/decks/fork-copy/revs/1",
+        "embeddedKeys": [],
+        "embeddedHatto": [],
+        "embeddedOrigin": null,
+        "embeddedUrl": null,
+        "origin": "http://127.0.0.1:34491/decks/fork-source/revs/4",
+        "context": null,
+        "target": null,
+        "hatto": []
+      }
+    },
+    "embedded": {
+      "compact": {
+        "id": "http://127.0.0.1:38351/activities/forks/fork-copy/revs/1/embedded",
+        "type": "Create",
+        "summary": null,
+        "content": null,
+        "result": null,
+        "object": "Object",
+        "embeddedKeys": [
+          "id",
+          "type",
+          "attributedTo",
+          "name",
+          "url"
+        ],
+        "embeddedHatto": [],
+        "embeddedOrigin": null,
+        "embeddedUrl": {
+          "type": "Link",
+          "href": "http://127.0.0.1:44001/snapshots/fork-copy/1",
+          "mediaType": "application/octet-stream"
+        },
+        "origin": "http://127.0.0.1:34491/decks/fork-source/revs/4",
+        "context": "http://127.0.0.1:34491/decks/fork-source",
+        "target": null,
+        "hatto": []
+      },
+      "send": {
+        "error": null,
+        "posts": [
+          {
+            "status": 202,
+            "type": "Create",
+            "object": "Object",
+            "summary": null,
+            "content": null,
+            "result": null,
+            "origin": "http://127.0.0.1:34491/decks/fork-source/revs/4",
+            "context": "http://127.0.0.1:34491/decks/fork-source",
+            "target": null,
+            "hattoKeys": [],
+            "activityHatto": [],
+            "objectUrl": {
+              "type": "Link",
+              "href": "http://127.0.0.1:44001/snapshots/fork-copy/1",
+              "mediaType": "application/octet-stream"
+            }
+          }
+        ]
+      },
+      "heard": {
+        "id": "http://127.0.0.1:38351/activities/forks/fork-copy/revs/1/embedded",
+        "type": "Create",
+        "summary": null,
+        "content": null,
+        "result": null,
+        "object": "Object",
+        "embeddedKeys": [
+          "id",
+          "type",
+          "attributedTo",
+          "name",
+          "url"
+        ],
+        "embeddedHatto": [],
+        "embeddedOrigin": null,
+        "embeddedUrl": {
+          "type": "Link",
+          "href": "http://127.0.0.1:44001/snapshots/fork-copy/1",
+          "mediaType": "application/octet-stream"
+        },
+        "origin": "http://127.0.0.1:34491/decks/fork-source/revs/4",
+        "context": "http://127.0.0.1:34491/decks/fork-source",
+        "target": null,
+        "hatto": []
+      }
+    },
+    "fetch": {
+      "unsignedStatus": 200,
+      "signedStatus": 200,
+      "byteEqualToOriginal": true,
+      "signedByteEqual": true,
+      "unsignedBytes": 733,
+      "originalBytes": 733,
+      "origin": "http://127.0.0.1:34491/decks/fork-source/revs/4",
+      "schemaErrors": [],
+      "snapshotStatus": 200,
+      "snapshotBytes": 15,
+      "digestOk": true
+    },
+    "control": {
+      "parsed": "{\"id\":\"http://127.0.0.1:38351/activities/forks/fork-copy/revs/9/control\",\"type\":\"Create\",\"summary\":null,\"content\":null,\"result\":null,\"object\":\"http://127.0.0.1:38351/decks/fork-copy/revs/1\",\"embeddedKeys\":[],\"embeddedHatto\":[],\"embeddedOrigin\":null,\"embeddedUrl\":null,\"origin\":\"http://127.0.0.1:34491/decks/fork-source/revs/4\",\"context\":\"http://127.0.0.1:34491/decks/fork-source\",\"target\":null,\"hatto\":[]}",
+      "send": {
+        "error": null,
+        "posts": [
+          {
+            "status": 202,
+            "type": "Create",
+            "object": "http://127.0.0.1:38351/decks/fork-copy/revs/1",
+            "summary": null,
+            "content": null,
+            "result": null,
+            "origin": "http://127.0.0.1:34491/decks/fork-source/revs/4",
+            "context": "http://127.0.0.1:34491/decks/fork-source",
             "target": null,
             "hattoKeys": [],
             "activityHatto": [],
@@ -584,42 +706,85 @@
       }
     },
     "acceptFlow": {
+      "offerCompact": {
+        "id": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/1",
+        "type": "Offer",
+        "summary": "포크를 머지해 주세요",
+        "content": "fork-copy의 rev 1을 원본에 반영하고 싶습니다",
+        "result": null,
+        "object": "http://127.0.0.1:38351/decks/fork-copy/revs/1",
+        "embeddedKeys": [],
+        "embeddedHatto": [],
+        "embeddedOrigin": null,
+        "embeddedUrl": null,
+        "origin": null,
+        "context": null,
+        "target": "http://127.0.0.1:34491/decks/fork-source",
+        "hatto": []
+      },
       "offerSend": {
         "error": null,
         "posts": [
           {
             "status": 202,
             "type": "Offer",
-            "object": "http://127.0.0.1:37289/decks/fork-copy/revs/1",
+            "object": "http://127.0.0.1:38351/decks/fork-copy/revs/1",
+            "summary": "포크를 머지해 주세요",
+            "content": "fork-copy의 rev 1을 원본에 반영하고 싶습니다",
+            "result": null,
             "origin": null,
             "context": null,
-            "target": "http://127.0.0.1:39893/decks/fork-source",
+            "target": "http://127.0.0.1:34491/decks/fork-source",
             "hattoKeys": [],
             "activityHatto": [],
             "objectUrl": null
           }
         ]
       },
-      "offerHeard": [
-        {
-          "type": "Offer",
-          "object": "http://127.0.0.1:37289/decks/fork-copy/revs/1",
-          "embeddedKeys": [],
-          "embeddedHatto": [],
-          "embeddedUrl": null,
-          "origin": null,
-          "context": null,
-          "target": "http://127.0.0.1:39893/decks/fork-source",
-          "hatto": []
-        }
-      ],
+      "offerHeard": {
+        "id": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/1",
+        "type": "Offer",
+        "summary": "포크를 머지해 주세요",
+        "content": "fork-copy의 rev 1을 원본에 반영하고 싶습니다",
+        "result": null,
+        "object": "http://127.0.0.1:38351/decks/fork-copy/revs/1",
+        "embeddedKeys": [],
+        "embeddedHatto": [],
+        "embeddedOrigin": null,
+        "embeddedUrl": null,
+        "origin": null,
+        "context": null,
+        "target": "http://127.0.0.1:34491/decks/fork-source",
+        "hatto": [],
+        "hostMatch": true,
+        "readable": true
+      },
+      "acceptCompact": {
+        "id": "http://127.0.0.1:34491/activities/accepts/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/1",
+        "type": "Accept",
+        "summary": null,
+        "content": null,
+        "result": "http://127.0.0.1:34491/activities/merges/fork-copy/revs/1/n/1",
+        "object": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/1",
+        "embeddedKeys": [],
+        "embeddedHatto": [],
+        "embeddedOrigin": null,
+        "embeddedUrl": null,
+        "origin": null,
+        "context": null,
+        "target": null,
+        "hatto": []
+      },
       "acceptSend": {
         "error": null,
         "posts": [
           {
             "status": 202,
             "type": "Accept",
-            "object": "http://127.0.0.1:37289/activities/mrs/mr-accept",
+            "object": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/1",
+            "summary": null,
+            "content": null,
+            "result": "http://127.0.0.1:34491/activities/merges/fork-copy/revs/1/n/1",
             "origin": null,
             "context": null,
             "target": null,
@@ -629,57 +794,166 @@
           }
         ]
       },
-      "acceptHeard": [
-        {
-          "type": "Accept",
-          "object": "http://127.0.0.1:37289/activities/mrs/mr-accept",
-          "embeddedKeys": [],
-          "embeddedHatto": [],
-          "embeddedUrl": null,
-          "origin": null,
-          "context": null,
-          "target": null,
-          "hatto": []
-        }
-      ]
+      "acceptHeard": {
+        "id": "http://127.0.0.1:34491/activities/accepts/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/1",
+        "type": "Accept",
+        "summary": null,
+        "content": null,
+        "result": "http://127.0.0.1:34491/activities/merges/fork-copy/revs/1/n/1",
+        "object": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/1",
+        "embeddedKeys": [],
+        "embeddedHatto": [],
+        "embeddedOrigin": null,
+        "embeddedUrl": null,
+        "origin": null,
+        "context": null,
+        "target": null,
+        "hatto": [],
+        "targetStatus": 200,
+        "attributedTo": "http://127.0.0.1:34491/users/alice",
+        "ownerMatch": true
+      },
+      "revAcceptCompact": {
+        "id": "http://127.0.0.1:34491/activities/accepts/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/2",
+        "type": "Accept",
+        "summary": null,
+        "content": null,
+        "result": "http://127.0.0.1:34491/decks/fork-source/revs/5",
+        "object": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/1",
+        "embeddedKeys": [],
+        "embeddedHatto": [],
+        "embeddedOrigin": null,
+        "embeddedUrl": null,
+        "origin": null,
+        "context": null,
+        "target": null,
+        "hatto": []
+      },
+      "revAcceptSend": {
+        "error": null,
+        "posts": [
+          {
+            "status": 202,
+            "type": "Accept",
+            "object": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/1",
+            "summary": null,
+            "content": null,
+            "result": "http://127.0.0.1:34491/decks/fork-source/revs/5",
+            "origin": null,
+            "context": null,
+            "target": null,
+            "hattoKeys": [],
+            "activityHatto": [],
+            "objectUrl": null
+          }
+        ]
+      },
+      "revAcceptHeard": {
+        "id": "http://127.0.0.1:34491/activities/accepts/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/2",
+        "type": "Accept",
+        "summary": null,
+        "content": null,
+        "result": "http://127.0.0.1:34491/decks/fork-source/revs/5",
+        "object": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/1",
+        "embeddedKeys": [],
+        "embeddedHatto": [],
+        "embeddedOrigin": null,
+        "embeddedUrl": null,
+        "origin": null,
+        "context": null,
+        "target": null,
+        "hatto": [],
+        "targetStatus": 200,
+        "attributedTo": "http://127.0.0.1:34491/users/alice",
+        "ownerMatch": true
+      },
+      "mergeGet": {
+        "status": 200,
+        "id": "http://127.0.0.1:34491/activities/merges/fork-copy/revs/1/n/1",
+        "requested": "http://127.0.0.1:34491/activities/merges/fork-copy/revs/1/n/1",
+        "type": "Article"
+      }
     },
     "rejectFlow": {
+      "offerCompact": {
+        "id": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/3",
+        "type": "Offer",
+        "summary": "포크를 머지해 주세요",
+        "content": "fork-copy의 rev 1을 원본에 반영하고 싶습니다",
+        "result": null,
+        "object": "http://127.0.0.1:38351/decks/fork-copy/revs/1",
+        "embeddedKeys": [],
+        "embeddedHatto": [],
+        "embeddedOrigin": null,
+        "embeddedUrl": null,
+        "origin": null,
+        "context": null,
+        "target": "http://127.0.0.1:34491/decks/fork-source",
+        "hatto": []
+      },
       "offerSend": {
         "error": null,
         "posts": [
           {
             "status": 202,
             "type": "Offer",
-            "object": "http://127.0.0.1:37289/decks/fork-copy/revs/1",
+            "object": "http://127.0.0.1:38351/decks/fork-copy/revs/1",
+            "summary": "포크를 머지해 주세요",
+            "content": "fork-copy의 rev 1을 원본에 반영하고 싶습니다",
+            "result": null,
             "origin": null,
             "context": null,
-            "target": "http://127.0.0.1:39893/decks/fork-source",
+            "target": "http://127.0.0.1:34491/decks/fork-source",
             "hattoKeys": [],
             "activityHatto": [],
             "objectUrl": null
           }
         ]
       },
-      "offerHeard": [
-        {
-          "type": "Offer",
-          "object": "http://127.0.0.1:37289/decks/fork-copy/revs/1",
-          "embeddedKeys": [],
-          "embeddedHatto": [],
-          "embeddedUrl": null,
-          "origin": null,
-          "context": null,
-          "target": "http://127.0.0.1:39893/decks/fork-source",
-          "hatto": []
-        }
-      ],
+      "offerHeard": {
+        "id": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/3",
+        "type": "Offer",
+        "summary": "포크를 머지해 주세요",
+        "content": "fork-copy의 rev 1을 원본에 반영하고 싶습니다",
+        "result": null,
+        "object": "http://127.0.0.1:38351/decks/fork-copy/revs/1",
+        "embeddedKeys": [],
+        "embeddedHatto": [],
+        "embeddedOrigin": null,
+        "embeddedUrl": null,
+        "origin": null,
+        "context": null,
+        "target": "http://127.0.0.1:34491/decks/fork-source",
+        "hatto": [],
+        "hostMatch": true,
+        "readable": true
+      },
+      "rejectCompact": {
+        "id": "http://127.0.0.1:34491/activities/rejects/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/3",
+        "type": "Reject",
+        "summary": null,
+        "content": "범위가 원본과 다릅니다",
+        "result": null,
+        "object": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/3",
+        "embeddedKeys": [],
+        "embeddedHatto": [],
+        "embeddedOrigin": null,
+        "embeddedUrl": null,
+        "origin": null,
+        "context": null,
+        "target": null,
+        "hatto": []
+      },
       "rejectSend": {
         "error": null,
         "posts": [
           {
             "status": 202,
             "type": "Reject",
-            "object": "http://127.0.0.1:37289/activities/mrs/mr-reject",
+            "object": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/3",
+            "summary": null,
+            "content": "범위가 원본과 다릅니다",
+            "result": null,
             "origin": null,
             "context": null,
             "target": null,
@@ -689,54 +963,447 @@
           }
         ]
       },
-      "rejectHeard": [
-        {
-          "type": "Reject",
-          "object": "http://127.0.0.1:37289/activities/mrs/mr-reject",
-          "embeddedKeys": [],
-          "embeddedHatto": [],
-          "embeddedUrl": null,
-          "origin": null,
-          "context": null,
-          "target": null,
-          "hatto": []
-        }
-      ]
+      "rejectHeard": {
+        "id": "http://127.0.0.1:34491/activities/rejects/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/3",
+        "type": "Reject",
+        "summary": null,
+        "content": "범위가 원본과 다릅니다",
+        "result": null,
+        "object": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/3",
+        "embeddedKeys": [],
+        "embeddedHatto": [],
+        "embeddedOrigin": null,
+        "embeddedUrl": null,
+        "origin": null,
+        "context": null,
+        "target": null,
+        "hatto": []
+      }
     },
-    "duplicateOffer": {
-      "listenerOffers": 1,
-      "listenerDuplicates": 0,
-      "first": {
+    "checks": {
+      "hostMatch": {
+        "id": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/1",
+        "type": "Offer",
+        "summary": "포크를 머지해 주세요",
+        "content": "fork-copy의 rev 1을 원본에 반영하고 싶습니다",
+        "result": null,
+        "object": "http://127.0.0.1:38351/decks/fork-copy/revs/1",
+        "embeddedKeys": [],
+        "embeddedHatto": [],
+        "embeddedOrigin": null,
+        "embeddedUrl": null,
+        "origin": null,
+        "context": null,
+        "target": "http://127.0.0.1:34491/decks/fork-source",
+        "hatto": [],
+        "hostMatch": true,
+        "readable": true
+      },
+      "hostMismatch": {
+        "id": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/5",
+        "type": "Offer",
+        "summary": "다른 호스트",
+        "content": "object가 actor와 다른 호스트에 있습니다",
+        "result": null,
+        "object": "http://127.0.0.1:34491/decks/fork-source/revs/4",
+        "embeddedKeys": [],
+        "embeddedHatto": [],
+        "embeddedOrigin": null,
+        "embeddedUrl": null,
+        "origin": null,
+        "context": null,
+        "target": "http://127.0.0.1:34491/decks/fork-source",
+        "hatto": [],
+        "hostMatch": false,
+        "readable": true
+      },
+      "hostMismatchSend": {
         "error": null,
         "posts": [
           {
             "status": 202,
             "type": "Offer",
-            "object": "http://127.0.0.1:37289/decks/fork-copy/revs/1",
+            "object": "http://127.0.0.1:34491/decks/fork-source/revs/4",
+            "summary": "다른 호스트",
+            "content": "object가 actor와 다른 호스트에 있습니다",
+            "result": null,
             "origin": null,
             "context": null,
-            "target": "http://127.0.0.1:39893/decks/fork-source",
+            "target": "http://127.0.0.1:34491/decks/fork-source",
             "hattoKeys": [],
             "activityHatto": [],
             "objectUrl": null
           }
         ]
       },
-      "second": {
+      "hostMismatchCompact": {
+        "id": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/5",
+        "type": "Offer",
+        "summary": "다른 호스트",
+        "content": "object가 actor와 다른 호스트에 있습니다",
+        "result": null,
+        "object": "http://127.0.0.1:34491/decks/fork-source/revs/4",
+        "embeddedKeys": [],
+        "embeddedHatto": [],
+        "embeddedOrigin": null,
+        "embeddedUrl": null,
+        "origin": null,
+        "context": null,
+        "target": "http://127.0.0.1:34491/decks/fork-source",
+        "hatto": []
+      },
+      "ownerMatch": {
+        "id": "http://127.0.0.1:34491/activities/accepts/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/1",
+        "type": "Accept",
+        "summary": null,
+        "content": null,
+        "result": "http://127.0.0.1:34491/activities/merges/fork-copy/revs/1/n/1",
+        "object": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/1",
+        "embeddedKeys": [],
+        "embeddedHatto": [],
+        "embeddedOrigin": null,
+        "embeddedUrl": null,
+        "origin": null,
+        "context": null,
+        "target": null,
+        "hatto": [],
+        "targetStatus": 200,
+        "attributedTo": "http://127.0.0.1:34491/users/alice",
+        "ownerMatch": true
+      },
+      "ownerMismatch": {
+        "id": "http://127.0.0.1:38351/activities/accepts/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/8",
+        "type": "Accept",
+        "summary": null,
+        "content": null,
+        "result": "http://127.0.0.1:34491/activities/merges/fork-copy/revs/1/n/1",
+        "object": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/1",
+        "embeddedKeys": [],
+        "embeddedHatto": [],
+        "embeddedOrigin": null,
+        "embeddedUrl": null,
+        "origin": null,
+        "context": null,
+        "target": null,
+        "hatto": [],
+        "targetStatus": 200,
+        "attributedTo": "http://127.0.0.1:34491/users/alice",
+        "ownerMatch": false
+      },
+      "ownerMismatchSend": {
         "error": null,
         "posts": [
           {
             "status": 202,
-            "type": "Offer",
-            "object": "http://127.0.0.1:37289/decks/fork-copy/revs/1",
+            "type": "Accept",
+            "object": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/1",
+            "summary": null,
+            "content": null,
+            "result": "http://127.0.0.1:34491/activities/merges/fork-copy/revs/1/n/1",
             "origin": null,
             "context": null,
-            "target": "http://127.0.0.1:39893/decks/fork-source",
+            "target": null,
             "hattoKeys": [],
             "activityHatto": [],
             "objectUrl": null
           }
         ]
+      },
+      "ownerMismatchCompact": {
+        "id": "http://127.0.0.1:38351/activities/accepts/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/8",
+        "type": "Accept",
+        "summary": null,
+        "content": null,
+        "result": "http://127.0.0.1:34491/activities/merges/fork-copy/revs/1/n/1",
+        "object": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/1",
+        "embeddedKeys": [],
+        "embeddedHatto": [],
+        "embeddedOrigin": null,
+        "embeddedUrl": null,
+        "origin": null,
+        "context": null,
+        "target": null,
+        "hatto": []
+      },
+      "readPublic": {
+        "id": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/1",
+        "type": "Offer",
+        "summary": "포크를 머지해 주세요",
+        "content": "fork-copy의 rev 1을 원본에 반영하고 싶습니다",
+        "result": null,
+        "object": "http://127.0.0.1:38351/decks/fork-copy/revs/1",
+        "embeddedKeys": [],
+        "embeddedHatto": [],
+        "embeddedOrigin": null,
+        "embeddedUrl": null,
+        "origin": null,
+        "context": null,
+        "target": "http://127.0.0.1:34491/decks/fork-source",
+        "hatto": [],
+        "hostMatch": true,
+        "readable": true
+      },
+      "readShared": {
+        "id": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/shared-target/1",
+        "type": "Offer",
+        "summary": "공유 덱",
+        "content": "읽을 수 있는 비공개 덱",
+        "result": null,
+        "object": "http://127.0.0.1:38351/decks/fork-copy/revs/1",
+        "embeddedKeys": [],
+        "embeddedHatto": [],
+        "embeddedOrigin": null,
+        "embeddedUrl": null,
+        "origin": null,
+        "context": null,
+        "target": "http://127.0.0.1:34491/decks/shared-target",
+        "hatto": [],
+        "hostMatch": true,
+        "readable": true
+      },
+      "readClosed": {
+        "id": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/closed-target/1",
+        "type": "Offer",
+        "summary": "닫힌 덱",
+        "content": "읽을 수 없는 비공개 덱",
+        "result": null,
+        "object": "http://127.0.0.1:38351/decks/fork-copy/revs/1",
+        "embeddedKeys": [],
+        "embeddedHatto": [],
+        "embeddedOrigin": null,
+        "embeddedUrl": null,
+        "origin": null,
+        "context": null,
+        "target": "http://127.0.0.1:34491/decks/closed-target",
+        "hatto": [],
+        "hostMatch": true,
+        "readable": false
+      },
+      "sharedSend": {
+        "error": null,
+        "posts": [
+          {
+            "status": 202,
+            "type": "Offer",
+            "object": "http://127.0.0.1:38351/decks/fork-copy/revs/1",
+            "summary": "공유 덱",
+            "content": "읽을 수 있는 비공개 덱",
+            "result": null,
+            "origin": null,
+            "context": null,
+            "target": "http://127.0.0.1:34491/decks/shared-target",
+            "hattoKeys": [],
+            "activityHatto": [],
+            "objectUrl": null
+          }
+        ]
+      },
+      "closedSend": {
+        "error": null,
+        "posts": [
+          {
+            "status": 202,
+            "type": "Offer",
+            "object": "http://127.0.0.1:38351/decks/fork-copy/revs/1",
+            "summary": "닫힌 덱",
+            "content": "읽을 수 없는 비공개 덱",
+            "result": null,
+            "origin": null,
+            "context": null,
+            "target": "http://127.0.0.1:34491/decks/closed-target",
+            "hattoKeys": [],
+            "activityHatto": [],
+            "objectUrl": null
+          }
+        ]
+      },
+      "sharedGet": 200,
+      "closedGet": 404,
+      "closedUnsigned": 404
+    },
+    "order": {
+      "hattoRev": [
+        2,
+        1
+      ],
+      "idNumbers": [
+        9,
+        8
+      ],
+      "head": 2,
+      "olderKept": 1,
+      "stored": [
+        1,
+        2
+      ],
+      "sends": [
+        {
+          "error": null,
+          "posts": [
+            {
+              "status": 202,
+              "type": "Create",
+              "object": "http://127.0.0.1:38351/decks/fork-order/revs/2",
+              "summary": null,
+              "content": null,
+              "result": null,
+              "origin": "http://127.0.0.1:34491/decks/fork-source/revs/4",
+              "context": null,
+              "target": null,
+              "hattoKeys": [],
+              "activityHatto": [],
+              "objectUrl": null
+            }
+          ]
+        },
+        {
+          "error": null,
+          "posts": [
+            {
+              "status": 202,
+              "type": "Create",
+              "object": "http://127.0.0.1:38351/decks/fork-order/revs/1",
+              "summary": null,
+              "content": null,
+              "result": null,
+              "origin": "http://127.0.0.1:34491/decks/fork-source/revs/4",
+              "context": null,
+              "target": null,
+              "hattoKeys": [],
+              "activityHatto": [],
+              "objectUrl": null
+            }
+          ]
+        }
+      ]
+    },
+    "dedup": {
+      "ttl": "PT24H",
+      "clockAtStart": "virtual",
+      "wallClockWaitMs": 0,
+      "sameId": {
+        "listener": 1,
+        "kv": true,
+        "first": {
+          "error": null,
+          "posts": [
+            {
+              "status": 202,
+              "type": "Offer",
+              "object": "http://127.0.0.1:38351/decks/fork-copy/revs/1",
+              "summary": "포크를 머지해 주세요",
+              "content": "fork-copy의 rev 1을 원본에 반영하고 싶습니다",
+              "result": null,
+              "origin": null,
+              "context": null,
+              "target": "http://127.0.0.1:34491/decks/fork-source",
+              "hattoKeys": [],
+              "activityHatto": [],
+              "objectUrl": null
+            }
+          ]
+        },
+        "second": {
+          "error": null,
+          "posts": [
+            {
+              "status": 202,
+              "type": "Offer",
+              "object": "http://127.0.0.1:38351/decks/fork-copy/revs/1",
+              "summary": "포크를 머지해 주세요",
+              "content": "fork-copy의 rev 1을 원본에 반영하고 싶습니다",
+              "result": null,
+              "origin": null,
+              "context": null,
+              "target": "http://127.0.0.1:34491/decks/fork-source",
+              "hattoKeys": [],
+              "activityHatto": [],
+              "objectUrl": null
+            }
+          ]
+        },
+        "applied": 1,
+        "now": "2026-11-12T11:39:43.243Z"
+      },
+      "at24h": {
+        "listener": 1,
+        "kv": true,
+        "send": {
+          "error": null,
+          "posts": [
+            {
+              "status": 202,
+              "type": "Offer",
+              "object": "http://127.0.0.1:38351/decks/fork-copy/revs/1",
+              "summary": "포크를 머지해 주세요",
+              "content": "fork-copy의 rev 1을 원본에 반영하고 싶습니다",
+              "result": null,
+              "origin": null,
+              "context": null,
+              "target": "http://127.0.0.1:34491/decks/fork-source",
+              "hattoKeys": [],
+              "activityHatto": [],
+              "objectUrl": null
+            }
+          ]
+        },
+        "now": "2026-11-13T11:39:43.243Z"
+      },
+      "at25h": {
+        "listener": 2,
+        "kv": null,
+        "send": {
+          "error": null,
+          "posts": [
+            {
+              "status": 202,
+              "type": "Offer",
+              "object": "http://127.0.0.1:38351/decks/fork-copy/revs/1",
+              "summary": "포크를 머지해 주세요",
+              "content": "fork-copy의 rev 1을 원본에 반영하고 싶습니다",
+              "result": null,
+              "origin": null,
+              "context": null,
+              "target": "http://127.0.0.1:34491/decks/fork-source",
+              "hattoKeys": [],
+              "activityHatto": [],
+              "objectUrl": null
+            }
+          ]
+        },
+        "app": {
+          "applied": 1,
+          "duplicates": 1
+        },
+        "now": "2026-11-13T12:39:43.243Z"
+      },
+      "resubmit": {
+        "id": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/2",
+        "sameAsDup": false,
+        "send": {
+          "error": null,
+          "posts": [
+            {
+              "status": 202,
+              "type": "Offer",
+              "object": "http://127.0.0.1:38351/decks/fork-copy/revs/1",
+              "summary": "포크를 머지해 주세요",
+              "content": "같은 포크의 두 번째 제출",
+              "result": null,
+              "origin": null,
+              "context": null,
+              "target": "http://127.0.0.1:34491/decks/fork-source",
+              "hattoKeys": [],
+              "activityHatto": [],
+              "objectUrl": null
+            }
+          ]
+        },
+        "listener": 1,
+        "app": {
+          "applied": 2,
+          "duplicates": 1
+        }
       }
     },
     "acceptBeforeOffer": {
@@ -750,7 +1417,10 @@
           {
             "status": 202,
             "type": "Accept",
-            "object": "http://127.0.0.1:37289/activities/mrs/mr-early",
+            "object": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/4",
+            "summary": null,
+            "content": null,
+            "result": null,
             "origin": null,
             "context": null,
             "target": null,
@@ -766,16 +1436,150 @@
           {
             "status": 202,
             "type": "Offer",
-            "object": "http://127.0.0.1:37289/decks/fork-copy/revs/1",
+            "object": "http://127.0.0.1:38351/decks/fork-copy/revs/1",
+            "summary": "포크를 머지해 주세요",
+            "content": "fork-copy의 rev 1을 원본에 반영하고 싶습니다",
+            "result": null,
             "origin": null,
             "context": null,
-            "target": "http://127.0.0.1:39893/decks/fork-source",
+            "target": "http://127.0.0.1:34491/decks/fork-source",
             "hattoKeys": [],
             "activityHatto": [],
             "objectUrl": null
           }
         ]
       }
-    }
+    },
+    "gets": [
+      {
+        "status": 200,
+        "id": "http://127.0.0.1:38351/activities/forks/fork-copy/revs/1/context",
+        "requested": "http://127.0.0.1:38351/activities/forks/fork-copy/revs/1/context",
+        "type": "Create"
+      },
+      {
+        "status": 200,
+        "id": "http://127.0.0.1:38351/activities/forks/fork-copy/revs/1/plain",
+        "requested": "http://127.0.0.1:38351/activities/forks/fork-copy/revs/1/plain",
+        "type": "Create"
+      },
+      {
+        "status": 200,
+        "id": "http://127.0.0.1:38351/activities/forks/fork-copy/revs/1/embedded",
+        "requested": "http://127.0.0.1:38351/activities/forks/fork-copy/revs/1/embedded",
+        "type": "Create"
+      },
+      {
+        "status": 200,
+        "id": "http://127.0.0.1:38351/activities/forks/fork-copy/revs/9/control",
+        "requested": "http://127.0.0.1:38351/activities/forks/fork-copy/revs/9/control",
+        "type": "Create"
+      },
+      {
+        "status": 200,
+        "id": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/1",
+        "requested": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/1",
+        "type": "Offer"
+      },
+      {
+        "status": 200,
+        "id": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/2",
+        "requested": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/2",
+        "type": "Offer"
+      },
+      {
+        "status": 200,
+        "id": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/3",
+        "requested": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/3",
+        "type": "Offer"
+      },
+      {
+        "status": 200,
+        "id": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/4",
+        "requested": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/4",
+        "type": "Offer"
+      },
+      {
+        "status": 200,
+        "id": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/5",
+        "requested": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/5",
+        "type": "Offer"
+      },
+      {
+        "status": 200,
+        "id": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/shared-target/1",
+        "requested": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/shared-target/1",
+        "type": "Offer"
+      },
+      {
+        "status": 200,
+        "id": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/closed-target/1",
+        "requested": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/closed-target/1",
+        "type": "Offer"
+      },
+      {
+        "status": 200,
+        "id": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/9",
+        "requested": "http://127.0.0.1:38351/activities/offers/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/9",
+        "type": "Offer"
+      },
+      {
+        "status": 200,
+        "id": "http://127.0.0.1:34491/activities/accepts/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/1",
+        "requested": "http://127.0.0.1:34491/activities/accepts/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/1",
+        "type": "Accept"
+      },
+      {
+        "status": 200,
+        "id": "http://127.0.0.1:34491/activities/accepts/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/2",
+        "requested": "http://127.0.0.1:34491/activities/accepts/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/2",
+        "type": "Accept"
+      },
+      {
+        "status": 200,
+        "id": "http://127.0.0.1:34491/activities/rejects/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/3",
+        "requested": "http://127.0.0.1:34491/activities/rejects/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/3",
+        "type": "Reject"
+      },
+      {
+        "status": 200,
+        "id": "http://127.0.0.1:34491/activities/accepts/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/4",
+        "requested": "http://127.0.0.1:34491/activities/accepts/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/4",
+        "type": "Accept"
+      },
+      {
+        "status": 200,
+        "id": "http://127.0.0.1:38351/activities/accepts/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/8",
+        "requested": "http://127.0.0.1:38351/activities/accepts/fork-copy/revs/1/targets/127.0.0.1:34491/fork-source/8",
+        "type": "Accept"
+      },
+      {
+        "status": 200,
+        "id": "http://127.0.0.1:34491/activities/merges/fork-copy/revs/1/n/1",
+        "requested": "http://127.0.0.1:34491/activities/merges/fork-copy/revs/1/n/1",
+        "type": "Article"
+      },
+      {
+        "status": 200,
+        "id": "http://127.0.0.1:34491/decks/fork-source/revs/5",
+        "requested": "http://127.0.0.1:34491/decks/fork-source/revs/5",
+        "type": [
+          "hatto:Deck",
+          "Object"
+        ]
+      },
+      {
+        "status": 200,
+        "id": "http://127.0.0.1:38351/activities/forks/fork-order/revs/9",
+        "requested": "http://127.0.0.1:38351/activities/forks/fork-order/revs/9",
+        "type": "Create"
+      },
+      {
+        "status": 200,
+        "id": "http://127.0.0.1:38351/activities/forks/fork-order/revs/8",
+        "requested": "http://127.0.0.1:38351/activities/forks/fork-order/revs/8",
+        "type": "Create"
+      }
+    ]
   }
 }
