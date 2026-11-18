@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Hatto Social contributors
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 # Original host generator. Needs the box harness at /workspace/v0-kickoff/harness; not run in CI.
 # ARM64 스모크 기대값 생성 (x86_64 호스트, 무수정 rslib 26.09.3, protobuf 통로만). Hatto 래퍼(prep_E)는 쓰지 않는다: 기기에서도 rslib 호출만으로 재현되도록.
 import sys, os, shutil, json, time, glob, zipfile, hashlib, uuid, copy

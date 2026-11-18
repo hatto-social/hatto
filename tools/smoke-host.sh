@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+
+# SPDX-FileCopyrightText: 2026 Hatto Social contributors
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 # Host smoke: rslib collection open, side DB, and the Flutter bridge test.
 # Android/NDK is not part of this script. See the README.
 set -euo pipefail

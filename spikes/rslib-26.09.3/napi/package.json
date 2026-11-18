@@ -1,6 +1,7 @@
 {
   "name": "@hatto/rslib-napi-spike",
   "version": "0.0.0",
+  "license": "AGPL-3.0-or-later",
   "private": true,
   "type": "module",
   "description": "Node tests for the rslib protobuf napi spike. The .node file is built by scripts/build-napi.sh and is not published.",

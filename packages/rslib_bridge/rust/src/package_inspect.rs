@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Hatto Social contributors
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 //! Read deck configs out of an exported `.apkg` without calling rslib.
 //!
 //! rslib itself is only reached through `Backend::run_service_method` (the

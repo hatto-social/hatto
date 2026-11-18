@@ -1,0 +1,60 @@
+version = 1
+SPDX-PackageName = "hatto"
+SPDX-PackageDownloadLocation = "https://github.com/hatto-social/hatto"
+
+# Product sources carry the same grant in SPDX headers. This annotation covers
+# everything else (generated code, spikes, demo-app, config, docs, fixtures we
+# wrote). Later annotations override it for files that are not ours alone.
+[[annotations]]
+path = ["**"]
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 Hatto Social contributors"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+# Dart generated from Anki .proto, and the service index extracted from that
+# tree. Anki's copyright stays on the derivative.
+[[annotations]]
+path = [
+  "spikes/rslib-26.09.3/mobile/lib/gen_proto/**",
+  "spikes/rslib-26.09.3/mobile/assets/service-ids.json",
+  "spikes/rslib-26.09.3/napi/service-ids.json",
+]
+precedence = "override"
+SPDX-FileCopyrightText = [
+  "Ankitects Pty Ltd and contributors",
+  "2026 Hatto Social contributors",
+]
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+# Third-party colpkg fixtures. The MIT grant is the source repository's.
+# Media inside palace.colpkg is not identified; see tools/arm64-smoke/files/NOTICE.
+[[annotations]]
+path = ["tools/arm64-smoke/files/collection.colpkg"]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Justin Searls"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = ["tools/arm64-smoke/files/collection_nomedia_new.colpkg"]
+precedence = "override"
+SPDX-FileCopyrightText = "2023 Razumov Igor"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = ["tools/arm64-smoke/files/palace.colpkg"]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 ZahakJ"
+SPDX-License-Identifier = "MIT"
+
+# These files quote other people's copyright lines and SPDX headers (MIT
+# notices, the DCO, the Anki port header). `closest` would treat the
+# quotations as the copyright of the file. The files themselves are ours.
+[[annotations]]
+path = [
+  "NOTICE.md",
+  "CONTRIBUTING.md",
+  "tools/arm64-smoke/files/NOTICE",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Hatto Social contributors"
+SPDX-License-Identifier = "AGPL-3.0-or-later"

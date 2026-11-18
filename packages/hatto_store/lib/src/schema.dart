@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Hatto Social contributors
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import 'package:sqlite3/sqlite3.dart';
 
 /// Draft schema for the Hatto side database. Not a stable contract.

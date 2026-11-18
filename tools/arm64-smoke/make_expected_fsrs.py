@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Hatto Social contributors
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 # Original host generator for the synthetic FSRS package. Needs the box harness; not run in CI.
 # fsrs-synthetic-37k.apkg 기대값(호스트 x86_64). 합성 revlog 37,312행(카드 4,000장), 하네스 x4_fsrs.py(4000 20)가 만든 파일.
 import sys, json, shutil, hashlib, time, os

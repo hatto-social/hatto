@@ -1,0 +1,33 @@
+# Notice
+
+## Hatto
+
+Copyright 2026 Hatto Social contributors.
+
+Hatto is licensed under the GNU Affero General Public License, version 3, or any later version (`AGPL-3.0-or-later`). The license text is [`LICENSE`](LICENSE). The same bytes are in [`LICENSES/AGPL-3.0-or-later.txt`](LICENSES/AGPL-3.0-or-later.txt).
+
+The Dart packages in this repository set `publish_to: none`. They are not published to pub.dev. This repository does not keep a separate `LICENSE` copy in each package.
+
+## Anki
+
+The collection engine is Anki's rslib. It is the git submodule [`third_party/anki`](third_party/anki), pinned unmodified at commit `29bb700b951e3f0c0cb69b77c0180fc1fe33e6ba` (tag 26.09.3). Copyright Ankitects Pty Ltd and contributors. Anki is AGPL-3.0-or-later, the same license as Hatto. Anki's license text in that checkout is a short notice, not the AGPL itself. The AGPL text we distribute is the file in this repository.
+
+`packages/rslib_bridge/rust` path-depends on `anki` (`rslib`), `anki_proto` (`rslib/proto`), and, for the build script only, `anki_proto_gen` (`rslib/proto_gen`). It does not compile Anki's `pylib/` or `qt/` trees.
+
+Anki's own `LICENSE` at that commit lists source that is not AGPL: `pylib/statsbg.py` (CC BY 4.0); Qt translations (a mix of BSD and public domain); `mpv.py` and `winpaths.py` (MIT); MathJax (Apache 2); jQuery, jQuery UI, and `plot.js` (MIT); `protobuf.js` (BSD-3-Clause). Those files live under `pylib/`, `qt/`, or the web tree. This package does not vendor them. Anki also says some contributions from Anki users are BSD-3-Clause (see Anki's `CONTRIBUTORS`). This repository does not copy files out of the submodule.
+
+Do not copy Anki source into this tree. A port or a translation has to keep Anki's copyright and say what changed. The rule is in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+Dart under `spikes/rslib-26.09.3/mobile/lib/gen_proto/` is generated from Anki's `.proto` files at that pin. `spikes/rslib-26.09.3/mobile/assets/service-ids.json` and `spikes/rslib-26.09.3/napi/service-ids.json` are the service and method numbers extracted from that tree. Those files are copyright Ankitects Pty Ltd and contributors and 2026 Hatto Social contributors, under AGPL-3.0-or-later. [`REUSE.toml`](REUSE.toml) records that.
+
+Anki's logo is copyright Alex Fraser and is AGPL, with a separate limited license for books, blogs, and video. This repository does not include the logo, Anki's icons, or Anki's sounds.
+
+The name "Anki" is used only to describe compatibility with Anki decks and with rslib. A trademark policy for that use was not found in Anki's `LICENSE`.
+
+The submodule also points at Anki's translation checkouts (`ftl/core-repo`, `ftl/qt-repo`). Those repositories do not ship a `LICENSE` file. Anki's `LICENSE` describes translations in the `qt` folder as a mix of BSD and public domain. That sentence is not a license for the translation repositories. This notice does not add one.
+
+## Other notices
+
+License texts for third-party dependencies that are linked into a binary are not collected in this change. They will live in `THIRD_PARTY_NOTICES.md`.
+
+Third-party test fixtures under `tools/arm64-smoke/files/` are described in [`tools/arm64-smoke/files/NOTICE`](tools/arm64-smoke/files/NOTICE).
