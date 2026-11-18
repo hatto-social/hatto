@@ -127,7 +127,8 @@ test("two Fedify instances exchange deck revisions", { timeout: 120_000 }, async
   assert.equal(fork.fetch.byteEqualToOriginal, true);
   assert.equal(fork.fetch.signedByteEqual, true);
   assert.equal(fork.fetch.unsignedBytes, fork.fetch.originalBytes);
-  assert.equal(fork.fetch.unsignedBytes, 733);
+  // The z multihash is 3 characters longer than the prefix-less u value, so this body grew from 733 to 736.
+  assert.equal(fork.fetch.unsignedBytes, 736);
   assert.equal(fork.fetch.origin.endsWith("/decks/fork-source/revs/4"), true);
   assert.deepEqual(fork.fetch.schemaErrors, []);
   assert.equal(fork.fetch.digestOk, true);
