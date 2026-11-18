@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Hatto Social contributors
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // ARM64 device smoke. Run on a real arm64-v8a phone:
 //
 //   flutter test integration_test/arm64_smoke_test.dart -d <serial> \

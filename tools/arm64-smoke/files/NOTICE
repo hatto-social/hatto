@@ -1,0 +1,156 @@
+Third-party colpkg fixtures
+===========================
+
+Three files in this directory were copied from other repositories and are
+still those copies. SHA-256 of each file matches the upstream file on the
+commit below (checked 2026-11-18 against the raw file on the default branch,
+which is unchanged since that commit). The paths are the ones recorded in
+tools/arm64-smoke/make_expected.py. A later change may replace these with
+synthetic decks. This file describes the copies that are here now.
+
+The MIT license below is the license of the source repository. It is not a
+finding that every byte inside a deck (notes, audio, images) is MIT.
+
+collection.colpkg
+-----------------
+
+SHA-256: cc61faac2743ebee1b01af0a68f54a8a5cc17b84f5d5db597db4a3d061cccac2
+Source: https://github.com/searlsco/anki_wrapper
+Path: Tests/AnkiWrapperTests/Fixtures/collection.colpkg
+Commit: 0c654c51c09aff9d0aa582cc6de5abe387db0229 (2026-09-28, "Treat packages as hostile input and read FSRS state")
+https://github.com/searlsco/anki_wrapper/blob/0c654c51c09aff9d0aa582cc6de5abe387db0229/Tests/AnkiWrapperTests/Fixtures/collection.colpkg
+
+The archive has no media members. The media map is an empty zstd frame.
+
+Copyright (c) 2026 Justin Searls
+https://github.com/searlsco/anki_wrapper/blob/0c654c51c09aff9d0aa582cc6de5abe387db0229/LICENSE
+
+MIT License
+
+Copyright (c) 2026 Justin Searls
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+collection_nomedia_new.colpkg
+-----------------------------
+
+SHA-256: 6cb4a304a76dd8116e9c36136ac2164ce610458b08d7142d2e634a8cb6d7646e
+Source: https://github.com/74Genesis/anki-apkg-parser
+Path: test/decks/collection_nomedia_new.colpkg
+Commit: d9a5bdc09f7baee92e283408e464d1efbb4d9742 (2023-12-04, "structure updates")
+https://github.com/74Genesis/anki-apkg-parser/blob/d9a5bdc09f7baee92e283408e464d1efbb4d9742/test/decks/collection_nomedia_new.colpkg
+
+The archive has no media members. The media map is an empty zstd frame.
+
+Copyright (c) 2023 Razumov Igor
+https://github.com/74Genesis/anki-apkg-parser/blob/d9a5bdc09f7baee92e283408e464d1efbb4d9742/LICENSE
+
+MIT License
+
+Copyright (c) 2023 Razumov Igor
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+palace.colpkg
+-------------
+
+SHA-256: 943a2d17435e2dfa097cbfe2c00f02cec18c190fcd6a34daf934d241cefc84c6
+Source: https://github.com/ZahakJ/loci-rs
+Path: fixtures/palace.colpkg
+Commit: 047d0e9c3ea2834baf7b44568b637b90377661f5 (2026-10-11, "Foundation: workspace, types, error, db, blobs, text, plan and design")
+https://github.com/ZahakJ/loci-rs/blob/047d0e9c3ea2834baf7b44568b637b90377661f5/fixtures/palace.colpkg
+
+Copyright (c) 2026 ZahakJ
+https://github.com/ZahakJ/loci-rs/blob/047d0e9c3ea2834baf7b44568b637b90377661f5/LICENSE
+
+The package contains 19 media files. Their provenance is unknown. This
+repository does not know who made them, where they were published, or which
+license applies to them. The MIT grant of loci-rs is not a finding that
+these media are MIT. No source for them is stated here.
+
+- ar-bayt.wav
+- ar-dhakira.wav
+- ar-kitab.wav
+- ar-qamar.wav
+- ar-salam.wav
+- ar-shams.wav
+- atom.png
+- circuit.png
+- incline.png
+- io-arm.png
+- io-brain.png
+- io-eye.png
+- io-heart.png
+- io-skeleton.png
+- lens.png
+- verb-dhahaba.wav
+- verb-jalasa.wav
+- verb-kataba.wav
+- verb-qaraa.wav
+
+MIT License
+
+Copyright (c) 2026 ZahakJ
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Files in this directory that are not third-party copies
+-------------------------------------------------------
+
+These stay under the repository license (AGPL-3.0-or-later, copyright
+2026 Hatto Social contributors), recorded in REUSE.toml:
+
+- fsrs-synthetic-37k.apkg. Synthetic deck from the host harness
+  (tools/arm64-smoke/make_expected_fsrs.py). No media members.
+- stock-notes.apkg. Synthetic deck from the host harness
+  (tools/arm64-smoke/make_expected.py). One media entry, named pic.png,
+  was produced with that fixture. No separate upstream is recorded for it.
+- SHA256SUMS. Checksums of the five packages above.

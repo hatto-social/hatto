@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Hatto Social contributors
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 //! Build the service/method index from Anki 26.09.3's protobuf sources.
 //!
 //! rslib dispatches `run_service_method` with indices from `anki_proto_gen::get_services`

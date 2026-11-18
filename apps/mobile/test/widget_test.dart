@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Hatto Social contributors
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hatto_mobile/main.dart';
 

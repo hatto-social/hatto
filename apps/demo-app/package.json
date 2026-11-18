@@ -2,6 +2,7 @@
   "name": "@hatto/demo-app",
   "private": true,
   "version": "0.0.0",
+  "license": "AGPL-3.0-or-later",
   "description": "Spike only. Exercise the Postgres pointer + per-deck SQLite rules. Not product code.",
   "scripts": {
     "build": "tsc -p tsconfig.json",

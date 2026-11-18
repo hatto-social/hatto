@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Hatto Social contributors
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 include!(concat!(env!("OUT_DIR"), "/service_index.rs"));
 
 pub fn lookup(service: &str, method: &str) -> Option<(u32, u32)> {

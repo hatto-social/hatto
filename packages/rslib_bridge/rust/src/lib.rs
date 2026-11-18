@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Hatto Social contributors
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 //! Bindings from Dart to Anki's rslib.
 //!
 //! Collection calls go through `init_backend` (a `BackendInit` protobuf) and

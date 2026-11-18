@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Hatto Social contributors
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Device smoke for colpkg round-trip, one FSRS fit, and notetype cloning.
 //
 // Every collection call goes through rslib_bridge (`openBackend` + `command`),

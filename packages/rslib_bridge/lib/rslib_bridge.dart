@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Hatto Social contributors
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 /// Dart API for the rslib bridge.
 ///
 /// Generated bindings live in `src/rust/` and are produced by

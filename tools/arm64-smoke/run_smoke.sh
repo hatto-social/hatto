@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+
+# SPDX-FileCopyrightText: 2026 Hatto Social contributors
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 # One-shot ARM64 device smoke for the Hatto app.
 #
 # Build first, from the repo root, with NDK r29 (29.0.14206865):

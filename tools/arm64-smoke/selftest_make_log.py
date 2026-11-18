@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Hatto Social contributors
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 # judge.py 자체 검증용: expected.json 값으로 '이상적인 기기 로그'를 만든다. (기기 로그가 아니다. 판정기가 잘 읽는지만 확인)
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))

@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+
+# SPDX-FileCopyrightText: 2026 Hatto Social contributors
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """ARM64 스모크 판정기. 사용법: judge.py <logfile> [expected.json]
 로그 줄 형식: HATTO_SMOKE <id> key=value ... (값에 공백이 있으면 큰따옴표). 스파이크 기존 테스트 줄(FRB_DEVICE_OK, All tests passed!)도 읽는다.
 revlog 합격 기준: '카드가 있는 revlog 행 수'(where cid in (select id from cards))가 E(colpkg 가져온 직후)와 R(apkg 경유 상주)에서 같을 것.
