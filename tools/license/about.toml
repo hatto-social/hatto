@@ -1,0 +1,110 @@
+# cargo-about 0.9.3 configuration for the Android runtime graph of
+# packages/rslib_bridge/rust. Generate notices with tools/license/gen-notices.sh.
+#
+# `accepted` is a priority list. An `OR` expression is satisfied by the
+# earliest license in this list, so `Apache-2.0 OR GPL-2.0-only` resolves to
+# Apache-2.0 and `LGPL-3.0-or-later OR MPL-2.0` resolves to MPL-2.0. An `AND`
+# expression must be satisfied by every term. LGPL-only and the legacy
+# OpenSSL license are not accepted. A license this list cannot satisfy fails
+# `cargo about generate --fail`.
+
+accepted = [
+    "AGPL-3.0-or-later",
+    "Apache-2.0",
+    "MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "MPL-2.0",
+    "CC0-1.0",
+    "0BSD",
+    "Unlicense",
+    "CDLA-Permissive-2.0",
+    "BSL-1.0",
+]
+
+# ABIs the Android app ships (armeabi-v7a, arm64-v8a, x86_64). Host-only
+# cfg() dependencies are left out. Build and dev dependencies are not linked
+# into the APK.
+targets = [
+    "aarch64-linux-android",
+    "armv7-linux-androideabi",
+    "x86_64-linux-android",
+]
+
+ignore-build-dependencies = true
+ignore-dev-dependencies = true
+ignore-transitive-dependencies = false
+
+# Unpublished path crates must stay in the graph. cargo-about treats
+# `publish = false` as private, which would drop the Anki crates. The
+# generator files those crates under the Anki notice and drops rslib_bridge
+# (this repository's own crate) from the third-party list.
+private = { ignore = false }
+
+# Crate-specific keys must come last.
+#
+# allo-isolate 0.1.27 has no `license` field. Its packaged LICENSE is the
+# Apache-2.0 text.
+[allo-isolate.clarify]
+license = "Apache-2.0"
+
+[[allo-isolate.clarify.files]]
+path = "LICENSE"
+license = "Apache-2.0"
+checksum = "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+
+# ring 0.17.14 is `Apache-2.0 AND ISC`. The packaged LICENSE file is a
+# pointer. LICENSE-BoringSSL is the Apache-2.0 text plus the Go and Chromium
+# notices for code that came from BoringSSL. LICENSE-other-bits is the ISC
+# text. fiat and once_cell are named by ring's LICENSE; once_cell is
+# Apache-2.0 OR MIT, and Apache-2.0 satisfies that choice. Without this
+# clarification cargo-about harvests ISC headers out of ring's .rs sources.
+[ring.clarify]
+license = "Apache-2.0 AND ISC"
+
+[[ring.clarify.files]]
+path = "LICENSE"
+checksum = "b3d734001a94efff3579978d953391aa7115f877657d25eb54037a43875d078a"
+
+[[ring.clarify.files]]
+path = "LICENSE-BoringSSL"
+license = "Apache-2.0"
+checksum = "005fc765ddc5115da796cca915baa9557abae13ff35e0a47c47affc56f6c414d"
+
+[[ring.clarify.files]]
+path = "LICENSE-other-bits"
+license = "ISC"
+checksum = "f025ccfb7dfb6bdfedc75ca0f67acc69e6fb4998143d834f7c2f38a29989680f"
+
+[[ring.clarify.files]]
+path = "third_party/fiat/LICENSE"
+license = "Apache-2.0"
+checksum = "9eacbcb81be660840c714a560a9d65ba07913db98dd4baf969f78dd499fdd60f"
+
+[[ring.clarify.files]]
+path = "src/polyfill/once_cell/LICENSE-APACHE"
+license = "Apache-2.0"
+checksum = "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+
+# encoding_rs 0.8.42 is `(Apache-2.0 OR MIT) AND BSD-3-Clause`. The BSD-3
+# grant is LICENSE-WHATWG. Unclarified, cargo-about copies a source file
+# that starts with that header and then continues into Rust.
+[encoding_rs.clarify]
+license = "(Apache-2.0 OR MIT) AND BSD-3-Clause"
+
+[[encoding_rs.clarify.files]]
+path = "LICENSE-APACHE"
+license = "Apache-2.0"
+checksum = "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+
+[[encoding_rs.clarify.files]]
+path = "LICENSE-WHATWG"
+license = "BSD-3-Clause"
+checksum = "838118388fe5c2e7f1dbbaeed13e1c7f3ebf88be91319c7c1d77c18e987d1a50"
+
+[[encoding_rs.clarify.files]]
+path = "COPYRIGHT"
+checksum = "11789f45bb180841cd362a5eee6789c68ddb573a11105e30768c308a6add0190"

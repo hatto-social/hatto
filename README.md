@@ -4,7 +4,7 @@ Hatto Social v0 is a local-first Android app. There is no server in this version
 
 The collection engine is Anki's Rust library **rslib**, pinned to **26.09.3** and not patched. The app talks to it only through rslib's protobuf backend (`init_backend` with a `BackendInit` message, then `Backend::run_service_method`). Service and method numbers are generated at build time from that tag's `.proto` files, because those numbers are not a stable ABI.
 
-The app is AGPL-3.0-or-later, the same license as rslib, which it links statically. The license text is `LICENSE`. Notices for Anki and for files in this repository are in `NOTICE.md`.
+The app is AGPL-3.0-or-later, the same license as rslib, which it links statically. The license text is `LICENSE`. Notices for Anki and for files in this repository are in `NOTICE.md`. Third-party dependency notices are in `THIRD_PARTY_NOTICES.md`.
 
 ## Layout
 

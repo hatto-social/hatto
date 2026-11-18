@@ -5,6 +5,8 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:hatto_mobile/about_page.dart';
+import 'package:hatto_mobile/third_party_licenses.dart';
 import 'package:hatto_store/hatto_store.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -12,6 +14,7 @@ import 'package:rslib_bridge/rslib_bridge.dart' hide ProtoResponse;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await registerBundledLicenses();
   await initRslibBridge();
   final cache = await getTemporaryDirectory();
   prepareRuntime(tmpDir: cache.path);
@@ -137,6 +140,17 @@ class _HomePageState extends State<HomePage> {
             FilledButton(
               onPressed: _busy ? null : _inspect,
               child: const Text('Inspect deck configs'),
+            ),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (context) => const AboutPage(),
+                  ),
+                );
+              },
+              child: const Text('라이선스'),
             ),
             const SizedBox(height: 16),
             Text(_status, key: const Key('smoke-status')),

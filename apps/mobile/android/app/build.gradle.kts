@@ -2,6 +2,8 @@ plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    // Report-only. The task is not wired to assemble, and reports are not copied into assets.
+    id("com.jaredsburrows.license")
 }
 
 android {
@@ -48,4 +50,21 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+// `tools/license/gen-notices.sh` runs `licenseReleaseReport`. Nothing in the
+// app runtime reads the plugin's output directory. The committed JSON is
+// `assets/licenses/android-deps.json`.
+licenseReport {
+    generateCsvReport = false
+    generateHtmlReport = false
+    generateJsonReport = false
+    generateJsonFullReport = true
+    generateTextReport = false
+    copyCsvReportToAssets = false
+    copyHtmlReportToAssets = false
+    copyJsonReportToAssets = false
+    copyJsonFullReportToAssets = false
+    copyTextReportToAssets = false
+    showVersions = true
 }

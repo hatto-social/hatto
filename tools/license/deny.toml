@@ -1,0 +1,63 @@
+# cargo-deny 0.21.0 license policy for packages/rslib_bridge/rust.
+#
+# `cargo deny check licenses` fails when a crate in the Android graph uses a
+# license this list cannot satisfy. Advisories, bans, and source checks are
+# out of scope for this file. Run only the licenses check.
+
+[graph]
+targets = [
+    { triple = "aarch64-linux-android" },
+    { triple = "armv7-linux-androideabi" },
+    { triple = "x86_64-linux-android" },
+]
+all-features = false
+no-default-features = false
+exclude-dev = true
+
+[licenses]
+unused-allowed-license = "allow"
+confidence-threshold = 0.8
+allow = [
+    "AGPL-3.0-or-later",
+    "Apache-2.0",
+    "MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "MPL-2.0",
+    "CC0-1.0",
+    "0BSD",
+    "Unlicense",
+    "CDLA-Permissive-2.0",
+    "BSL-1.0",
+]
+exceptions = []
+
+[licenses.private]
+# rslib_bridge is unpublished. Anki path crates are not workspace members;
+# this flag does not skip them, and their license field is AGPL-3.0-or-later.
+ignore = true
+registries = []
+
+# allo-isolate 0.1.27 publishes no `license` field. LICENSE is the
+# Apache-2.0 text. The hash is cargo-deny's XxHash32 of that file.
+[[licenses.clarify]]
+crate = "allo-isolate"
+expression = "Apache-2.0"
+license-files = [{ path = "LICENSE", hash = 0x0a6d4ed6 }]
+
+# ring 0.17.14's Cargo.toml says `Apache-2.0 AND ISC`. Pin the packaged
+# notice files so a future upload that adds an incompatible license text
+# stops matching and is checked again.
+[[licenses.clarify]]
+crate = "ring"
+expression = "Apache-2.0 AND ISC"
+license-files = [
+    { path = "LICENSE", hash = 0x0d99693a },
+    { path = "LICENSE-BoringSSL", hash = 0x08f795a3 },
+    { path = "LICENSE-other-bits", hash = 0x8b770de2 },
+    { path = "third_party/fiat/LICENSE", hash = 0x931a8dd4 },
+    { path = "src/polyfill/once_cell/LICENSE-APACHE", hash = 0x24b54f4b },
+]
