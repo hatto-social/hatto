@@ -60,7 +60,7 @@ void main() {
       'origin_role',
       'source_sha256',
       'server_unsynced',
-      'tombstoned',
+      'deleted_at',
     ]);
     final deckInfo = raw.select('PRAGMA table_info(deck_map)');
     expect(
@@ -69,10 +69,11 @@ void main() {
           .single['dflt_value'],
       '1',
     );
-    expect(
-      deckInfo.where((row) => row['name'] == 'tombstoned').single['dflt_value'],
-      '0',
-    );
+    final deletedAt = deckInfo
+        .where((row) => row['name'] == 'deleted_at')
+        .single;
+    expect(deletedAt['dflt_value'], isNull);
+    expect(deletedAt['notnull'], 0);
     expect(_columns(raw, 'note_map'), [
       'note_guid',
       'rslib_note_id',
@@ -208,7 +209,7 @@ void main() {
   });
 
   test(
-    'a new file is version 1 and includes home_deck_guid and tombstoned',
+    'a new file is version 1 and includes home_deck_guid and deleted_at',
     () {
       expect(sideDbSchemaVersion, 1);
       final path = sideDbPath(dir.path);
@@ -231,7 +232,8 @@ void main() {
             .single['notnull'],
         1,
       );
-      expect(_columns(raw, 'deck_map'), contains('tombstoned'));
+      expect(_columns(raw, 'deck_map'), contains('deleted_at'));
+      expect(_columns(raw, 'deck_map'), isNot(contains('tombstoned')));
       expect(
         raw.select('SELECT name FROM sqlite_master WHERE name = ?', [
           'note_map_home_deck_guid',

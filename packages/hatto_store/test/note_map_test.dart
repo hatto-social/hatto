@@ -29,9 +29,9 @@ void main() {
     expect(row.rslibNoteId, 100);
     expect(row.noteGuid, 'note-1');
 
-    side.tombstoneDeck('deck-b');
+    side.markDeckDeleted(deckGuid: 'deck-b', deletedAt: '2026-11-18T04:31:00Z');
     side.putDeck(deckGuid: 'deck-b', rslibDeckId: 20);
-    expect(side.deck('deck-b')!.tombstoned, isTrue);
+    expect(side.deck('deck-b')!.deletedAt, '2026-11-18T04:31:00Z');
     side.importNote(
       noteGuid: 'note-tomb',
       rslibNoteId: 101,
@@ -128,8 +128,43 @@ void main() {
     expect(side.note('note-min')!.homeDeckGuid, 'deck-b');
   });
 
-  test('rewriteDeckGuid updates deck_map and home_deck_guid, including a tombstone', () {
-    side.tombstoneDeck('deck-b');
+  test('a filtered card uses its original deck', () {
+    side.putDeck(deckGuid: 'deck-original', rslibDeckId: 40);
+    side.putDeck(deckGuid: 'deck-filtered', rslibDeckId: 50);
+
+    side.importNote(
+      noteGuid: 'note-filtered',
+      rslibNoteId: 300,
+      cards: const [
+        ImportedNoteCard(ord: 1, rslibDeckId: 10),
+        ImportedNoteCard(ord: 0, rslibDeckId: 50, odid: 40),
+      ],
+    );
+    expect(side.note('note-filtered')!.homeDeckGuid, 'deck-original');
+
+    side.importNote(
+      noteGuid: 'note-filtered-min',
+      rslibNoteId: 301,
+      cards: const [
+        ImportedNoteCard(ord: 2, rslibDeckId: 10),
+        ImportedNoteCard(ord: 1, rslibDeckId: 50, odid: 30),
+      ],
+    );
+    expect(side.note('note-filtered-min')!.homeDeckGuid, 'deck-c');
+
+    expect(
+      () => side.importNote(
+        noteGuid: 'note-missing-original',
+        rslibNoteId: 302,
+        cards: const [ImportedNoteCard(ord: 0, rslibDeckId: 50, odid: 99)],
+      ),
+      throwsA(isA<SideDbException>()),
+    );
+    expect(side.note('note-missing-original'), isNull);
+  });
+
+  test('rewriteDeckGuid updates deck_map and home_deck_guid, including a deleted deck', () {
+    side.markDeckDeleted(deckGuid: 'deck-b', deletedAt: '2026-11-18T04:31:00Z');
     side.importNote(
       noteGuid: 'n-live',
       rslibNoteId: 1,
@@ -161,10 +196,10 @@ void main() {
     expect(side.deck('deck-b'), isNull);
     final live = side.deck('server-a')!;
     expect(live.rslibDeckId, 10);
-    expect(live.tombstoned, isFalse);
+    expect(live.deletedAt, isNull);
     final dead = side.deck('server-b')!;
     expect(dead.rslibDeckId, 20);
-    expect(dead.tombstoned, isTrue);
+    expect(dead.deletedAt, '2026-11-18T04:31:00Z');
     expect(side.note('n-live')!.homeDeckGuid, 'server-a');
     expect(side.note('n-dead')!.homeDeckGuid, 'server-b');
     expect(side.note('n-dead-2')!.homeDeckGuid, 'server-b');
@@ -174,7 +209,7 @@ void main() {
       () => side.rewriteDeckGuid(fromGuid: 'server-b', toGuid: 'deck-c'),
       throwsA(isA<SqliteException>()),
     );
-    expect(side.deck('server-b')!.tombstoned, isTrue);
+    expect(side.deck('server-b')!.deletedAt, '2026-11-18T04:31:00Z');
     expect(side.deck('deck-c')!.rslibDeckId, 30);
     expect(side.note('n-dead')!.homeDeckGuid, 'server-b');
     expect(side.note('n-dead-2')!.homeDeckGuid, 'server-b');

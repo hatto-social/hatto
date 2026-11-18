@@ -12,8 +12,9 @@ import 'schema.dart';
 /// that deck. Notes, cards, and media do not store their own flag; they follow
 /// the deck that owns them. For a note, that deck is `note_map.home_deck_guid`:
 /// the ord-0 card's deck at import, or the lowest ord when there is no ord-0
-/// card. `import_batch_id` groups decks from one import. `source_sha256`
-/// names the copied apkg under `<documents>/hatto/imports/`.
+/// card. A filtered card uses its original deck. `import_batch_id` groups
+/// decks from one import. `source_sha256` names the copied apkg under
+/// `<documents>/hatto/imports/`.
 class SideDb {
   SideDb._(this._db, this.deviceId);
 
@@ -168,7 +169,7 @@ class SideDb {
   ///
   /// A note, card, or media file has no unsynced column. Use the flag of the
   /// deck that owns it. For a note, that is [NoteMapRow.homeDeckGuid].
-  /// Replacing a row does not clear [DeckMapRow.tombstoned].
+  /// Replacing a row does not clear [DeckMapRow.deletedAt].
   void putDeck({
     required String deckGuid,
     required int rslibDeckId,
@@ -220,13 +221,17 @@ class SideDb {
     }
   }
 
-  /// Marks [deckGuid] soft-deleted. The row stays in `deck_map`.
+  /// Records [deletedAt] on [deckGuid]. The row stays in `deck_map`.
   ///
-  /// A tombstone is still a deck guid. [rewriteDeckGuid] and [importNote]
-  /// match it. They do not filter this flag out.
-  void tombstoneDeck(String deckGuid) {
+  /// A deleted deck is still a deck guid. [rewriteDeckGuid] and [importNote]
+  /// match it, including when `deleted_at` is set. [putDeck] does not clear
+  /// the time.
+  void markDeckDeleted({required String deckGuid, required String deletedAt}) {
     if (deckGuid.isEmpty) {
       throw const SideDbException('deck guid is empty');
+    }
+    if (deletedAt.isEmpty) {
+      throw const SideDbException('deleted_at is empty');
     }
     final rows = _db.select(
       'SELECT deck_guid FROM deck_map WHERE deck_guid = ?',
@@ -235,7 +240,8 @@ class SideDb {
     if (rows.isEmpty) {
       throw SideDbException('deck $deckGuid is not in deck_map');
     }
-    _db.execute('UPDATE deck_map SET tombstoned = 1 WHERE deck_guid = ?', [
+    _db.execute('UPDATE deck_map SET deleted_at = ? WHERE deck_guid = ?', [
+      deletedAt,
       deckGuid,
     ]);
   }
@@ -246,7 +252,7 @@ class SideDb {
   /// v1 upload calls this when a provisional deck guid becomes the server
   /// guid. One transaction: the note update is applied first, then the deck
   /// row, and a constraint failure rolls both back. The deck predicate is the
-  /// guid only, so a tombstoned deck is rewritten with its notes.
+  /// guid only, so a deck with `deleted_at` set is rewritten with its notes.
   void rewriteDeckGuid({required String fromGuid, required String toGuid}) {
     if (fromGuid.isEmpty || toGuid.isEmpty) {
       throw const SideDbException('deck guid is empty');
@@ -278,7 +284,7 @@ class SideDb {
   DeckMapRow? deck(String deckGuid) {
     final rows = _db.select(
       'SELECT deck_guid, rslib_deck_id, import_batch_id, origin_kind, '
-      'origin_role, source_sha256, server_unsynced, tombstoned FROM deck_map '
+      'origin_role, source_sha256, server_unsynced, deleted_at FROM deck_map '
       'WHERE deck_guid = ?',
       [deckGuid],
     );
@@ -299,7 +305,7 @@ class SideDb {
   List<DeckMapRow> unsyncedDecks() {
     final rows = _db.select(
       'SELECT deck_guid, rslib_deck_id, import_batch_id, origin_kind, '
-      'origin_role, source_sha256, server_unsynced, tombstoned FROM deck_map '
+      'origin_role, source_sha256, server_unsynced, deleted_at FROM deck_map '
       'WHERE server_unsynced != 0 ORDER BY deck_guid',
     );
     return [for (final row in rows) _deckRow(row)];
@@ -309,7 +315,7 @@ class SideDb {
   List<DeckMapRow> decksForImport(String importBatchId) {
     final rows = _db.select(
       'SELECT deck_guid, rslib_deck_id, import_batch_id, origin_kind, '
-      'origin_role, source_sha256, server_unsynced, tombstoned FROM deck_map '
+      'origin_role, source_sha256, server_unsynced, deleted_at FROM deck_map '
       'WHERE import_batch_id = ? ORDER BY deck_guid',
       [importBatchId],
     );
@@ -320,7 +326,9 @@ class SideDb {
   ///
   /// [cards] are the note's cards at import. The home deck is the Hatto guid
   /// of the ord-0 card's deck when that card exists, otherwise the deck of the
-  /// card with the lowest ord. The deck id is resolved through `deck_map`.
+  /// card with the lowest ord. A card in a filtered deck (`odid` not 0)
+  /// contributes that original deck instead of its current deck. The deck id
+  /// is resolved through `deck_map`.
   /// rslib `notes.guid` is ignored; [noteGuid] is the Hatto guid.
   ///
   /// The home deck is written only on the first insert. Calling this again
@@ -369,7 +377,8 @@ class SideDb {
   }
 
   String _homeDeckGuidAtImport(List<ImportedNoteCard> cards) {
-    final deckId = _homeCardAtImport(cards).rslibDeckId;
+    final home = _homeCardAtImport(cards);
+    final deckId = home.odid != 0 ? home.odid : home.rslibDeckId;
     final rows = _db.select(
       'SELECT deck_guid FROM deck_map WHERE rslib_deck_id = ?',
       [deckId],
@@ -452,7 +461,7 @@ class SideDb {
       originRole: row['origin_role'] as String?,
       sourceSha256: row['source_sha256'] as String?,
       serverUnsynced: (row['server_unsynced'] as int) != 0,
-      tombstoned: (row['tombstoned'] as int) != 0,
+      deletedAt: row['deleted_at'] as String?,
     );
   }
 }
@@ -507,7 +516,7 @@ class DeckMapRow {
     required this.originRole,
     required this.sourceSha256,
     required this.serverUnsynced,
-    required this.tombstoned,
+    required this.deletedAt,
   });
 
   final String deckGuid;
@@ -517,18 +526,28 @@ class DeckMapRow {
   final String? originRole;
   final String? sourceSha256;
   final bool serverUnsynced;
-  final bool tombstoned;
+
+  /// Deletion time. Null while the deck is live.
+  final String? deletedAt;
 }
 
 /// One card of a note at the moment that note is first imported.
 class ImportedNoteCard {
-  const ImportedNoteCard({required this.ord, required this.rslibDeckId});
+  const ImportedNoteCard({
+    required this.ord,
+    required this.rslibDeckId,
+    this.odid = 0,
+  });
 
   /// Template ordinal. Import prefers ord 0, then the lowest ord on the note.
   final int ord;
 
-  /// Anki `cards.did` for this card. Resolved through `deck_map`.
+  /// Anki `cards.did`, the deck the card is in now.
   final int rslibDeckId;
+
+  /// Anki `cards.odid`. Non-zero when the card is in a filtered deck: the
+  /// original deck, which is the one used for the home deck.
+  final int odid;
 }
 
 /// `note_map` row. [noteGuid] is the Hatto guid, not rslib `notes.guid`.
