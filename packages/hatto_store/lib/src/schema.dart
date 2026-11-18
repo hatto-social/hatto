@@ -10,8 +10,21 @@ import 'package:sqlite3/sqlite3.dart';
 /// `edit_journal.field` is null in v0. `deck_map.server_unsynced` defaults to
 /// 1 and is the unsynced flag for that deck. Notes, cards, and media do not
 /// store their own flag; they follow the deck that owns them.
-/// `import_batch_id` groups decks from one import. `source_sha256` is the
-/// file name of the copied apkg under `<documents>/hatto/imports/`, not a path.
+/// `deck_map.deleted_at` is the deletion time of a soft-deleted deck, null
+/// while the deck is live. The row stays so a later guid rewrite can still
+/// see it. `import_batch_id` groups decks from one import.
+/// `source_sha256` is the file name of the copied apkg under
+/// `<documents>/hatto/imports/`, not a path.
+///
+/// `note_map` is the sole authority for Hatto note guids. rslib `notes.guid`
+/// is not stored. Anki notes have no deck column. `home_deck_guid` is the
+/// Hatto guid of the deck chosen at import: the ord-0 card when one exists,
+/// otherwise the card with the lowest ord. A card in a filtered deck
+/// contributes its original deck (`odid`), not the filtered deck. It is
+/// written once and is not updated when cards move. Edit-journal rows for
+/// notes key only on the note guid, so the home deck lives here. Rewriting a
+/// deck guid updates `note_map.home_deck_guid` in the same transaction,
+/// including decks whose `deleted_at` is set.
 ///
 /// The file is opened with `package:sqlite3`, which ships its own SQLite
 /// library. rslib 26.09.3 links a different copy (rusqlite 0.36, feature
@@ -44,16 +57,19 @@ const List<String> _version1 = <String>[
     origin_kind TEXT,
     origin_role TEXT,
     source_sha256 TEXT,
-    server_unsynced INTEGER NOT NULL DEFAULT 1
+    server_unsynced INTEGER NOT NULL DEFAULT 1,
+    deleted_at TEXT
   )
   ''',
   'CREATE INDEX deck_map_import_batch_id ON deck_map(import_batch_id)',
   '''
   CREATE TABLE note_map (
     note_guid TEXT PRIMARY KEY,
-    rslib_note_id INTEGER NOT NULL UNIQUE
+    rslib_note_id INTEGER NOT NULL UNIQUE,
+    home_deck_guid TEXT NOT NULL
   )
   ''',
+  'CREATE INDEX note_map_home_deck_guid ON note_map(home_deck_guid)',
   '''
   CREATE TABLE edit_journal (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

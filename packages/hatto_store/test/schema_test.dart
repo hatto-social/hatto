@@ -60,15 +60,25 @@ void main() {
       'origin_role',
       'source_sha256',
       'server_unsynced',
+      'deleted_at',
     ]);
+    final deckInfo = raw.select('PRAGMA table_info(deck_map)');
     expect(
-      raw
-          .select("PRAGMA table_info(deck_map)")
+      deckInfo
           .where((row) => row['name'] == 'server_unsynced')
           .single['dflt_value'],
       '1',
     );
-    expect(_columns(raw, 'note_map'), ['note_guid', 'rslib_note_id']);
+    final deletedAt = deckInfo
+        .where((row) => row['name'] == 'deleted_at')
+        .single;
+    expect(deletedAt['dflt_value'], isNull);
+    expect(deletedAt['notnull'], 0);
+    expect(_columns(raw, 'note_map'), [
+      'note_guid',
+      'rslib_note_id',
+      'home_deck_guid',
+    ]);
     expect(_columns(raw, 'edit_journal'), [
       'id',
       'op',
@@ -83,6 +93,7 @@ void main() {
     expect(_columns(raw, 'intent'), ['id', 'op', 'target_key', 'expected']);
     for (final name in [
       'deck_map_import_batch_id',
+      'note_map_home_deck_guid',
       'revlog_origin_job',
       'media_key_content_key',
     ]) {
@@ -183,7 +194,7 @@ void main() {
     );
   });
 
-  test('reopen keeps a version 1 file', () {
+  test('reopen keeps the current schema and pending intents', () {
     final path = sideDbPath(dir.path);
     final first = SideDb.open(path: path, deviceId: 'device-a');
     final intentId = first.beginIntent(op: 'answer', targetKey: 'card-1');
@@ -196,6 +207,41 @@ void main() {
     expect(second.pendingIntents().single.op, 'answer');
     expect(second.pendingIntents().single.targetKey, 'card-1');
   });
+
+  test(
+    'a new file is version 1 and includes home_deck_guid and deleted_at',
+    () {
+      expect(sideDbSchemaVersion, 1);
+      final path = sideDbPath(dir.path);
+      final side = SideDb.open(path: path, deviceId: 'device-a');
+      expect(side.schemaVersion, 1);
+      side.close();
+
+      final raw = sqlite3.open(path);
+      addTearDown(raw.close);
+      expect(raw.select('PRAGMA user_version').first.values.first, 1);
+      expect(_columns(raw, 'note_map'), [
+        'note_guid',
+        'rslib_note_id',
+        'home_deck_guid',
+      ]);
+      expect(
+        raw
+            .select('PRAGMA table_info(note_map)')
+            .where((row) => row['name'] == 'home_deck_guid')
+            .single['notnull'],
+        1,
+      );
+      expect(_columns(raw, 'deck_map'), contains('deleted_at'));
+      expect(_columns(raw, 'deck_map'), isNot(contains('tombstoned')));
+      expect(
+        raw.select('SELECT name FROM sqlite_master WHERE name = ?', [
+          'note_map_home_deck_guid',
+        ]),
+        isNotEmpty,
+      );
+    },
+  );
 
   test('user_version set inside a transaction rolls back with it', () {
     final db = sqlite3.openInMemory();
