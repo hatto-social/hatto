@@ -1,0 +1,211 @@
+{
+ "host": "x86_64 linux, rslib 26.09.3",
+ "colpkg": {
+  "palace.colpkg": {
+   "bytes": 370175,
+   "sha256": "943a2d17435e2dfa097cbfe2c00f02cec18c190fcd6a34daf934d241cefc84c6",
+   "E_after_colpkg_import": {
+    "notes": 402,
+    "cards": 590,
+    "revlog_total": 7774,
+    "revlog_with_card": 7774,
+    "filtered_cards": 10
+   },
+   "R_after_apkg_import": {
+    "notes": 402,
+    "cards": 590,
+    "revlog_total": 7774,
+    "revlog_with_card": 7774,
+    "filtered_cards": 10
+   },
+   "import_new_notes": 402,
+   "host_seconds": {
+    "colpkg": 0.027,
+    "export": 0.103,
+    "apkg_import": 0.046
+   },
+   "fsrs": {
+    "fsrs_items": 5332,
+    "n_params": 0,
+    "params": [],
+    "all_finite": true,
+    "seconds": 0.13
+   },
+   "fsrs_deterministic_on_host": true,
+   "pass_rule": {
+    "notes": true,
+    "cards": true,
+    "revlog_with_card": true
+   }
+  },
+  "collection.colpkg": {
+   "bytes": 198707,
+   "sha256": "cc61faac2743ebee1b01af0a68f54a8a5cc17b84f5d5db597db4a3d061cccac2",
+   "E_after_colpkg_import": {
+    "notes": 1391,
+    "cards": 2778,
+    "revlog_total": 206,
+    "revlog_with_card": 206,
+    "filtered_cards": 25
+   },
+   "R_after_apkg_import": {
+    "notes": 1391,
+    "cards": 2778,
+    "revlog_total": 206,
+    "revlog_with_card": 206,
+    "filtered_cards": 25
+   },
+   "import_new_notes": 1391,
+   "host_seconds": {
+    "colpkg": 0.01,
+    "export": 0.046,
+    "apkg_import": 0.037
+   },
+   "fsrs": {
+    "fsrs_items": 0,
+    "n_params": 0,
+    "params": [],
+    "all_finite": true,
+    "seconds": 0.0
+   },
+   "fsrs_deterministic_on_host": true,
+   "pass_rule": {
+    "notes": true,
+    "cards": true,
+    "revlog_with_card": true
+   }
+  },
+  "collection_nomedia_new.colpkg": {
+   "bytes": 54694,
+   "sha256": "6cb4a304a76dd8116e9c36136ac2164ce610458b08d7142d2e634a8cb6d7646e",
+   "E_after_colpkg_import": {
+    "notes": 6,
+    "cards": 8,
+    "revlog_total": 88,
+    "revlog_with_card": 1,
+    "filtered_cards": 0
+   },
+   "R_after_apkg_import": {
+    "notes": 6,
+    "cards": 8,
+    "revlog_total": 1,
+    "revlog_with_card": 1,
+    "filtered_cards": 0
+   },
+   "import_new_notes": 6,
+   "host_seconds": {
+    "colpkg": 0.005,
+    "export": 0.02,
+    "apkg_import": 0.008
+   },
+   "fsrs": {
+    "fsrs_items": 0,
+    "n_params": 0,
+    "params": [],
+    "all_finite": true,
+    "seconds": 0.0
+   },
+   "fsrs_deterministic_on_host": true,
+   "pass_rule": {
+    "notes": true,
+    "cards": true,
+    "revlog_with_card": true
+   }
+  }
+ },
+ "notetype": {
+  "job1_default": {
+   "notetypes_before": 6,
+   "notetypes_after": 8,
+   "new_notetype_names": [
+    "Basic (and reversed card)+",
+    "Basic+"
+   ],
+   "new_notes": 5,
+   "duplicate_notes": 0
+  },
+  "job2_default": {
+   "notetypes_before": 8,
+   "notetypes_after": 8,
+   "new_notetype_names": [],
+   "new_notes": 5,
+   "duplicate_notes": 0
+  },
+  "job3_forced": {
+   "notetypes_before": 8,
+   "notetypes_after": 10,
+   "new_notetype_names": [
+    "Basic (and reversed card)++",
+    "Basic++"
+   ],
+   "new_notes": 5,
+   "duplicate_notes": 0
+  },
+  "notes_per_notetype_after": [
+   [
+    "Basic (and reversed card)+",
+    2
+   ],
+   [
+    "Basic (and reversed card)++",
+    1
+   ],
+   [
+    "Basic+",
+    8
+   ],
+   [
+    "Basic++",
+    4
+   ]
+  ],
+  "source_apkg": {
+   "bytes": 57711,
+   "sha256": "adcf08067c2e8a05294242be837ac346254431515220f0e3a252e98cd8dbf546"
+  }
+ },
+ "fsrs_synthetic": {
+  "bytes": 1430998,
+  "sha256": "73b085d5f2dceb63786d54d9f92e9b2517376431ad04302990dc4a331bb7b60b",
+  "R_after_apkg_import": {
+   "notes": 4000,
+   "cards": 4000,
+   "revlog_total": 37312,
+   "revlog_with_card": 37312
+  },
+  "import_new_notes": 4000,
+  "host_import_seconds": 0.215,
+  "fsrs_items": 33312,
+  "n_params": 21,
+  "params": [
+   0.944309,
+   0.944309,
+   1.819073,
+   1.819073,
+   6.494145,
+   0.831186,
+   2.784153,
+   0.215819,
+   1.40911,
+   0.36212,
+   0.566832,
+   1.619287,
+   0.053863,
+   0.572075,
+   1.93261,
+   1e-06,
+   1.04039,
+   0.552527,
+   0.138647,
+   0.0658,
+   0.1
+  ],
+  "host_seconds": [
+   0.176,
+   0.194
+  ],
+  "deterministic_on_host": true,
+  "col_row_unchanged": true,
+  "config_unchanged": true
+ }
+}
