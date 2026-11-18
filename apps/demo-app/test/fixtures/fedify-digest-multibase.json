@@ -1,0 +1,62 @@
+{
+  "generatedBy": {
+    "package": "@fedify/vocab-runtime",
+    "version": "2.5.0-dev.2860+54e6d1c2",
+    "commit": "54e6d1c23d497d522468953be6d42fb29694a009",
+    "ranOn": "2026-11-18",
+    "writer": "computeDigestMultibase",
+    "uEncoding": "encodeMultibase(\"base64url\") of the same 0x12 0x20 || digest. parseDigestMultibase accepted that string and returned the same 32 bytes.",
+    "stableRelease": "npm had no @fedify/fedify@2.5.0 and no @fedify/vocab-runtime@2.5.0 on 2026-11-18. This dev build is the unpublished 2.5.0 line that exports computeDigestMultibase. The strings were captured from that run. Do not regenerate them with this repo's digestMultibase."
+  },
+  "w3cDataIntegrityExample": "zQmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n",
+  "hashlinkDraftHelloWorld": "zQmWvQxTqbG2Z9HPJgG57jjwR154cKhbtJenbyYTWkjgF3e",
+  "vectors": [
+    {
+      "name": "empty",
+      "utf8": "",
+      "z": "zQmdfTbBqBPQ7VNxZEYEj14VmRuZBkqFbiwReogJgS1zR1n",
+      "u": "uEiDjsMRCmPwcFJr79MiZb7kkJ65B5GSbk0yklZkbeFK4VQ",
+      "digestHex": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "legacyPrefixlessU": "u47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU"
+    },
+    {
+      "name": "hello-world",
+      "utf8": "Hello World!",
+      "z": "zQmWvQxTqbG2Z9HPJgG57jjwR154cKhbtJenbyYTWkjgF3e",
+      "u": "uEiB_g7Flf_H8U7ktwYFIodZd_C1LH6PWdyhK3dIAEm2QaQ",
+      "digestHex": "7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069",
+      "legacyPrefixlessU": "uf4OxZX_x_FO5LcGBSKHWXfwtSx-j1ncoSt3SABJtkGk"
+    },
+    {
+      "name": "public-snapshot-v2",
+      "utf8": "public-snapshot-v2",
+      "z": "zQmcyvNf3GrY5tZ3fj8TDEp1MH6Y8k8Avxzd2Ps5Aix8mMu",
+      "u": "uEiDZj9GpJg-FcalORUoP__E8NvQzuy4FxiI-Cns9wyfHVA",
+      "digestHex": "d98fd1a9260f8571a94e454a0ffff13c36f433bb2e05c6223e0a7b3dc327c754",
+      "legacyPrefixlessU": "u2Y_RqSYPhXGpTkVKD__xPDb0M7suBcYiPgp7PcMnx1Q"
+    },
+    {
+      "name": "leading-zero-digest",
+      "utf8": "lz-323",
+      "z": "zQmNPqLJ5r76kQ1tWnWKPk7vJBuT7jDbQ9mNYVDcPnmmhev",
+      "u": "uEiAA0MFE8-Hect1B5R3bvxEPcGUGM_ql-8tdFhgtx6ph9w",
+      "digestHex": "00d0c144f3e1de72dd41e51ddbbf110f70650633faa5fbcb5d16182dc7aa61f7",
+      "legacyPrefixlessU": "uANDBRPPh3nLdQeUd278RD3BlBjP6pfvLXRYYLceqYfc"
+    },
+    {
+      "name": "two-leading-zero-digest",
+      "utf8": "lz-58172",
+      "z": "zQmNLeidhi7EGZAAhMQ6T3MYzyNg9S7aQa6q4CnXyTEU7KT",
+      "u": "uEiAAAAKhQxlBmhgrGatZmNL3uV5S4Fa0IOv0OZMM_YJxTg",
+      "digestHex": "000002a14319419a182b19ab5998d2f7b95e52e056b420ebf439930cfd82714e",
+      "legacyPrefixlessU": "uAAACoUMZQZoYKxmrWZjS97leUuBWtCDr9DmTDP2CcU4"
+    }
+  ],
+  "rejectedByThisCode": {
+    "note": "Produced by the same Fedify build's encodeMultibase. parseDigestMultibase accepts the base64 (m) and base16 (f) spellings of the empty sha2-256 multihash and rejects the sha-1 multihash and the overlong varint. This code accepts only u and z, so m and f are mismatches too.",
+    "emptyBase64": "mEiDjsMRCmPwcFJr79MiZb7kkJ65B5GSbk0yklZkbeFK4VQ",
+    "emptyBase16": "f1220e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "sha1Base58btc": "z5dqnQoyYAfu1radNajV4EKNKJCPB4j",
+    "emptyOverlongVarint": "zFZwUWWzc5QwBqCg4rHKCbho7PWFY4GRZywJSemDBkqWTQNoW"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "name": "@hatto/demo-app",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Spike only. Exercise the Postgres pointer + per-deck SQLite rules. Not product code.",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "db": "prisma migrate deploy",
+    "pretest": "prisma generate && prisma migrate deploy && tsc -p tsconfig.json",
+    "test": "node --test --test-concurrency=1 dist/test/*.test.js",
+    "stress": "prisma generate && prisma migrate deploy && tsc -p tsconfig.json && node dist/scripts/stress.js",
+    "start": "node dist/src/main.js"
+  },
+  "dependencies": {
+    "@fedify/fedify": "2.4.5",
+    "@nestjs/common": "^11.1.6",
+    "@nestjs/core": "^11.1.6",
+    "@nestjs/platform-express": "^11.1.6",
+    "@prisma/client": "^6.18.0",
+    "better-sqlite3": "^12.4.1",
+    "pg": "^8.16.3",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.18.0",
+    "@types/pg": "^8.15.5",
+    "prisma": "^6.18.0",
+    "typescript": "^5.9.2"
+  }
+}
