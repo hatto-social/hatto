@@ -1,65 +1,28 @@
 {
- "host": "x86_64 linux, rslib 26.09.3",
+ "host": "x86_64 linux, rslib 26.09.3; synthetic colpkg measured by tools/arm64-smoke/make_synthetic.py at 2026-01-15 12:00:00 Asia/Seoul",
  "colpkg": {
   "palace.colpkg": {
-   "bytes": 370175,
-   "sha256": "943a2d17435e2dfa097cbfe2c00f02cec18c190fcd6a34daf934d241cefc84c6",
+   "bytes": 26447,
+   "sha256": "d4783de19036475a9965640f625f752b2c9a3eb97b56dc231c856fb1929afb81",
    "E_after_colpkg_import": {
-    "notes": 402,
-    "cards": 590,
-    "revlog_total": 7774,
-    "revlog_with_card": 7774,
-    "filtered_cards": 10
+    "notes": 4,
+    "cards": 6,
+    "revlog_total": 2,
+    "revlog_with_card": 2,
+    "filtered_cards": 3
    },
    "R_after_apkg_import": {
-    "notes": 402,
-    "cards": 590,
-    "revlog_total": 7774,
-    "revlog_with_card": 7774,
-    "filtered_cards": 10
+    "notes": 4,
+    "cards": 6,
+    "revlog_total": 2,
+    "revlog_with_card": 2,
+    "filtered_cards": 3
    },
-   "import_new_notes": 402,
+   "import_new_notes": 4,
    "host_seconds": {
-    "colpkg": 0.027,
-    "export": 0.103,
-    "apkg_import": 0.046
-   },
-   "fsrs": {
-    "fsrs_items": 5332,
-    "n_params": 0,
-    "params": [],
-    "all_finite": true,
-    "seconds": 0.13
-   },
-   "fsrs_deterministic_on_host": true,
-   "pass_rule": {
-    "notes": true,
-    "cards": true,
-    "revlog_with_card": true
-   }
-  },
-  "collection.colpkg": {
-   "bytes": 198707,
-   "sha256": "cc61faac2743ebee1b01af0a68f54a8a5cc17b84f5d5db597db4a3d061cccac2",
-   "E_after_colpkg_import": {
-    "notes": 1391,
-    "cards": 2778,
-    "revlog_total": 206,
-    "revlog_with_card": 206,
-    "filtered_cards": 25
-   },
-   "R_after_apkg_import": {
-    "notes": 1391,
-    "cards": 2778,
-    "revlog_total": 206,
-    "revlog_with_card": 206,
-    "filtered_cards": 25
-   },
-   "import_new_notes": 1391,
-   "host_seconds": {
-    "colpkg": 0.01,
-    "export": 0.046,
-    "apkg_import": 0.037
+    "colpkg": 0.008,
+    "export": 0.015,
+    "apkg_import": 0.008
    },
    "fsrs": {
     "fsrs_items": 0,
@@ -73,11 +36,50 @@
     "notes": true,
     "cards": true,
     "revlog_with_card": true
-   }
+   },
+   "media_files_after_colpkg_import": 2
+  },
+  "collection.colpkg": {
+   "bytes": 26373,
+   "sha256": "7d68c4357543feecc108416043043c612c22bc2ae470492cf9f0cf9852ae37dc",
+   "E_after_colpkg_import": {
+    "notes": 6,
+    "cards": 9,
+    "revlog_total": 2,
+    "revlog_with_card": 2,
+    "filtered_cards": 4
+   },
+   "R_after_apkg_import": {
+    "notes": 6,
+    "cards": 9,
+    "revlog_total": 2,
+    "revlog_with_card": 2,
+    "filtered_cards": 4
+   },
+   "import_new_notes": 6,
+   "host_seconds": {
+    "colpkg": 0.003,
+    "export": 0.015,
+    "apkg_import": 0.005
+   },
+   "fsrs": {
+    "fsrs_items": 0,
+    "n_params": 0,
+    "params": [],
+    "all_finite": true,
+    "seconds": 0.0
+   },
+   "fsrs_deterministic_on_host": true,
+   "pass_rule": {
+    "notes": true,
+    "cards": true,
+    "revlog_with_card": true
+   },
+   "media_files_after_colpkg_import": 0
   },
   "collection_nomedia_new.colpkg": {
-   "bytes": 54694,
-   "sha256": "6cb4a304a76dd8116e9c36136ac2164ce610458b08d7142d2e634a8cb6d7646e",
+   "bytes": 26734,
+   "sha256": "4b010810e2a18195daecf62882fb3a7591ed0fc35959736aacd592f756861ecf",
    "E_after_colpkg_import": {
     "notes": 6,
     "cards": 8,
@@ -94,9 +96,9 @@
    },
    "import_new_notes": 6,
    "host_seconds": {
-    "colpkg": 0.005,
-    "export": 0.02,
-    "apkg_import": 0.008
+    "colpkg": 0.002,
+    "export": 0.012,
+    "apkg_import": 0.005
    },
    "fsrs": {
     "fsrs_items": 0,
@@ -110,7 +112,8 @@
     "notes": true,
     "cards": true,
     "revlog_with_card": true
-   }
+   },
+   "media_files_after_colpkg_import": 0
   }
  },
  "notetype": {
@@ -207,5 +210,6 @@
   "deterministic_on_host": true,
   "col_row_unchanged": true,
   "config_unchanged": true
- }
+ },
+ "colpkg_capture": "Host round trip through rslib's protobuf import and export. The arm64 device was not run for this capture. Judged fields are notes, cards, and revlog_with_card; those counts do not depend on the device clock. fsrs_synthetic and notetype were not regenerated."
 }

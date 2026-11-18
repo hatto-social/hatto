@@ -1,8 +1,8 @@
 HATTO_SMOKE env abi=arm64-v8a sdk=35 page=16384 model="SELFTEST" emulator=0
 FRB_DEVICE_OK fields=[alpha / beta, hello / world] reps=1
 All tests passed!
-HATTO_SMOKE col:palace.colpkg E_notes=402 E_cards=590 E_revlog_total=7774 E_revlog_with_card=7774 R_notes=402 R_cards=590 R_revlog_total=7774 R_revlog_with_card=7774
-HATTO_SMOKE col:collection.colpkg E_notes=1391 E_cards=2778 E_revlog_total=206 E_revlog_with_card=206 R_notes=1391 R_cards=2778 R_revlog_total=206 R_revlog_with_card=206
+HATTO_SMOKE col:palace.colpkg E_notes=4 E_cards=6 E_revlog_total=2 E_revlog_with_card=2 R_notes=4 R_cards=6 R_revlog_total=2 R_revlog_with_card=2
+HATTO_SMOKE col:collection.colpkg E_notes=6 E_cards=9 E_revlog_total=2 E_revlog_with_card=2 R_notes=6 R_cards=9 R_revlog_total=2 R_revlog_with_card=2
 HATTO_SMOKE col:collection_nomedia_new.colpkg E_notes=6 E_cards=8 E_revlog_total=88 E_revlog_with_card=1 R_notes=6 R_cards=8 R_revlog_total=1 R_revlog_with_card=1
 HATTO_SMOKE fsrs import_notes=4000 import_cards=4000 import_revlog=37312 fsrs_items=33312 n_params=21 finite=1 second_identical=1 col_unchanged=1 config_unchanged=1 seconds=0.9 params=0.944309,0.944309,1.819073,1.819073,6.494145,0.831186,2.784153,0.215819,1.40911,0.36212,0.566832,1.619287,0.053863,0.572075,1.93261,1e-06,1.04039,0.552527,0.138647,0.0658,0.1
 HATTO_SMOKE nt:job1 before=6 after=8 new_names="Basic (and reversed card)+|Basic+" new_notes=5 dup=0
