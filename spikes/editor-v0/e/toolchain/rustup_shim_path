@@ -1,0 +1,12 @@
+#!/bin/bash
+# PATH variant. Rewrites cargokit's hard-coded `rustup run stable ...` to $PIN_TOOLCHAIN.
+# Everything else passes through to the next rustup on PATH.
+# This variant does not work for cargokit 0.9.1: that tool checks $HOME/.cargo/bin/rustup
+# before PATH. Use rustup_shim_home with a separate HOME (runbook A0). Kept so the
+# failed approach in DMITRY_EDITOR_SPIKES_TOOLCHAIN.md can be compared.
+REAL=$(PATH=${PATH#*:} command -v rustup)   # next rustup in PATH after the shim dir
+echo "rustup $*" >> "${SHIM_LOG:-/tmp/rustup_shim.log}"
+if [ "$1" = run ] && [ "$2" = stable ] && [ -n "$PIN_TOOLCHAIN" ]; then
+  shift 2; exec "$REAL" run "$PIN_TOOLCHAIN" "$@"
+fi
+exec "$REAL" "$@"

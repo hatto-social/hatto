@@ -1,6 +1,18 @@
 # 에디터 v0 스파이크
 
-실험 코드다. 제품 패키지(`apps/`, `packages/`, `third_party/`)와 계약 파일을 바꾸지 않는다. 판정과 숫자의 원문은 [`docs/DMITRY_EDITOR_SPIKES.md`](docs/DMITRY_EDITOR_SPIKES.md)다. macOS에서 아직 안 돌린 항목은 [`docs/DMITRY_EDITOR_SPIKES_MACOS_RUNBOOK.md`](docs/DMITRY_EDITOR_SPIKES_MACOS_RUNBOOK.md). 서명·공증은 하지 않는다.
+실험 코드다. 제품 패키지(`apps/`, `packages/`, `third_party/`)와 계약 파일을 바꾸지 않는다. 판정과 숫자의 원문은 [`docs/DMITRY_EDITOR_SPIKES.md`](docs/DMITRY_EDITOR_SPIKES.md)다. 툴체인 한 벌 후속은 [`docs/DMITRY_EDITOR_SPIKES_TOOLCHAIN.md`](docs/DMITRY_EDITOR_SPIKES_TOOLCHAIN.md)다. macOS 절차는 [`docs/DMITRY_EDITOR_SPIKES_MACOS_RUNBOOK.md`](docs/DMITRY_EDITOR_SPIKES_MACOS_RUNBOOK.md)이고, 그 문서는 이 브랜치 체크아웃만으로 시작한다(tarball 없음). 서명·공증은 하지 않는다.
+
+Mac에서 시작:
+
+```bash
+git clone https://github.com/hatto-social/hatto.git ~/hatto
+cd ~/hatto && git fetch origin cursor/editor-v0-spikes-18f8 && git checkout cursor/editor-v0-spikes-18f8
+export SPIKE_ROOT="$HOME/hatto/spikes/editor-v0"
+export PATH="$HOME/flutter-3.50/bin:$PATH"
+cd "$SPIKE_ROOT" && ./scripts/fetch-anki.sh && mac/prepare.sh
+```
+
+그다음 런북 A0(별도 HOME의 `e/toolchain/rustup_shim_home`)를 하고 `pinned flutter build macos`를 돌린다. 사용자의 `~/.cargo/bin/rustup`은 바꾸지 않는다.
 
 보고서의 `/workspace/editor-spikes`는 이 디렉터리다. rslib은 Anki **26.09.3** (`29bb700`) 무수정이며 `vendor/anki`에만 받는다(gitignore).
 

@@ -37,8 +37,8 @@ dependencies:
   cupertino_icons: ^1.0.8
   flutter_rust_bridge: 2.13.0
   flutter_rust_bridge_hooks: 2.13.0
-  super_clipboard: ^0.9.1
-  super_drag_and_drop: ^0.9.1
+  super_clipboard: 0.9.1
+  super_drag_and_drop: 0.9.1
 
 dev_dependencies:
   flutter_test:

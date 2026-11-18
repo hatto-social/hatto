@@ -1,6 +1,7 @@
 # 에디터 v0 구현 전 스파이크 결과 (Dmitry)
 
-> 저장소에 올린 위치는 `spikes/editor-v0/`이다. 본문의 `/workspace/editor-spikes`(이하 `ES/`)는 그 경로를 말한다. 아래 문장은 스파이크 당시 그대로다.
+> 저장소 위치는 `spikes/editor-v0/`이다. 본문의 `/workspace/editor-spikes`(이하 `ES/`)는 그 경로다. 툴체인 후속은 `DMITRY_EDITOR_SPIKES_TOOLCHAIN.md`다.
+
 
 작성: Dmitry · 2026-11-18 KST · 초안(진행 중, 스파이크 한 개 끝날 때마다 갱신). 저장소·Notion·메시지에는 아무것도 쓰거나 보내지 않았다. 모든 산출물은 `/workspace/editor-spikes/`(이하 `ES/`)에 있다.
 표기: **[확인]** 이번에 실행·열람해 직접 확인 / **[추정]** 근거에서 추론, 미검증 / **[모름]** 확인 수단 없음. 합격선 수치는 범위 문서 §7의 것을 따른다.
@@ -179,7 +180,7 @@
 ### 6.3 결과 — 게이트별
 | 게이트 | 판정 | 근거 |
 |---|---|---|
-| G1 클린 빌드, 툴체인 충돌 없음 | **Linux PASS(조건부) / macOS 미실행** | V1·V2 `flutter build linux --release` 성공(`ES/logs/e-v1-build.log`, `e-v2_super-build.log`). 단 **한 앱에 Rust 툴체인 두 벌**이 쓰였다: FRB는 `rust-toolchain.toml` 핀 **1.97.1**, `super_native_extensions`는 cargokit가 rustup 기본 **1.100.0**으로 빌드(두 `.so`의 `.comment`에서 `rustc 1.100.0`/`1.97.1` 확인) [확인]. "충돌 없음"은 빌드가 성공했다는 뜻이고, **핀을 포함한 충돌이 없다**는 합격 문구에는 못 미친다: cargokit는 핀을 따르지 않고 기본 툴체인을 쓰므로 CI에서 `rustup default`가 바뀌면 `super_*` 쪽이 조용히 달라진다 → 권고: CI에서 `rustup default 1.97.1` 고정 또는 `cargokit_options.yaml`/툴체인 파일 도입 검토 [추정]. 빌드 시간은 V2 약 3.5분(병렬 빌드 중) |
+| G1 클린 빌드, 툴체인 충돌 없음 | **Linux PASS(조건부) / macOS 미실행** | V1·V2 `flutter build linux --release` 성공(`ES/logs/e-v1-build.log`, `e-v2_super-build.log`). 단 **한 앱에 Rust 툴체인 두 벌**이 쓰였다: FRB는 `rust-toolchain.toml` 핀 **1.97.1**, `super_native_extensions`는 cargokit가 rustup 기본 **1.100.0**으로 빌드(두 `.so`의 `.comment`에서 `rustc 1.100.0`/`1.97.1` 확인) [확인]. "충돌 없음"은 빌드가 성공했다는 뜻이고, **핀을 포함한 충돌이 없다**는 합격 문구에는 못 미친다: cargokit는 핀을 따르지 않고 기본 툴체인을 쓰므로 CI에서 `rustup default`가 바뀌면 `super_*` 쪽이 조용히 달라진다 → 권고: CI에서 `rustup default 1.97.1` 고정 또는 `cargokit_options.yaml`/툴체인 파일 도입 검토 [추정]. 빌드 시간은 V2 약 3.5분(병렬 빌드 중) **[2026-11-18 갱신]** 위 권고 중 `cargokit_options.yaml`/`RUSTUP_TOOLCHAIN` 방식은 **툴체인을 못 바꾼다**(cargokit이 `rustup run stable` 하드코딩). `$HOME/.cargo/bin/rustup` 래퍼로는 두 .so 모두 1.97.1 [확인]. 상세: `DMITRY_EDITOR_SPIKES_TOOLCHAIN.md` |
 | G2 한 프로세스에서 각자 호출 | **Linux PASS / macOS 미실행** | V2 한 프로세스에서 `rslib ok: notes=1 guid=...`와 클립보드 읽기 모두 성공(`ES/e/evidence/v2_super/rslib.txt`, 프로브 JSON). **심볼 충돌 없음**: `libsuper_native_extensions.so` 내보낸 심볼 6개(`irondash_*`, `super_native_extensions_*`), `librust_lib_e_app.so` 25개(FRB), 교집합 0 [확인: `nm -D`] |
 | G3 서명·공증 | **제외(범위에서 뺌)** | |
 | G4 파일 URI와 텍스트 분리 | **Linux PASS** | 파일 복사: `fileUri=true`, `text=false`, 값 `file:///.../red.png`. 텍스트만: `fileUri=false`, `text=true`. 둘 다: `fileUri=true`·`text=true`, 각 값 분리됨. **주의**: 파일만 복사했는데 `Formats.png`도 `true`로 보이고 PNG 155바이트가 읽혔다(플러그인이 파일 내용을 이미지로 노출) [확인]. 붙여넣기 정책 구현은 **fileUri를 먼저 보고 png는 그다음**으로 우선순위를 둬서 같은 이미지가 이중 처리되지 않게 해야 한다. 이미지가 아닌 파일 확장자·비이미지 파일 동작은 시험하지 않았다 [모름]. 대조군 `pasteboard`도 `files`와 `text`를 분리한다 |
