@@ -10,10 +10,10 @@ import 'schema.dart';
 /// The collection file stays an rslib database. This file is a draft at
 /// [sideDbSchemaVersion]. `deck_map.server_unsynced` is the unsynced flag for
 /// that deck. Notes, cards, and media do not store their own flag; they follow
-/// the deck that owns them. For a note, that deck is `note_map.home_deck_guid`,
-/// the Hatto guid of the ord-0 card's deck at import. `import_batch_id` groups
-/// decks from one import. `source_sha256` names the copied apkg under
-/// `<documents>/hatto/imports/`.
+/// the deck that owns them. For a note, that deck is `note_map.home_deck_guid`:
+/// the ord-0 card's deck at import, or the lowest ord when there is no ord-0
+/// card. `import_batch_id` groups decks from one import. `source_sha256`
+/// names the copied apkg under `<documents>/hatto/imports/`.
 class SideDb {
   SideDb._(this._db, this.deviceId);
 
@@ -319,8 +319,9 @@ class SideDb {
   /// Maps an Anki note to a Hatto guid and records its home deck.
   ///
   /// [cards] are the note's cards at import. The home deck is the Hatto guid
-  /// of the single ord-0 card's deck, looked up in `deck_map` by rslib deck
-  /// id. rslib `notes.guid` is ignored; [noteGuid] is the Hatto guid.
+  /// of the ord-0 card's deck when that card exists, otherwise the deck of the
+  /// card with the lowest ord. The deck id is resolved through `deck_map`.
+  /// rslib `notes.guid` is ignored; [noteGuid] is the Hatto guid.
   ///
   /// The home deck is written only on the first insert. Calling this again
   /// for the same note after a card has moved does not change it. A second
@@ -363,29 +364,55 @@ class SideDb {
     return NoteMapRow(
       noteGuid: row['note_guid'] as String,
       rslibNoteId: row['rslib_note_id'] as int,
-      homeDeckGuid: row['home_deck_guid'] as String?,
+      homeDeckGuid: row['home_deck_guid'] as String,
     );
   }
 
   String _homeDeckGuidAtImport(List<ImportedNoteCard> cards) {
-    final ord0 = [
-      for (final card in cards)
-        if (card.ord == 0) card,
-    ];
-    if (ord0.length != 1) {
-      throw SideDbException(
-        'note import needs exactly one ord-0 card, found ${ord0.length}',
-      );
-    }
-    final deckId = ord0.single.rslibDeckId;
+    final deckId = _homeCardAtImport(cards).rslibDeckId;
     final rows = _db.select(
       'SELECT deck_guid FROM deck_map WHERE rslib_deck_id = ?',
       [deckId],
     );
     if (rows.isEmpty) {
-      throw SideDbException('ord-0 card deck $deckId is not in deck_map');
+      throw SideDbException('home card deck $deckId is not in deck_map');
     }
     return rows.single['deck_guid'] as String;
+  }
+
+  /// Ord 0 when that card exists. Otherwise the unique lowest ord.
+  ImportedNoteCard _homeCardAtImport(List<ImportedNoteCard> cards) {
+    if (cards.isEmpty) {
+      throw const SideDbException('note import has no cards');
+    }
+    final ord0 = [
+      for (final card in cards)
+        if (card.ord == 0) card,
+    ];
+    if (ord0.length > 1) {
+      throw SideDbException(
+        'note import needs exactly one ord-0 card, found ${ord0.length}',
+      );
+    }
+    if (ord0.length == 1) {
+      return ord0.single;
+    }
+    var lowest = cards.first;
+    var ties = 1;
+    for (final card in cards.skip(1)) {
+      if (card.ord < lowest.ord) {
+        lowest = card;
+        ties = 1;
+      } else if (card.ord == lowest.ord) {
+        ties += 1;
+      }
+    }
+    if (ties != 1) {
+      throw SideDbException(
+        'note import has $ties cards at the lowest ord ${lowest.ord}',
+      );
+    }
+    return lowest;
   }
 
   List<JournalRow> journalRows() {
@@ -497,7 +524,7 @@ class DeckMapRow {
 class ImportedNoteCard {
   const ImportedNoteCard({required this.ord, required this.rslibDeckId});
 
-  /// Template ordinal. The home deck is taken from the card whose ord is 0.
+  /// Template ordinal. Import prefers ord 0, then the lowest ord on the note.
   final int ord;
 
   /// Anki `cards.did` for this card. Resolved through `deck_map`.
@@ -515,7 +542,7 @@ class NoteMapRow {
   final String noteGuid;
   final int rslibNoteId;
 
-  /// Hatto deck guid of the ord-0 card at import. Null on rows migrated from
-  /// schema version 1. [SideDb.rewriteDeckGuid] is the only later writer.
-  final String? homeDeckGuid;
+  /// Hatto deck guid chosen at import. [SideDb.rewriteDeckGuid] is the only
+  /// later writer.
+  final String homeDeckGuid;
 }

@@ -44,16 +44,6 @@ void main() {
 
     expect(
       () => side.importNote(
-        noteGuid: 'note-missing-ord',
-        rslibNoteId: 102,
-        cards: const [ImportedNoteCard(ord: 1, rslibDeckId: 10)],
-      ),
-      throwsA(isA<SideDbException>()),
-    );
-    expect(side.note('note-missing-ord'), isNull);
-
-    expect(
-      () => side.importNote(
         noteGuid: 'note-two-ord0',
         rslibNoteId: 103,
         cards: const [
@@ -115,6 +105,27 @@ void main() {
       throwsA(isA<SideDbException>()),
     );
     expect(side.note('note-1')!.homeDeckGuid, 'deck-a');
+  });
+
+  test('import without an ord-0 card uses the lowest ord', () {
+    side.importNote(
+      noteGuid: 'note-min',
+      rslibNoteId: 200,
+      cards: const [
+        ImportedNoteCard(ord: 3, rslibDeckId: 30),
+        ImportedNoteCard(ord: 1, rslibDeckId: 20),
+        ImportedNoteCard(ord: 2, rslibDeckId: 10),
+      ],
+    );
+
+    expect(side.note('note-min')!.homeDeckGuid, 'deck-b');
+
+    side.importNote(
+      noteGuid: 'note-min',
+      rslibNoteId: 200,
+      cards: const [ImportedNoteCard(ord: 0, rslibDeckId: 10)],
+    );
+    expect(side.note('note-min')!.homeDeckGuid, 'deck-b');
   });
 
   test('rewriteDeckGuid updates deck_map and home_deck_guid, including a tombstone', () {
