@@ -3,7 +3,8 @@
 // Every collection call goes through rslib_bridge (`openBackend` + `command`),
 // which is `init_backend` and `Backend::run_service_method`. rslib 26.09.3 is
 // not patched. Counts use `BackendAnkidroidService.run_db_command` on that
-// same channel. The pass/fail decision is judge.py, not this file: revlog
+// same channel, after `SqlAllowlist.run` accepts the statement and pins
+// `kind` to `query`. The pass/fail decision is judge.py, not this file: revlog
 // *total* is printed and then ignored, because orphan revlog rows dropped by
 // apkg export are an accepted loss. The judged revlog number is
 // `count(*) from revlog where cid in (select id from cards)`.
@@ -15,6 +16,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:hatto_store/hatto_store.dart';
 import 'package:path/path.dart' as p;
 import 'package:rslib_bridge/rslib_bridge.dart';
 
@@ -79,17 +81,15 @@ class _Collection {
     String sql, [
     List<Object?> args = const [],
   ]) async {
-    final request = jsonEncode({
-      'kind': 'query',
-      'sql': sql,
-      'args': args,
-      'first_row_only': false,
-    });
-    final raw = await _invoke(
-      backend,
-      'BackendAnkidroidService',
-      'run_db_command',
-      pbJson(request),
+    final raw = await SqlAllowlist.run(
+      sql: sql,
+      args: args,
+      command: (jsonBody) => _invoke(
+        backend,
+        'BackendAnkidroidService',
+        'run_db_command',
+        pbJson(jsonBody),
+      ),
     );
     final decoded = jsonDecode(readJsonString(raw));
     if (decoded == null) {
