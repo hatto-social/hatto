@@ -28,6 +28,6 @@ The submodule also points at Anki's translation checkouts (`ftl/core-repo`, `ftl
 
 ## Other notices
 
-License texts for third-party dependencies that are linked into a binary are not collected in this change. They will live in `THIRD_PARTY_NOTICES.md`.
+License texts for third-party dependencies linked into the Android app are in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). Path-dependent Anki crates are not listed there as ordinary third-party entries. They are covered by the Anki section above. `tools/license/gen-notices.sh` regenerates that file.
 
 Third-party test fixtures under `tools/arm64-smoke/files/` are described in [`tools/arm64-smoke/files/NOTICE`](tools/arm64-smoke/files/NOTICE).

@@ -49,6 +49,19 @@ SPDX-License-Identifier = "MIT"
 # These files quote other people's copyright lines and SPDX headers (MIT
 # notices, the DCO, the Anki port header). `closest` would treat the
 # quotations as the copyright of the file. The files themselves are ours.
+# Generated notices quote third-party copyright lines and license texts.
+# `closest` would treat those quotations as the copyright of the file.
+[[annotations]]
+path = [
+  "THIRD_PARTY_NOTICES.md",
+  "apps/mobile/assets/licenses/rust-crates.json",
+  "apps/mobile/assets/licenses/android-deps.json",
+  "apps/mobile/assets/licenses/material-icons.json",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Hatto Social contributors"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
 [[annotations]]
 path = [
   "NOTICE.md",
