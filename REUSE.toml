@@ -26,29 +26,6 @@ SPDX-FileCopyrightText = [
 ]
 SPDX-License-Identifier = "AGPL-3.0-or-later"
 
-# Third-party colpkg fixtures. The MIT grant is the source repository's.
-# Media inside palace.colpkg is not identified; see tools/arm64-smoke/files/NOTICE.
-[[annotations]]
-path = ["tools/arm64-smoke/files/collection.colpkg"]
-precedence = "override"
-SPDX-FileCopyrightText = "2026 Justin Searls"
-SPDX-License-Identifier = "MIT"
-
-[[annotations]]
-path = ["tools/arm64-smoke/files/collection_nomedia_new.colpkg"]
-precedence = "override"
-SPDX-FileCopyrightText = "2023 Razumov Igor"
-SPDX-License-Identifier = "MIT"
-
-[[annotations]]
-path = ["tools/arm64-smoke/files/palace.colpkg"]
-precedence = "override"
-SPDX-FileCopyrightText = "2026 ZahakJ"
-SPDX-License-Identifier = "MIT"
-
-# These files quote other people's copyright lines and SPDX headers (MIT
-# notices, the DCO, the Anki port header). `closest` would treat the
-# quotations as the copyright of the file. The files themselves are ours.
 # Generated notices quote third-party copyright lines and license texts.
 # `closest` would treat those quotations as the copyright of the file.
 [[annotations]]
@@ -62,11 +39,13 @@ precedence = "override"
 SPDX-FileCopyrightText = "2026 Hatto Social contributors"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
 
+# These files quote other people's copyright lines (the DCO, the Anki port
+# header). `closest` would treat the quotations as the copyright of the file.
+# The files themselves are ours.
 [[annotations]]
 path = [
   "NOTICE.md",
   "CONTRIBUTING.md",
-  "tools/arm64-smoke/files/NOTICE",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = "2026 Hatto Social contributors"

@@ -4,7 +4,8 @@
 
 # Original host generator. Needs the box harness at /workspace/v0-kickoff/harness; not run in CI.
 # ARM64 스모크 기대값 생성 (x86_64 호스트, 무수정 rslib 26.09.3, protobuf 통로만). Hatto 래퍼(prep_E)는 쓰지 않는다: 기기에서도 rslib 호출만으로 재현되도록.
-import sys, os, shutil, json, time, glob, zipfile, hashlib, uuid, copy
+# The three colpkg files are synthetic decks from make_synthetic.py. This script remeasures those files. It does not replace them.
+import sys, os, shutil, json, time, zipfile, hashlib, uuid, copy
 sys.path.insert(0, '/workspace/v0-kickoff/harness')
 from B_lib import *
 import rs
@@ -22,11 +23,10 @@ def fsrs(R, search=''):
     t = time.time(); r = M('ComputeFsrsParamsResponse').FromString(R.call('scheduler', 'compute_fsrs_params', req)); dt = time.time() - t
     return dict(fsrs_items=r.fsrs_items, n_params=len(r.params), params=[round(x, 6) for x in r.params], all_finite=all(abs(x) < 1e9 for x in r.params), seconds=round(dt, 3))
 out = {'host': 'x86_64 linux, rslib 26.09.3', 'colpkg': {}, 'notetype': {}}
-srcs = {'palace.colpkg': glob.glob('/workspace/anki-ecosystem/census/scope_src/ZahakJ__loci-rs/fixtures/palace.colpkg')[0],
-        'collection.colpkg': glob.glob('/workspace/anki-ecosystem/census/scope_src/searlsco__anki_wrapper/Tests/AnkiWrapperTests/Fixtures/collection.colpkg')[0],
-        'collection_nomedia_new.colpkg': glob.glob('/workspace/anki-ecosystem/census/scope_src/74Genesis__anki-apkg-parser/test/decks/collection_nomedia_new.colpkg')[0]}
+srcs = {'palace.colpkg': FILES + '/palace.colpkg',
+        'collection.colpkg': FILES + '/collection.colpkg',
+        'collection_nomedia_new.colpkg': FILES + '/collection_nomedia_new.colpkg'}
 for i, (name, src) in enumerate(srcs.items()):
-    shutil.copy(src, FILES + '/' + name)
     Ed = '%s/E%d' % (W, i); os.makedirs(Ed + '/media', exist_ok=True); bare = Bare('b%d' % i)
     t = time.time()
     bare.call('import_export', 'import_collection_package', M('ImportCollectionPackageRequest')(col_path=Ed + '/collection.anki2', backup_path=src, media_folder=Ed + '/media', media_db=Ed + '/media.db'), backend=True)
