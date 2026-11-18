@@ -60,15 +60,24 @@ void main() {
       'origin_role',
       'source_sha256',
       'server_unsynced',
+      'tombstoned',
     ]);
+    final deckInfo = raw.select('PRAGMA table_info(deck_map)');
     expect(
-      raw
-          .select("PRAGMA table_info(deck_map)")
+      deckInfo
           .where((row) => row['name'] == 'server_unsynced')
           .single['dflt_value'],
       '1',
     );
-    expect(_columns(raw, 'note_map'), ['note_guid', 'rslib_note_id']);
+    expect(
+      deckInfo.where((row) => row['name'] == 'tombstoned').single['dflt_value'],
+      '0',
+    );
+    expect(_columns(raw, 'note_map'), [
+      'note_guid',
+      'rslib_note_id',
+      'home_deck_guid',
+    ]);
     expect(_columns(raw, 'edit_journal'), [
       'id',
       'op',
@@ -83,6 +92,7 @@ void main() {
     expect(_columns(raw, 'intent'), ['id', 'op', 'target_key', 'expected']);
     for (final name in [
       'deck_map_import_batch_id',
+      'note_map_home_deck_guid',
       'revlog_origin_job',
       'media_key_content_key',
     ]) {
@@ -183,7 +193,7 @@ void main() {
     );
   });
 
-  test('reopen keeps a version 1 file', () {
+  test('reopen keeps the current schema and pending intents', () {
     final path = sideDbPath(dir.path);
     final first = SideDb.open(path: path, deviceId: 'device-a');
     final intentId = first.beginIntent(op: 'answer', targetKey: 'card-1');
@@ -195,6 +205,94 @@ void main() {
     expect(second.pendingIntents().single.id, intentId);
     expect(second.pendingIntents().single.op, 'answer');
     expect(second.pendingIntents().single.targetKey, 'card-1');
+  });
+
+  test('a version 1 database gains home_deck_guid and keeps its rows', () {
+    final path = sideDbPath(dir.path);
+    File(path).parent.createSync(recursive: true);
+    final raw = sqlite3.open(path);
+    raw.execute('BEGIN');
+    for (final statement in _version1Schema) {
+      raw.execute(statement);
+    }
+    raw.execute(
+      "INSERT INTO meta(key, value) VALUES ('device_id', 'device-a')",
+    );
+    raw.execute(
+      'INSERT INTO deck_map(deck_guid, rslib_deck_id, import_batch_id, '
+      'origin_kind, origin_role, source_sha256, server_unsynced) '
+      "VALUES ('deck-old', 7, 'batch', 'apkg', NULL, NULL, 1)",
+    );
+    raw.execute(
+      'INSERT INTO note_map(note_guid, rslib_note_id) VALUES (?, ?)',
+      ['note-old', 42],
+    );
+    raw.execute(
+      'INSERT INTO edit_journal(op, entity_kind, guid, field, hlc, payload) '
+      "VALUES ('update_note', 'note', 'note-old', NULL, 'device-a:1:1', NULL)",
+    );
+    raw.execute('PRAGMA user_version = 1');
+    raw.execute('COMMIT');
+    raw.close();
+
+    final side = SideDb.open(path: path, deviceId: 'device-b');
+    expect(side.schemaVersion, sideDbSchemaVersion);
+    expect(side.note('note-old')!.rslibNoteId, 42);
+    expect(side.note('note-old')!.homeDeckGuid, isNull);
+    final deck = side.deck('deck-old')!;
+    expect(deck.rslibDeckId, 7);
+    expect(deck.importBatchId, 'batch');
+    expect(deck.tombstoned, isFalse);
+    expect(side.journalRows().single.guid, 'note-old');
+    side.importNote(
+      noteGuid: 'note-new',
+      rslibNoteId: 43,
+      cards: const [ImportedNoteCard(ord: 0, rslibDeckId: 7)],
+    );
+    expect(side.note('note-new')!.homeDeckGuid, 'deck-old');
+    expect(side.note('note-old')!.homeDeckGuid, isNull);
+    side.close();
+
+    final again = sqlite3.open(path);
+    addTearDown(again.close);
+    expect(again.select('PRAGMA user_version').first.values.first, 2);
+    expect(_columns(again, 'note_map'), [
+      'note_guid',
+      'rslib_note_id',
+      'home_deck_guid',
+    ]);
+    expect(
+      again.select('SELECT name FROM sqlite_master WHERE name = ?', [
+        'note_map_home_deck_guid',
+      ]),
+      isNotEmpty,
+    );
+    expect(
+      again
+          .select("SELECT value FROM meta WHERE key = 'device_id'")
+          .first['value'],
+      'device-a',
+    );
+  });
+
+  test('a failed migration from version 1 leaves user_version at 1', () {
+    final path = sideDbPath(dir.path);
+    File(path).parent.createSync(recursive: true);
+    final raw = sqlite3.open(path);
+    raw.execute(
+      'CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)',
+    );
+    raw.execute('PRAGMA user_version = 1');
+    raw.close();
+
+    expect(
+      () => SideDb.open(path: path, deviceId: 'device-a'),
+      throwsA(isA<SqliteException>()),
+    );
+    final again = sqlite3.open(path);
+    addTearDown(again.close);
+    expect(again.select('PRAGMA user_version').first.values.first, 1);
+    expect(_columns(again, 'note_map'), isEmpty);
   });
 
   test('user_version set inside a transaction rolls back with it', () {
@@ -213,3 +311,64 @@ List<String> _columns(Database db, String table) {
       row['name'] as String,
   ];
 }
+
+/// Side-database DDL at `user_version` 1, before `home_deck_guid`.
+const List<String> _version1Schema = <String>[
+  '''
+  CREATE TABLE meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  )
+  ''',
+  '''
+  CREATE TABLE deck_map (
+    deck_guid TEXT PRIMARY KEY,
+    rslib_deck_id INTEGER NOT NULL UNIQUE,
+    import_batch_id TEXT,
+    origin_kind TEXT,
+    origin_role TEXT,
+    source_sha256 TEXT,
+    server_unsynced INTEGER NOT NULL DEFAULT 1
+  )
+  ''',
+  'CREATE INDEX deck_map_import_batch_id ON deck_map(import_batch_id)',
+  '''
+  CREATE TABLE note_map (
+    note_guid TEXT PRIMARY KEY,
+    rslib_note_id INTEGER NOT NULL UNIQUE
+  )
+  ''',
+  '''
+  CREATE TABLE edit_journal (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    op TEXT NOT NULL,
+    entity_kind TEXT NOT NULL,
+    guid TEXT NOT NULL,
+    field TEXT,
+    hlc TEXT NOT NULL,
+    payload BLOB
+  )
+  ''',
+  '''
+  CREATE TABLE revlog_origin (
+    revlog_id INTEGER PRIMARY KEY,
+    job TEXT NOT NULL
+  )
+  ''',
+  'CREATE INDEX revlog_origin_job ON revlog_origin(job)',
+  '''
+  CREATE TABLE media_key (
+    filename TEXT PRIMARY KEY,
+    content_key TEXT NOT NULL
+  )
+  ''',
+  'CREATE INDEX media_key_content_key ON media_key(content_key)',
+  '''
+  CREATE TABLE intent (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    op TEXT NOT NULL,
+    target_key TEXT NOT NULL,
+    expected TEXT
+  )
+  ''',
+];

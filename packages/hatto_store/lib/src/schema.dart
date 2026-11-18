@@ -2,22 +2,33 @@ import 'package:sqlite3/sqlite3.dart';
 
 /// Draft schema for the Hatto side database. Not a stable contract.
 ///
-/// One version, because this build has not shipped. There is no upgrade from
-/// an older shape. A file at `user_version` 0 that already has tables is
-/// rejected. `PRAGMA user_version` is the schema version. `meta` stores
-/// `device_id` only.
+/// `PRAGMA user_version` is the schema version. A file at version 0 that
+/// already has tables is rejected. A version 1 file is migrated in place.
+/// A newer version than this build is rejected. `meta` stores `device_id`
+/// only.
 ///
 /// `edit_journal.field` is null in v0. `deck_map.server_unsynced` defaults to
 /// 1 and is the unsynced flag for that deck. Notes, cards, and media do not
 /// store their own flag; they follow the deck that owns them.
-/// `import_batch_id` groups decks from one import. `source_sha256` is the
-/// file name of the copied apkg under `<documents>/hatto/imports/`, not a path.
+/// `deck_map.tombstoned` keeps a soft-deleted deck in the map so a later guid
+/// rewrite can still see it. `import_batch_id` groups decks from one import.
+/// `source_sha256` is the file name of the copied apkg under
+/// `<documents>/hatto/imports/`, not a path.
+///
+/// `note_map` is the sole authority for Hatto note guids. rslib `notes.guid`
+/// is not stored. Anki notes have no deck column. `home_deck_guid` is the
+/// Hatto guid of the deck that held the note's ord-0 card at import. It is
+/// written once and is not updated when cards move. Edit-journal rows for
+/// notes key only on the note guid, so the home deck lives here. Rewriting a
+/// deck guid updates `note_map.home_deck_guid` in the same transaction,
+/// including tombstoned decks. Null means the row was mapped before schema
+/// version 2.
 ///
 /// The file is opened with `package:sqlite3`, which ships its own SQLite
 /// library. rslib 26.09.3 links a different copy (rusqlite 0.36, feature
 /// `bundled`) into `librslib_bridge.so`. This package does not open the
 /// collection file and does not load SQLite from the process symbol table.
-const int sideDbSchemaVersion = 1;
+const int sideDbSchemaVersion = 2;
 
 /// Thrown when the side database cannot be opened or a draft write is rejected.
 class SideDbException implements Exception {
@@ -89,6 +100,14 @@ const List<String> _version1 = <String>[
   ''',
 ];
 
+/// Version 1 files predate [sideDbSchemaVersion]. `home_deck_guid` is nullable
+/// because those rows have no recorded home deck. `tombstoned` defaults to 0.
+const List<String> _version2 = <String>[
+  'ALTER TABLE note_map ADD COLUMN home_deck_guid TEXT',
+  'CREATE INDEX note_map_home_deck_guid ON note_map(home_deck_guid)',
+  'ALTER TABLE deck_map ADD COLUMN tombstoned INTEGER NOT NULL DEFAULT 0',
+];
+
 int readUserVersion(Database db) {
   final rows = db.select('PRAGMA user_version');
   final raw = rows.first.values.first;
@@ -103,23 +122,37 @@ void applySideDbMigrations(Database db) {
   if (current == sideDbSchemaVersion) {
     return;
   }
-  if (current != 0) {
+  if (current > sideDbSchemaVersion) {
     throw SideDbException(
       'side database schema version $current is newer than this app ($sideDbSchemaVersion)',
     );
   }
-  final existing = db.select(
-    "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
-  );
-  if (existing.isNotEmpty) {
-    throw const SideDbException(
-      'side database has tables but user_version is 0',
+  if (current < 0) {
+    throw SideDbException(
+      'side database schema version $current is not supported',
     );
+  }
+  if (current == 0) {
+    final existing = db.select(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
+    );
+    if (existing.isNotEmpty) {
+      throw const SideDbException(
+        'side database has tables but user_version is 0',
+      );
+    }
   }
   db.execute('BEGIN IMMEDIATE');
   try {
-    for (final statement in _version1) {
-      db.execute(statement);
+    if (current < 1) {
+      for (final statement in _version1) {
+        db.execute(statement);
+      }
+    }
+    if (current < 2) {
+      for (final statement in _version2) {
+        db.execute(statement);
+      }
     }
     db.execute('PRAGMA user_version = $sideDbSchemaVersion');
     db.execute('COMMIT');
