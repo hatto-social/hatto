@@ -1,0 +1,33 @@
+killed child after 1150 ms
+kill_1150: notes new=0 old=30000 total=30000
+[PASS] kill_1150: all-or-nothing :: pending after recover=0 log=[]
+[PASS] kill_1150: mapping :: Ok(())
+killed child after 1250 ms
+kill_1250: notes new=0 old=30000 total=30000
+[PASS] kill_1250: all-or-nothing :: pending after recover=0 log=[]
+[PASS] kill_1250: mapping :: Ok(())
+killed child after 1350 ms
+kill_1350: notes new=0 old=30000 total=30000
+[PASS] kill_1350: all-or-nothing :: pending after recover=0 log=[]
+[PASS] kill_1350: mapping :: Ok(())
+killed child after 1450 ms
+kill_1450: notes new=0 old=30000 total=30000
+[PASS] kill_1450: all-or-nothing :: pending after recover=0 log=[]
+[PASS] kill_1450: mapping :: Ok(())
+killed child after 1550 ms
+kill_1550: notes new=0 old=30000 total=30000
+[PASS] kill_1550: all-or-nothing :: pending after recover=0 log=["intent 3: 0/30000 notes already new -> discarded"]
+[PASS] kill_1550: mapping :: Ok(())
+killed child after 1650 ms
+kill_1650: notes new=0 old=30000 total=30000
+[PASS] kill_1650: all-or-nothing :: pending after recover=0 log=["intent 3: 0/30000 notes already new -> discarded"]
+[PASS] kill_1650: mapping :: Ok(())
+killed child after 1800 ms
+kill_1800: notes new=0 old=30000 total=30000
+[PASS] kill_1800: all-or-nothing :: pending after recover=0 log=["intent 3: 0/30000 notes already new -> discarded"]
+[PASS] kill_1800: mapping :: Ok(())
+crash_run finished without crash: Done { ms: 481, field_value_changes: 0, notes: 30000 }
+killed child after 2200 ms
+kill_2200: notes new=30000 old=0 total=30000
+[PASS] kill_2200: all-or-nothing :: pending after recover=0 log=[]
+[PASS] kill_2200: mapping :: Ok(())

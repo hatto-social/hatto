@@ -1,0 +1,68 @@
+=== basic card ord=0 latex_svg=false is_empty=false
+--- QUESTION
+서울은 <b>대한민국</b>의 수도 \(e^{i\pi}+1=0\) <img src="paste-1.png"> [sound:rec-1.m4a]
+--- ANSWER
+서울은 <b>대한민국</b>의 수도 \(e^{i\pi}+1=0\) <img src="paste-1.png"> [sound:rec-1.m4a]
+
+<hr id=answer>
+
+H<sub>2</sub>O <span style="color: #ff0000">red</span> {{c9::literal-not-cloze}}
+--- CSS (len 148)
+.card {
+    font-family: arial;
+    font-size: 20px;
+    line-height: 1.5;
+    text-align: center;
+    color: black;
+    background-color: white;
+}
+
+
+=== cloze card ord=0 latex_svg=false is_empty=false
+--- QUESTION
+<span class="cloze" data-cloze="서울" data-ordinal="1">[수도]</span>는 <span class="cloze-inactive" data-ordinal="2">한국</span>의 <span class="cloze" data-cloze="수도" data-ordinal="1">[...]</span> \[x^2\]
+--- ANSWER
+<span class="cloze" data-ordinal="1">서울</span>는 <span class="cloze-inactive" data-ordinal="2">한국</span>의 <span class="cloze" data-ordinal="1">수도</span> \[x^2\]<br>
+extra <i>info</i>
+--- CSS (len 243)
+.card {
+    font-family: arial;
+    font-size: 20px;
+    line-height: 1.5;
+    text-align: center;
+    color: black;
+    background-color: white;
+}
+.cloze {
+    font-weight: bold;
+    color: blue;
+}
+.nightMode .cloze {
+    color: lightblue;
+}
+
+
+=== cloze card ord=1 latex_svg=false is_empty=false
+--- QUESTION
+<span class="cloze-inactive" data-ordinal="1">서울</span>는 <span class="cloze" data-cloze="한국" data-ordinal="2">[...]</span>의 <span class="cloze-inactive" data-ordinal="1">수도</span> \[x^2\]
+--- ANSWER
+<span class="cloze-inactive" data-ordinal="1">서울</span>는 <span class="cloze" data-ordinal="2">한국</span>의 <span class="cloze-inactive" data-ordinal="1">수도</span> \[x^2\]<br>
+extra <i>info</i>
+--- CSS (len 243)
+.card {
+    font-family: arial;
+    font-size: 20px;
+    line-height: 1.5;
+    text-align: center;
+    color: black;
+    background-color: white;
+}
+.cloze {
+    font-weight: bold;
+    color: blue;
+}
+.nightMode .cloze {
+    color: lightblue;
+}
+
+

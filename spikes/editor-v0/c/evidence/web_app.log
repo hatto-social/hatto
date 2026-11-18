@@ -1,0 +1,5 @@
+
+(com.example.c_web:665502): dbind-WARNING **: 17:12:30.568: AT-SPI: Error retrieving accessibility bus address: org.freedesktop.DBus.Error.ServiceUnknown: The name org.a11y.Bus was not provided by any .service files
+
+(com.example.c_web:665502): Atk-CRITICAL **: 17:12:30.623: atk_socket_embed: assertion 'plug_id != NULL' failed
+[IMPORTANT:flutter/shell/platform/embedder/embedder_surface_gl_impeller.cc(127)] Using the Impeller rendering backend (OpenGLESSDF).

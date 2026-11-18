@@ -1,0 +1,49 @@
+== fcitx5 field=b sc=basic: last log line:
+{"f":"B","text":"한글 데이터","html":"한글 데이터","sel":[6,6],"composing":[5,6]}
+== fcitx5 field=b sc=enter: last log line:
+{"f":"B","text":"한\n글","html":"한<br>글","sel":[3,3],"composing":[2,3]}
+== fcitx5 field=b sc=arrow: last log line:
+{"f":"B","text":"글한","html":"글한","sel":[1,1],"composing":[0,1]}
+== fcitx5 field=b sc=bs: last log line:
+{"f":"B","text":"","html":"","sel":[0,0],"composing":[-1,-1]}
+== fcitx5 field=b sc=fast: last log line:
+{"f":"B","text":"한글 데이터","html":"한글 데이터","sel":[6,6],"composing":[5,6]}
+== fcitx5 field=b sc=toggle: last log line:
+{"f":"B","text":"하뮤하","html":"하뮤하","sel":[3,3],"composing":[2,3]}
+== fcitx5 field=a sc=basic: last log line:
+{"f":"A","html":"한글 데이터","text":"한글 데이터","sel":"TextPosition(offset: 6, affinity: TextAffinity.downstream)"}
+== fcitx5 field=a sc=enter: last log line:
+{"f":"A","html":"한<br>글","text":"한\n글","sel":"TextPosition(offset: 3, affinity: TextAffinity.downstream)"}
+== fcitx5 field=a sc=arrow: last log line:
+{"f":"A","html":"글한","text":"글한","sel":"TextPosition(offset: 1, affinity: TextAffinity.downstream)"}
+== fcitx5 field=a sc=bs: last log line:
+{"f":"A","html":"","text":"","sel":"TextPosition(offset: 0, affinity: TextAffinity.downstream)"}
+== fcitx5 field=a sc=fast: last log line:
+{"f":"A","html":"한글 데이터","text":"한글 데이터","sel":"TextPosition(offset: 6, affinity: TextAffinity.downstream)"}
+== fcitx5 field=a sc=toggle: last log line:
+{"f":"A","html":"하뮤하","text":"하뮤하","sel":"TextPosition(offset: 3, affinity: TextAffinity.downstream)"}
+== ibus field=b sc=basic: last log line:
+{"f":"B","text":"gksrmf epdlxj","html":"gksrmf epdlxj","sel":[13,13],"composing":[-1,-1]}
+== ibus field=b sc=enter: last log line:
+{"f":"B","text":"gks\nrmf","html":"gks<br>rmf","sel":[7,7],"composing":[-1,-1]}
+== ibus field=b sc=arrow: last log line:
+{"f":"B","text":"gkrmfs","html":"gkrmfs","sel":[5,5],"composing":[-1,-1]}
+== ibus field=b sc=bs: last log line:
+{"f":"B","text":"","html":"","sel":[0,0],"composing":[-1,-1]}
+== ibus field=b sc=fast: last log line:
+{"f":"B","text":"gksrmf epdlxj","html":"gksrmf epdlxj","sel":[13,13],"composing":[-1,-1]}
+== ibus field=b sc=toggle: last log line:
+{"f":"B","text":"gkabgk","html":"gkabgk","sel":[6,6],"composing":[-1,-1]}
+== ibus field=a sc=basic: last log line:
+{"f":"A","html":"gksrmf epdlxj","text":"gksrmf epdlxj","sel":"TextPosition(offset: 13, affinity: TextAffinity.downstream)"}
+== ibus field=a sc=enter: last log line:
+{"f":"A","html":"gks<br>rmf","text":"gks\nrmf","sel":"TextPosition(offset: 7, affinity: TextAffinity.downstream)"}
+== ibus field=a sc=arrow: last log line:
+{"f":"A","html":"gkrmfs","text":"gkrmfs","sel":"TextPosition(offset: 5, affinity: TextAffinity.downstream)"}
+== ibus field=a sc=bs: last log line:
+{"f":"A","html":"","text":"","sel":"TextPosition(offset: 0, affinity: TextAffinity.downstream)"}
+== ibus field=a sc=fast: last log line:
+{"f":"A","html":"gksrmf epdlxj","text":"gksrmf epdlxj","sel":"TextPosition(offset: 13, affinity: TextAffinity.downstream)"}
+== ibus field=a sc=toggle: last log line:
+{"f":"A","html":"gkabgk","text":"gkabgk","sel":"TextPosition(offset: 6, affinity: TextAffinity.downstream)"}
+ALLDONE

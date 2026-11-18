@@ -1,0 +1,9 @@
+total 36640
+drwxr-xr-x 2 box box     4096 Nov 18 17:05 .
+drwxr-xr-x 4 box box     4096 Nov 18 17:05 ..
+-rw-r--r-- 1 box box  2163672 Nov 18 17:03 libapp.so
+-rw-r--r-- 1 box box 17448392 Nov 18 17:02 libflutter_linux_gtk.so
+-rw-r--r-- 1 box box    24112 Nov 18 17:05 libirondash_engine_context_plugin.so
+-rw-r--r-- 1 box box 16139248 Nov 18 17:05 librust_lib_e_app.so
+-rw-r--r-- 1 box box  1705776 Nov 18 17:04 libsuper_native_extensions.so
+-rw-r--r-- 1 box box    16832 Nov 18 17:05 libsuper_native_extensions_plugin.so

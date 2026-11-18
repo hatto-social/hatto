@@ -1,0 +1,24 @@
+== ibus field=b sc=basic: last log line:
+{"f":"B","text":"한글 데이터","html":"한글 데이터","sel":[6,6],"composing":[5,6]}
+== ibus field=b sc=enter: last log line:
+{"f":"B","text":"한\n글","html":"한<br>글","sel":[3,3],"composing":[2,3]}
+== ibus field=b sc=arrow: last log line:
+{"f":"B","text":"글한","html":"글한","sel":[1,1],"composing":[0,1]}
+== ibus field=b sc=bs: last log line:
+{"f":"B","text":"","html":"","sel":[0,0],"composing":[-1,-1]}
+== ibus field=b sc=fast: last log line:
+{"f":"B","text":"한글 데이터","html":"한글 데이터","sel":[6,6],"composing":[5,6]}
+== ibus field=b sc=toggle: last log line:
+{"f":"B","text":"하ab하","html":"하ab하","sel":[4,4],"composing":[3,4]}
+== ibus field=a sc=basic: last log line:
+{"f":"A","html":"한글 데이터","text":"한글 데이터","sel":"TextPosition(offset: 6, affinity: TextAffinity.downstream)"}
+== ibus field=a sc=enter: last log line:
+{"f":"A","html":"한<br>글","text":"한\n글","sel":"TextPosition(offset: 3, affinity: TextAffinity.downstream)"}
+== ibus field=a sc=arrow: last log line:
+{"f":"A","html":"글한","text":"글한","sel":"TextPosition(offset: 1, affinity: TextAffinity.downstream)"}
+== ibus field=a sc=bs: last log line:
+{"f":"A","html":"","text":"","sel":"TextPosition(offset: 0, affinity: TextAffinity.downstream)"}
+== ibus field=a sc=fast: last log line:
+{"f":"A","html":"한글데 이터","text":"한글데 이터","sel":"TextPosition(offset: 6, affinity: TextAffinity.downstream)"}
+== ibus field=a sc=toggle: last log line:
+ALLDONE

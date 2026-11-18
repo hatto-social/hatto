@@ -1,0 +1,58 @@
+EXACT     plain-ko
+EXACT     bold-italic-underline
+DIFF      nested-styles
+    in : <b>bold <i>both</i></b> <u><i>ui</i></u>
+    out: <b>bold </b><b><i>both</i></b> <i><u>ui</u></i>
+    segs: [S(bold ,b), S(both,b,i), S( ), S(ui,i,u)]
+EXACT     sup-sub
+EXACT     br-lines
+EXACT     color-span
+DOMEQ     color-span-compact
+    in : <span style="color:#ff0000;">red</span> text
+    out: <span style="color: #ff0000">red</span> text
+    segs: [S(red,c=#ff0000), S( text)]
+EXACT     img
+EXACT     img-attrs
+EXACT     sound-m4a
+EXACT     mathjax-inline
+EXACT     mathjax-block
+EXACT     mathjax-with-lt
+EXACT     cloze
+EXACT     cloze-styled
+DOMEQ     entities
+    in : a &amp; b &lt;tag&gt; &quot;q&quot; 5&nbsp;km
+    out: a &amp; b &lt;tag&gt; "q" 5&nbsp;km
+    segs: [S(a & b <tag> "q" 5 km)]
+DOMEQ     nbsp-literal
+    in : x y
+    out: x&nbsp;y
+    segs: [S(x y)]
+EXACT RAW div-lines
+EXACT RAW ul-list
+DOMEQ RAW table
+    in : <table><tr><td>1</td><td>2</td></tr></table>
+    out: <table><tbody><tr><td>1</td><td>2</td></tr></tbody></table>
+    segs: [T(TokenKind.raw:<table><tbody><tr><td>1</td><td>2</td></tr></tbody></table>)]
+EXACT RAW link
+EXACT RAW font-tag
+DOMEQ     strong-em
+    in : <strong>S</strong><em>E</em>
+    out: <b>S</b><i>E</i>
+    segs: [S(S,b), S(E,i)]
+EXACT RAW span-class
+EXACT RAW code
+EXACT RAW anki-mathjax-el
+EXACT     empty
+EXACT     only-br
+EXACT     whitespace
+EXACT     nfd-hangul
+EXACT RAW script-attempt
+DOMEQ     img-onerror
+    in : <img src=x onerror="alert(1)">
+    out: <img src="x" onerror="alert(1)">
+    segs: [T(TokenKind.img:<img src="x" onerror="alert(1)">)]
+DOMEQ     html-comment
+    in : a<!-- c -->b
+    out: ab
+    segs: [S(ab)]
+TOTAL 33 exact=25 domEquivalent=32 diff=1 withOpaqueRaw=9

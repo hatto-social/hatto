@@ -1,0 +1,8 @@
+total 34956
+drwxr-xr-x 2 box box     4096 Nov 18 17:08 .
+drwxr-xr-x 4 box box     4096 Nov 18 17:08 ..
+-rw-r--r-- 1 box box  1999832 Nov 18 17:07 libapp.so
+-rw-r--r-- 1 box box   158672 Nov 18 17:08 libdesktop_drop_plugin.so
+-rw-r--r-- 1 box box 17448392 Nov 18 17:02 libflutter_linux_gtk.so
+-rw-r--r-- 1 box box    28744 Nov 18 17:08 libpasteboard_plugin.so
+-rw-r--r-- 1 box box 16139240 Nov 18 17:08 librust_lib_e_app.so

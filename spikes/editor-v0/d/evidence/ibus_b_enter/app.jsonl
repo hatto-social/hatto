@@ -1,0 +1,10 @@
+{"f":"B","text":"","html":"","sel":[0,0],"composing":[-1,-1]}
+{"f":"B","text":"ㅎ","html":"ㅎ","sel":[1,1],"composing":[0,1]}
+{"f":"B","text":"하","html":"하","sel":[1,1],"composing":[0,1]}
+{"f":"B","text":"한","html":"한","sel":[1,1],"composing":[0,1]}
+{"f":"B","text":"","html":"","sel":[0,0],"composing":[-1,-1]}
+{"f":"B","text":"한","html":"한","sel":[1,1],"composing":[-1,-1]}
+{"f":"B","text":"한\n","html":"한<br>","sel":[2,2],"composing":[-1,-1]}
+{"f":"B","text":"한\nㄱ","html":"한<br>ㄱ","sel":[3,3],"composing":[2,3]}
+{"f":"B","text":"한\n그","html":"한<br>그","sel":[3,3],"composing":[2,3]}
+{"f":"B","text":"한\n글","html":"한<br>글","sel":[3,3],"composing":[2,3]}

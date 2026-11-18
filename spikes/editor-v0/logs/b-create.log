@@ -1,0 +1,16 @@
+Creating project proto...
+Got dependencies in `proto`.
+Wrote 19 files.
+
+All done!
+You can find general documentation for Flutter at: https://docs.flutter.dev/
+Detailed API documentation is available at: https://api.flutter.dev/
+If you prefer video documentation, consider: https://www.youtube.com/c/flutterdev
+
+In order to run your application, type:
+
+  $ cd proto
+  $ flutter run
+
+Your application code is in proto/lib/main.dart.
+

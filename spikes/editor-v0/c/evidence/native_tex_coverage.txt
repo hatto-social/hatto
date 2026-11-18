@@ -1,0 +1,21 @@
+OK   \frac{a}{b}
+OK   \sum_{k=1}^{n}k
+OK   \begin{aligned}a&=b\\c&=d\end{aligned}
+OK   \text{한글 텍스트}
+OK   \mathbb{R}
+FAIL \ce{H2O}  -> Undefined control sequence: \ce
+OK   \cancel{x}
+FAIL \require{cancel}\cancel{x}  -> Undefined control sequence: \require
+OK   \color{red}{x}
+OK   \underbrace{a+b}_{c}
+OK   \begin{array}{cc}1&2\\3&4\end{array}
+OK   \dfrac{1}{2}
+OK   \operatorname{lcm}(a,b)
+OK   \begin{pmatrix}1&2\\3&4\end{pmatrix}
+OK   \mathrm{d}x
+OK   \xrightarrow{f}
+FAIL \newcommand{\R}{\mathbb{R}}\R  -> \newcommand{\R} attempting to redefine \R; use \renewcommand
+FAIL \bbox[yellow]{x}  -> Undefined control sequence: \bbox
+FAIL \unicode{x41}  -> Undefined control sequence: \unicode
+FAIL \href{http://a}{b}  -> Undefined control sequence: \href
+TOTAL ok=14/20

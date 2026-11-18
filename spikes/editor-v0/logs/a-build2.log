@@ -1,0 +1,120 @@
+   Compiling anki_io v0.0.0 (/workspace/editor-spikes/anki-src/rslib/io)
+   Compiling zstd-safe v7.2.4
+   Compiling zstd-sys v2.0.15+zstd.1.5.7
+   Compiling libsqlite3-sys v0.34.0
+   Compiling html5ever v0.39.0
+   Compiling rand v0.9.4
+   Compiling flate2 v1.1.2
+   Compiling rayon v1.12.0
+   Compiling cssparser v0.37.0
+   Compiling anki_proto_gen v0.0.0 (/workspace/editor-spikes/anki-src/rslib/proto_gen)
+   Compiling anki_i18n v0.0.0 (/workspace/editor-spikes/anki-src/rslib/i18n)
+   Compiling zstd v0.13.3
+   Compiling anki_proto v0.0.0 (/workspace/editor-spikes/anki-src/rslib/proto)
+   Compiling compression-codecs v0.4.30
+   Compiling mime_guess v2.0.5
+   Compiling fluent v0.17.0
+   Compiling num-format v0.4.4
+   Compiling priority-queue v2.7.0
+   Compiling itertools v0.15.0
+   Compiling sha2 v0.10.9
+   Compiling strum v0.27.2
+   Compiling hashlink v0.10.0
+   Compiling hmac v0.12.1
+   Compiling crossbeam-channel v0.5.15
+   Compiling tokio-util v0.7.16
+   Compiling futures-executor v0.3.31
+   Compiling prost v0.13.5
+   Compiling client-ip v0.1.1
+   Compiling pin-project-internal v1.1.10
+   Compiling serde_tuple_macros v1.1.2
+   Compiling csv-core v0.1.12
+   Compiling arrayref v0.3.9
+   Compiling snowflake v1.3.0
+   Compiling pulldown-cmark-escape v0.11.0
+   Compiling matches v0.1.10
+   Compiling constant_time_eq v0.3.1
+   Compiling unicode-segmentation v1.12.0
+   Compiling fallible-streaming-iterator v0.1.9
+   Compiling maplit v1.0.2
+   Compiling fallible-iterator v0.3.0
+   Compiling ammonia v4.1.4
+   Compiling serde_tuple v1.1.2
+   Compiling blake3 v1.8.2
+   Compiling csv v1.3.1
+   Compiling unic-ucd-category v0.9.0
+   Compiling rusqlite v0.36.0
+   Compiling convert_case v0.8.0
+   Compiling pin-project v1.1.10
+   Compiling fsrs v6.6.2
+   Compiling pulldown-cmark v0.13.0
+   Compiling id_tree v1.8.0
+   Compiling axum-client-ip v1.1.3
+   Compiling reqwest v0.12.23
+   Compiling tracing-appender v0.2.3
+   Compiling anki v0.0.0 (/workspace/editor-spikes/anki-src/rslib)
+   Compiling futures v0.3.31
+   Compiling pbkdf2 v0.12.2
+   Compiling async-compression v0.4.30
+   Compiling zip v4.6.0
+   Compiling serde-aux v4.7.0
+   Compiling num_enum v0.7.4
+   Compiling axum-extra v0.10.1
+   Compiling rustls-pemfile v2.2.0
+   Compiling unicode-normalization v0.1.24
+   Compiling sha2 v0.11.0
+   Compiling dirs v6.0.0
+   Compiling itertools v0.14.0
+   Compiling regex v1.11.2
+   Compiling envy v0.4.2
+   Compiling serde_repr v0.1.20
+   Compiling async-trait v0.1.89
+   Compiling num_cpus v1.17.0
+   Compiling coarsetime v0.1.36
+   Compiling nom v8.0.0
+   Compiling percent-encoding-iri v2.2.0 (https://github.com/ankitects/rust-url.git?rev=bb930b8d089f4d30d7d19c12e54e66191de47b88#bb930b8d)
+   Compiling difflib v0.4.0
+   Compiling permutation v0.4.1
+   Compiling htmlescape v0.3.1
+   Compiling same-file v1.0.6
+   Compiling sha1_smol v1.0.1
+   Compiling data-encoding v2.9.0
+   Compiling hex v0.4.3
+   Compiling uuid v1.29.3
+   Compiling spike_a v0.0.0 (/workspace/editor-spikes/a/harness)
+error[E0616]: field `id` of struct `Card` is private
+   --> src/main.rs:137:133
+    |
+137 | ...orage.all_cards_of_note(nid).unwrap().iter().map(|c| (c.id.0, c.template_idx as usize, c.deck_id.0)).collect() }
+    |                                                            ^^ private field
+    |
+help: a method `id` also exists, call it with parentheses
+    |
+137 |     fn cards(&mut self, nid: NoteId) -> Vec<(i64, usize, i64)> { self.col.storage.all_cards_of_note(nid).unwrap().iter().map(|c| (c.id().0, c.template_idx as usize, c.deck_id.0)).collect() }
+    |                                                                                                                                       ++
+
+error[E0616]: field `template_idx` of struct `Card` is private
+   --> src/main.rs:137:141
+    |
+137 | ...ds_of_note(nid).unwrap().iter().map(|c| (c.id.0, c.template_idx as usize, c.deck_id.0)).collect() }
+    |                                                       ^^^^^^^^^^^^ private field
+    |
+help: a method `template_idx` also exists, call it with parentheses
+    |
+137 |     fn cards(&mut self, nid: NoteId) -> Vec<(i64, usize, i64)> { self.col.storage.all_cards_of_note(nid).unwrap().iter().map(|c| (c.id.0, c.template_idx() as usize, c.deck_id.0)).collect() }
+    |                                                                                                                                                         ++
+
+error[E0616]: field `deck_id` of struct `Card` is private
+   --> src/main.rs:137:166
+    |
+137 | ...).iter().map(|c| (c.id.0, c.template_idx as usize, c.deck_id.0)).collect() }
+    |                                                         ^^^^^^^ private field
+    |
+help: a method `deck_id` also exists, call it with parentheses
+    |
+137 |     fn cards(&mut self, nid: NoteId) -> Vec<(i64, usize, i64)> { self.col.storage.all_cards_of_note(nid).unwrap().iter().map(|c| (c.id.0, c.template_idx as usize, c.deck_id().0)).collect() }
+    |                                                                                                                                                                             ++
+
+For more information about this error, try `rustc --explain E0616`.
+error: could not compile `spike_a` (bin "spike_a") due to 3 previous errors
+BUILD_DONE

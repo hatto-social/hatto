@@ -1,0 +1,2 @@
+[2026-11-18T07:57:44.756Z INFO /home/box/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/flutter_rust_bridge_codegen-2.13.0/src/library/commands/fvm.rs:28] Has .fvmrc but no fvm binary installation, thus skip using fvm.
+Done!

@@ -1,0 +1,6 @@
+scale5000: setup 5000 notes in 1293 ms
+scale5000: Basic->Reversed Done { ms: 61, field_value_changes: 0, notes: 5000 }; wrapper total 126 ms (guard+intent+rslib+verify)
+[PASS] scale5000 guid kept + mapping :: journal +0
+scale5000: Reversed->Basic Done { ms: 65, field_value_changes: 0, notes: 5000 }; wrapper total 128 ms
+[PASS] scale5000 default cap(5000) guard :: Done { ms: 64, field_value_changes: 0, notes: 5000 }
+exit 0 wall_s 3.9 maxrss_MB 25
