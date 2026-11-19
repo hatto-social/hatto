@@ -7,6 +7,9 @@ spikes/editor-v0/e/clipset
 
 # Build outputs
 /target/
+
+# Release outputs from tools/release (source archive, APK, checksums).
+/dist/
 target/
 **/target/
 **/*.rs.bk
@@ -22,6 +25,8 @@ node_modules/
 
 .dart_tool/
 .packages
+__pycache__/
+*.pyc
 .pub-cache/
 .pub/
 build/

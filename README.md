@@ -41,6 +41,8 @@ git submodule update --init --recursive
 
 The submodule is Anki commit `29bb700b951e3f0c0cb69b77c0180fc1fe33e6ba` (tag `26.09.3`). Do not patch files under `third_party/anki`.
 
+Corresponding source for a binary that is handed to anyone is the archive from `tools/release/make-source-archive.sh`. Rebuilding that archive with no git metadata is [`SOURCE.md`](SOURCE.md). Release order, the rule against deleting a shipped release, and the desktop-app follow-ups are [`docs/release/CHECKLIST.md`](docs/release/CHECKLIST.md).
+
 ## Host build and smoke
 
 From the repo root, with `protoc` and `flutter` on `PATH`:
@@ -76,7 +78,7 @@ Opening a collection still goes only through `init_backend` and `Backend::run_se
 
 Not verified in this workspace: the Android SDK/NDK are not installed, so `flutter build apk` and an emulator were not run. To build an APK locally:
 
-1. Install Android SDK command-line tools and NDK r29 (AnkiDroid's rslib build uses NDK `29.0.14206865`).
+1. Install Android SDK command-line tools and the NDK Flutter's Gradle plugin requests (`flutter.ndkVersion`, `28.2.13676358` on Flutter 3.47.9). AnkiDroid's own rslib build uses NDK `29.0.14206865`. This app's Gradle file follows Flutter, not that pin.
 2. Set `ANDROID_HOME` and `ANDROID_NDK_HOME`.
 3. Accept SDK licenses.
 4. A debug build, from `apps/mobile`: `flutter build apk`.
