@@ -14,10 +14,16 @@ Rust crates and Dart/Flutter packages are not in the bundle. `cargo` and
 hashes in `Cargo.lock` and `pubspec.lock`. There is no mirror of those
 registries.
 
-`BUILD_INFO.txt` in the bundle records the toolchain that produced the
-archive, the submodule commits, and the URL and sha256 of each prebuilt
-SQLite library the Dart `sqlite3` hook downloads. rslib's own SQLite is the
-copy bundled inside the `rusqlite` crate from crates.io.
+A release bundle's `BUILD_INFO.txt` is the copy `tools/release/build-android.sh`
+wrote next to the APK, from the environment that built it. It records rustc,
+cargo, Flutter (framework version and engine hash), the NDK revision, protoc,
+the submodule commits, and the URL and sha256 of each prebuilt SQLite library
+the Dart `sqlite3` hook downloads. `build_info_mode: release` is that record.
+A CI determinism archive can instead contain `build_info_mode: determinism`
+and toolchain lines that start with `placeholder:`. Those lines are not
+versions. rslib's own SQLite is the copy bundled inside the `rusqlite` crate
+from crates.io. The tag and the commit in either file are still the version
+this tree was packed from.
 
 Bit-identical rebuilds are not required. The same commands must produce a
 working `librslib_bridge.so` and an Android APK.
@@ -35,9 +41,12 @@ working `librslib_bridge.so` and an Android APK.
 | C toolchain | A host C compiler, `pkg-config`, and `cmake` for crate build scripts. |
 
 `tools/release/build-android.sh` is the maintainer path from a git checkout.
-It refuses to run in this bundle because there is no `.git` directory. Use
-the commands below, or `tools/release/rebuild-from-archive.sh`, which runs
-them. The tag and the commit come from `BUILD_INFO.txt`.
+It refuses to run in this bundle because there is no `.git` directory, and
+it is what writes the release `dist/BUILD_INFO.txt`. Use the commands below,
+or `tools/release/rebuild-from-archive.sh`, which runs them and then writes
+a release `BUILD_INFO.txt` for the toolchain that just compiled. The tag and
+the commit come from the archive's `BUILD_INFO.txt`. Submodule commits are
+copied from that file because this tree has no `.git` directory.
 
 ## Unpack
 

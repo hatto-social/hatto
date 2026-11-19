@@ -7,9 +7,9 @@ not that decision.
 ## Order
 
 1. Tag the release commit. The tag must point at that commit. Do not move a tag that already shipped.
-2. From a clean checkout of that tag, run `tools/release/make-source-archive.sh <tag>`.
-3. Run `tools/release/build-android.sh <tag>`. That is the only release APK path. It injects `HATTO_RELEASE_TAG` and `HATTO_GIT_SHA`, and it refuses an empty tag, a tag that is not HEAD, or a dirty tree.
-4. Attach `dist/hatto-<version>-source.tar.gz`, `dist/hatto-<version>-android.apk`, and `dist/SHA256SUMS` to the GitHub release for that tag. Do not rely on GitHub's automatic source zip. It leaves out submodule contents, including `third_party/anki` and the ftl checkouts.
+2. From a clean checkout of that tag, with Rust 1.97.1, protoc 31.1, Flutter 3.47.9, and the NDK on the machine (`ANDROID_NDK_HOME`, or exactly one NDK under `ANDROID_HOME/ndk`), run `tools/release/build-android.sh <tag>`. That is the only release APK path. It injects `HATTO_RELEASE_TAG` and `HATTO_GIT_SHA`, refuses an empty tag, a tag that is not HEAD, or a dirty tree, and writes `dist/BUILD_INFO.txt` from the toolchain that just built the APK. That file is the release record: rustc, cargo, Flutter including the engine hash, NDK, protoc, submodule commits, and the URL and sha256 of each sqlite3 native library the hook downloads.
+3. Run `tools/release/make-source-archive.sh <tag>`. It copies `dist/BUILD_INFO.txt` into the archive. If that file is missing, the script probes the same tools and fails when one of them is missing. Do not pass `--determinism` for a release. That mode is only for the CI hash check, and its toolchain lines are labeled `placeholder:`.
+4. Attach `dist/hatto-<version>-source.tar.gz`, `dist/hatto-<version>-android.apk`, `dist/BUILD_INFO.txt`, and `dist/SHA256SUMS` to the GitHub release for that tag. Do not rely on GitHub's automatic source zip. It leaves out submodule contents, including `third_party/anki` and the ftl checkouts.
 5. Set the release body from `docs/release/RELEASE_BODY.md`. Replace `<version>`. The first line points at the source archive.
 
 `<version>` is the tag with one leading `v` removed when the tag looks like `v1.2.3`.

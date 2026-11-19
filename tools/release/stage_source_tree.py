@@ -111,17 +111,39 @@ def flutter_lines(cwd: Path) -> list[str]:
     return lines
 
 
-def ndk_revision() -> str:
-    home = os.environ.get("ANDROID_NDK_HOME") or os.environ.get("ANDROID_NDK_ROOT")
-    if not home:
-        return "absent"
-    props = Path(home) / "source.properties"
+def pkg_revision(home: Path) -> str:
+    props = home / "source.properties"
     if not props.is_file():
-        return "absent"
+        return ""
     for line in props.read_text(encoding="utf-8").splitlines():
         if line.startswith("Pkg.Revision="):
-            return line.split("=", 1)[1].strip() or "absent"
-    return "absent"
+            return line.split("=", 1)[1].strip()
+    return ""
+
+
+def ndk_revision() -> str:
+    for var in ("ANDROID_NDK_HOME", "ANDROID_NDK_ROOT"):
+        raw = os.environ.get(var)
+        if not raw:
+            continue
+        revision = pkg_revision(Path(raw))
+        if revision:
+            return revision
+        return "absent"
+    sdk = os.environ.get("ANDROID_HOME") or os.environ.get("ANDROID_SDK_ROOT")
+    if not sdk:
+        return "absent"
+    ndk_root = Path(sdk) / "ndk"
+    if not ndk_root.is_dir():
+        return "absent"
+    installs = sorted(
+        path for path in ndk_root.iterdir() if (path / "source.properties").is_file()
+    )
+    if len(installs) != 1:
+        # More than one NDK is installed. ANDROID_NDK_HOME says which one
+        # the release build used. Guessing would record the wrong toolchain.
+        return "absent"
+    return pkg_revision(installs[0]) or "absent"
 
 
 def gradle_wrapper(root: Path) -> str:
@@ -218,30 +240,184 @@ def sqlite3_hook(version: str, package_sha256: str) -> list[str]:
     return lines
 
 
-def build_info(root: Path, tag: str, version: str, sha: str) -> str:
+# A determinism archive is built without the release toolchain. The word
+# "placeholder" is the label: this value is not the toolchain of a binary.
+PLACEHOLDER = (
+    "placeholder: not a release toolchain value; "
+    "this determinism archive did not run the tool"
+)
+
+
+def toolchain_field(name: str, raw: str, mode: str) -> str:
+    missing = raw in ("", "absent") or raw.startswith("placeholder:")
+    if not missing:
+        return f"{name}: {raw}"
+    if mode == "release":
+        raise SystemExit(
+            f"release BUILD_INFO requires {name}. "
+            f"The probe returned {raw!r}. Install it and re-run the release build."
+        )
+    return f"{name}: {PLACEHOLDER}"
+
+
+def flutter_block(root: Path, mode: str) -> list[str]:
+    lines = flutter_lines(root)
+    engine = ""
+    content_hash = ""
+    framework = ""
+    for line in lines:
+        if line.startswith("flutter.engineRevision: "):
+            engine = line.split(": ", 1)[1]
+        elif line.startswith("flutter.engineContentHash: "):
+            content_hash = line.split(": ", 1)[1]
+        elif line.startswith("flutter.frameworkVersion: "):
+            framework = line.split(": ", 1)[1]
+    complete = bool(engine and content_hash and framework)
+    if complete and lines != ["flutter: absent"]:
+        return lines
+    if mode == "release":
+        raise SystemExit(
+            "release BUILD_INFO requires flutter --version --machine, "
+            "including frameworkVersion, engineRevision, and engineContentHash."
+        )
+    return [f"flutter: {PLACEHOLDER}"]
+
+
+def release_fields(text: str) -> dict[str, str]:
+    fields: dict[str, str] = {}
+    for line in text.splitlines():
+        if line.startswith("#") or ": " not in line:
+            continue
+        key, value = line.split(": ", 1)
+        fields[key] = value
+    return fields
+
+
+def assert_release_record(text: str, tag: str, sha: str) -> None:
+    """A release BUILD_INFO is the toolchain of a binary, not a placeholder."""
+    fields = release_fields(text)
+    if fields.get("build_info_mode") != "release":
+        raise SystemExit("BUILD_INFO.txt is not a release record (build_info_mode).")
+    if "placeholder:" in text:
+        raise SystemExit("BUILD_INFO.txt still contains a placeholder toolchain line.")
+    if fields.get("hatto_release_tag") != tag:
+        raise SystemExit(
+            f"BUILD_INFO tag is {fields.get('hatto_release_tag')!r}; expected {tag!r}."
+        )
+    if fields.get("hatto_git_sha") != sha:
+        raise SystemExit(
+            f"BUILD_INFO sha is {fields.get('hatto_git_sha')!r}; expected {sha!r}."
+        )
+    rustc = fields.get("rustc", "")
+    cargo = fields.get("cargo", "")
+    protoc = fields.get("protoc", "")
+    ndk = fields.get("ndk", "")
+    if not rustc.startswith("rustc "):
+        raise SystemExit(f"BUILD_INFO rustc line is not a rustc version: {rustc!r}")
+    if not cargo.startswith("cargo "):
+        raise SystemExit(f"BUILD_INFO cargo line is not a cargo version: {cargo!r}")
+    if "libprotoc" not in protoc:
+        raise SystemExit(f"BUILD_INFO protoc line is not a protoc version: {protoc!r}")
+    if not ndk or ndk == "absent":
+        raise SystemExit(
+            "BUILD_INFO has no NDK revision. Set ANDROID_NDK_HOME to the NDK "
+            "this build used."
+        )
+    for key in (
+        "flutter.frameworkVersion",
+        "flutter.engineRevision",
+        "flutter.engineContentHash",
+    ):
+        if not fields.get(key):
+            raise SystemExit(f"BUILD_INFO is missing {key}.")
+    submodule_lines_text = [
+        line for line in text.splitlines() if line.startswith("submodule ")
+    ]
+    for needle in (
+        "submodule third_party/anki ",
+        "submodule third_party/anki/ftl/core-repo ",
+        "submodule third_party/anki/ftl/qt-repo ",
+    ):
+        if not any(line.startswith(needle) for line in submodule_lines_text):
+            raise SystemExit(f"BUILD_INFO is missing {needle.strip()}.")
+    for name in SQLITE3_TARGETS:
+        sha_key = f"native.sqlite3.file.{name}.sha256"
+        url_key = f"native.sqlite3.file.{name}.url"
+        digest = fields.get(sha_key, "")
+        url = fields.get(url_key, "")
+        if len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
+            raise SystemExit(f"BUILD_INFO {sha_key} is not a sha256.")
+        if not url.startswith("https://"):
+            raise SystemExit(f"BUILD_INFO {url_key} is not an https URL.")
+
+
+def inherited_prefix(path: Path, prefix: str) -> list[str]:
+    lines = [
+        line
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.startswith(prefix)
+    ]
+    if any("placeholder:" in line for line in lines):
+        raise SystemExit(f"{path} has a placeholder {prefix.strip()} line.")
+    if not lines:
+        raise SystemExit(f"{path} has no {prefix.strip()} lines to inherit.")
+    return lines
+
+
+def build_info(
+    root: Path,
+    tag: str,
+    version: str,
+    sha: str,
+    mode: str,
+    inherit_submodules_from: Path | None = None,
+) -> str:
+    if mode not in ("release", "determinism"):
+        raise SystemExit(f"unknown BUILD_INFO mode {mode}")
+    if mode == "determinism":
+        header = [
+            "# Determinism archive record. This is not the release toolchain.",
+            "# build_info_mode: determinism means a line marked placeholder was",
+            "# not used to build a binary. The release record is dist/BUILD_INFO.txt",
+            "# from tools/release/build-android.sh.",
+        ]
+    else:
+        header = [
+            "# Release record of the toolchain that built the binaries for this tag.",
+            "# tools/release/build-android.sh writes this from the environment that",
+            "# produced the APK. tools/release/make-source-archive.sh copies it into",
+            "# the source archive.",
+        ]
+    if inherit_submodules_from is None:
+        modules = submodule_lines(root)
+    else:
+        modules = inherited_prefix(inherit_submodules_from, "submodule ")
     package_version, package_sha = sqlite3_lock(root)
     lines = [
-        "# Toolchain, submodule commits, and native downloads for this source archive.",
-        "# Crates and Dart packages are not in the archive. Cargo.lock and",
-        "# pubspec.lock pin the registry versions and hashes. There is no mirror.",
+        *header,
+        "# Crates and Dart packages are not vendored. Cargo.lock and pubspec.lock",
+        "# pin the registry versions and hashes. There is no mirror.",
         "# native.sqlite3 lines are the prebuilt libraries the Dart sqlite3 hook",
-        "# downloads for the Android ABIs and for the Linux host hook. The hook",
-        "# checks the sha256. rslib's SQLite is the bundled copy inside the",
-        "# rusqlite crate from crates.io, not a separate download.",
+        "# downloads for the Android ABIs and the Linux host hook. The hook checks",
+        "# the sha256. rslib's SQLite is the bundled copy inside the rusqlite crate.",
+        f"build_info_mode: {mode}",
         f"hatto_release_tag: {tag}",
         f"hatto_git_sha: {sha}",
         f"hatto_version: {version}",
-        f"rustc: {first_line(['rustc', '--version'], root)}",
-        f"cargo: {first_line(['cargo', '--version'], root)}",
-        f"protoc: {first_line(['protoc', '--version'], root)}",
-        f"ndk: {ndk_revision()}",
+        toolchain_field("rustc", first_line(["rustc", "--version"], root), mode),
+        toolchain_field("cargo", first_line(["cargo", "--version"], root), mode),
+        toolchain_field("protoc", first_line(["protoc", "--version"], root), mode),
+        toolchain_field("ndk", ndk_revision(), mode),
         f"gradle.wrapper: {gradle_wrapper(root)}",
-        *flutter_lines(root),
-        *submodule_lines(root),
+        *flutter_block(root, mode),
+        *modules,
         *sqlite3_hook(package_version, package_sha),
         "",
     ]
-    return "\n".join(lines)
+    text = "\n".join(lines)
+    if mode == "release":
+        assert_release_record(text, tag, sha)
+    return text
 
 
 def stage_files(root: Path, dest: Path) -> None:
@@ -362,26 +538,75 @@ def write_deterministic_archive(stage_dir: Path, archive: Path, mtime: int) -> N
     os.replace(tmp, archive)
 
 
+def resolve_build_info(
+    root: Path,
+    tag: str,
+    version: str,
+    sha: str,
+    mode: str,
+    build_info_in: Path | None,
+    inherit_submodules_from: Path | None,
+) -> str:
+    if build_info_in is not None:
+        if mode != "release":
+            raise SystemExit("--build-info-in is only for a release archive.")
+        text = build_info_in.read_text(encoding="utf-8")
+        if not text.endswith("\n"):
+            text += "\n"
+        assert_release_record(text, tag, sha)
+        return text
+    return build_info(
+        root,
+        tag,
+        version,
+        sha,
+        mode,
+        inherit_submodules_from=inherit_submodules_from,
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, required=True)
-    parser.add_argument("--dest", type=Path, required=True)
+    parser.add_argument("--dest", type=Path)
     parser.add_argument("--tag", required=True)
     parser.add_argument("--version", required=True)
     parser.add_argument("--sha", required=True)
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--source-date", type=int)
+    parser.add_argument("--mode", choices=("release", "determinism"), default="release")
+    parser.add_argument("--write-only", action="store_true")
+    parser.add_argument("--output", type=Path)
+    parser.add_argument("--build-info-in", type=Path)
+    parser.add_argument("--inherit-submodules-from", type=Path)
     args = parser.parse_args()
+    root = args.root.resolve()
+    info = resolve_build_info(
+        root,
+        args.tag,
+        args.version,
+        args.sha,
+        args.mode,
+        args.build_info_in,
+        args.inherit_submodules_from,
+    )
+    if args.write_only:
+        if args.output is None:
+            raise SystemExit("--write-only requires --output")
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(info, encoding="utf-8", newline="\n")
+        os.chmod(args.output, 0o644)
+        return
+    if args.dest is None:
+        raise SystemExit("staging requires --dest")
     if (args.archive is None) != (args.source_date is None):
         raise SystemExit("pass --archive and --source-date together")
-    root = args.root.resolve()
     dest = args.dest
     if dest.exists():
         raise SystemExit(f"{dest} already exists")
     dest.mkdir(parents=True)
     stage_files(root, dest)
     require_present(dest)
-    info = build_info(root, args.tag, args.version, args.sha)
     info_path = dest / "BUILD_INFO.txt"
     info_path.write_text(info, encoding="utf-8", newline="\n")
     os.chmod(info_path, 0o644)

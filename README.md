@@ -83,7 +83,7 @@ Not verified in this workspace: the Android SDK/NDK are not installed, so `flutt
 3. Accept SDK licenses.
 4. A debug build, from `apps/mobile`: `flutter build apk`.
 
-A binary that is handed to anyone is a release build, and `tools/release/build-android.sh <tag>` is the only path for that APK. The tag must be non-empty, must point at HEAD, and the work tree must be clean. The script passes `HATTO_RELEASE_TAG` and `HATTO_GIT_SHA` to Dart. The About screen's source button then opens `https://github.com/hatto-social/hatto/releases/tag/<tag>`. A build with no tag says which commit it is instead. Signing keys are not changed here.
+A binary that is handed to anyone is a release build, and `tools/release/build-android.sh <tag>` is the only path for that APK. The tag must be non-empty, must point at HEAD, and the work tree must be clean. The script passes `HATTO_RELEASE_TAG` and `HATTO_GIT_SHA` to Dart and writes `dist/BUILD_INFO.txt` from the toolchain that built the APK. `tools/release/make-source-archive.sh <tag>` copies that file into the source archive. The About screen's source button then opens `https://github.com/hatto-social/hatto/releases/tag/<tag>`. A build with no tag says which commit it is instead. Signing keys are not changed here.
 
 `.cargo/config.toml` already passes `-Wl,-z,max-page-size=16384` for the Android Rust targets so the `.so` can load on 16KB-page devices. `prepare_runtime` must run before import/export, or rslib writes temp files under a directory the app cannot use.
 

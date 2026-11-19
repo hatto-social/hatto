@@ -33,14 +33,18 @@ jobs:
       - name: Release script guards
         run: tools/release/build-android_test.sh
 
+      - name: BUILD_INFO release and placeholder modes
+        run: tools/release/build_info_test.sh
+
       - name: Build the source archive twice
         run: |
           set -euo pipefail
           git tag v0.0.0-ci
-          tools/release/make-source-archive.sh v0.0.0-ci
+          # No release toolchain on this job. Placeholder lines are labeled.
+          tools/release/make-source-archive.sh --determinism v0.0.0-ci
           cp dist/hatto-0.0.0-ci-source.tar.gz /tmp/first-source.tar.gz
           sha256sum dist/hatto-0.0.0-ci-source.tar.gz | awk '{ print $1 }' >/tmp/first.sha
-          tools/release/make-source-archive.sh v0.0.0-ci
+          tools/release/make-source-archive.sh --determinism v0.0.0-ci
           sha256sum dist/hatto-0.0.0-ci-source.tar.gz | awk '{ print $1 }' >/tmp/second.sha
           cmp /tmp/first.sha /tmp/second.sha
           cmp /tmp/first-source.tar.gz dist/hatto-0.0.0-ci-source.tar.gz

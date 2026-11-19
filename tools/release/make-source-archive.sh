@@ -12,6 +12,9 @@
 #
 # Two runs from the same commit, tools, and lockfiles produce the same
 # sha256. The checksum file is next to the archive, not inside it.
+# --determinism labels missing toolchain lines as placeholders. A release
+# run copies dist/BUILD_INFO.txt from build-android.sh, or fails if a
+# required tool is missing.
 # The tar is written in Python. The platform tar on the CI runner stored
 # atime or ctime, so two archives of the same tree differed.
 
@@ -22,6 +25,12 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "$ROOT/tools/release/require_release_tree.sh"
 
 export LC_ALL=C
+
+MODE=release
+if [[ "${1:-}" == "--determinism" ]]; then
+  MODE=determinism
+  shift
+fi
 
 TAG="${1:-${HATTO_RELEASE_TAG:-}}"
 require_release_tree "$ROOT" "$TAG"
@@ -40,18 +49,37 @@ mkdir -p "$STAGE"
 EPOCH="$(git -C "$ROOT" log -1 --format=%ct)"
 ARCHIVE="$DIST/${NAME}-source.tar.gz"
 mkdir -p "$DIST"
+BUILD_INFO_ARGS=()
+if [[ "$MODE" == "release" && -f "$DIST/BUILD_INFO.txt" ]]; then
+  # The APK build already wrote the release record. Copy those bytes in.
+  BUILD_INFO_ARGS=(--build-info-in "$DIST/BUILD_INFO.txt")
+fi
 python3 "$ROOT/tools/release/stage_source_tree.py" \
   --root "$ROOT" \
   --dest "$STAGE/$NAME" \
   --tag "$TAG" \
   --version "$VER" \
   --sha "$RELEASE_SHA" \
+  --mode "$MODE" \
   --archive "$ARCHIVE" \
-  --source-date "$EPOCH"
+  --source-date "$EPOCH" \
+  "${BUILD_INFO_ARGS[@]}"
+if [[ "$MODE" == "release" && ! -f "$DIST/BUILD_INFO.txt" ]]; then
+  # Archive ran before the APK build, with the toolchain present. Keep the
+  # same bytes beside the archive so the release asset exists either way.
+  python3 - "$STAGE/$NAME/BUILD_INFO.txt" "$DIST/BUILD_INFO.txt" <<'PY'
+import pathlib, sys
+src, dest = sys.argv[1:]
+pathlib.Path(dest).write_bytes(pathlib.Path(src).read_bytes())
+PY
+fi
 
 (
   cd "$DIST"
   files=("${NAME}-source.tar.gz")
+  if [[ "$MODE" == "release" && -f BUILD_INFO.txt ]]; then
+    files+=(BUILD_INFO.txt)
+  fi
   if [[ -f "${NAME}-android.apk" ]]; then
     files+=("${NAME}-android.apk")
   fi

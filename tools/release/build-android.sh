@@ -45,16 +45,27 @@ mkdir -p "$ROOT/dist"
 APK_NAME="hatto-${VER}-android.apk"
 cp "$APK_SRC" "$ROOT/dist/$APK_NAME"
 
-# Checksums cover the APK and, when the source archive is already in dist/,
-# that archive too. make-source-archive.sh writes the archive line first.
+# The release record is the toolchain of this build, not a later probe.
+python3 "$ROOT/tools/release/stage_source_tree.py" \
+  --root "$ROOT" \
+  --write-only \
+  --output "$ROOT/dist/BUILD_INFO.txt" \
+  --mode release \
+  --tag "$TAG" \
+  --version "$VER" \
+  --sha "$RELEASE_SHA"
+
+# Checksums cover the source archive when it is already in dist/, the
+# release BUILD_INFO, and the APK.
 (
   cd "$ROOT/dist"
   files=()
   if [[ -f "hatto-${VER}-source.tar.gz" ]]; then
     files+=("hatto-${VER}-source.tar.gz")
   fi
-  files+=("$APK_NAME")
+  files+=("BUILD_INFO.txt" "$APK_NAME")
   sha256sum "${files[@]}" > SHA256SUMS
 )
 
 echo "wrote $ROOT/dist/$APK_NAME"
+echo "wrote $ROOT/dist/BUILD_INFO.txt"

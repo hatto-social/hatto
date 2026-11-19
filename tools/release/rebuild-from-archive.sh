@@ -38,10 +38,13 @@ fi
 
 TAG="$(awk -F': ' '$1 == "hatto_release_tag" { print $2; exit }' BUILD_INFO.txt)"
 SHA="$(awk -F': ' '$1 == "hatto_git_sha" { print $2; exit }' BUILD_INFO.txt)"
-if [[ -z "$TAG" || -z "$SHA" ]]; then
-  echo "BUILD_INFO.txt has no hatto_release_tag or hatto_git_sha." >&2
+VER="$(awk -F': ' '$1 == "hatto_version" { print $2; exit }' BUILD_INFO.txt)"
+if [[ -z "$TAG" || -z "$SHA" || -z "$VER" ]]; then
+  echo "BUILD_INFO.txt has no hatto_release_tag, hatto_git_sha, or hatto_version." >&2
   exit 1
 fi
+# Submodule commits are recorded in the archive. This tree has no .git.
+cp BUILD_INFO.txt /tmp/hatto-archive-build-info.txt
 
 echo "host bridge library for ${TAG} (${SHA})"
 cargo build --release --locked -p rslib_bridge
@@ -70,3 +73,17 @@ if [[ ! -f "$APK" ]]; then
   exit 1
 fi
 echo "wrote $APK"
+
+# Replace the archive's record with the toolchain that just built the binaries.
+python3 "$ROOT/tools/release/stage_source_tree.py" \
+  --root "$ROOT" \
+  --write-only \
+  --output "$ROOT/BUILD_INFO.txt" \
+  --mode release \
+  --tag "$TAG" \
+  --version "$VER" \
+  --sha "$SHA" \
+  --inherit-submodules-from /tmp/hatto-archive-build-info.txt
+echo "----- BUILD_INFO.txt -----"
+cat "$ROOT/BUILD_INFO.txt"
+echo "----- end BUILD_INFO.txt -----"
