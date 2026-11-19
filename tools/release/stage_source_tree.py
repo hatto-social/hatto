@@ -116,8 +116,10 @@ def pkg_revision(home: Path) -> str:
     if not props.is_file():
         return ""
     for line in props.read_text(encoding="utf-8").splitlines():
-        if line.startswith("Pkg.Revision="):
-            return line.split("=", 1)[1].strip()
+        # The NDK writes "Pkg.Revision = 28.2.13676358" with spaces around "=".
+        if line.startswith("Pkg.Revision"):
+            _key, _sep, value = line.partition("=")
+            return value.strip()
     return ""
 
 
@@ -129,7 +131,6 @@ def ndk_revision() -> str:
         revision = pkg_revision(Path(raw))
         if revision:
             return revision
-        return "absent"
     sdk = os.environ.get("ANDROID_HOME") or os.environ.get("ANDROID_SDK_ROOT")
     if not sdk:
         return "absent"
