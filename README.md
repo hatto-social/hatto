@@ -79,7 +79,9 @@ Not verified in this workspace: the Android SDK/NDK are not installed, so `flutt
 1. Install Android SDK command-line tools and NDK r29 (AnkiDroid's rslib build uses NDK `29.0.14206865`).
 2. Set `ANDROID_HOME` and `ANDROID_NDK_HOME`.
 3. Accept SDK licenses.
-4. From `apps/mobile`: `flutter build apk`.
+4. A debug build, from `apps/mobile`: `flutter build apk`.
+
+A binary that is handed to anyone is a release build, and `tools/release/build-android.sh <tag>` is the only path for that APK. The tag must be non-empty, must point at HEAD, and the work tree must be clean. The script passes `HATTO_RELEASE_TAG` and `HATTO_GIT_SHA` to Dart. The About screen's source button then opens `https://github.com/hatto-social/hatto/releases/tag/<tag>`. A build with no tag says which commit it is instead. Signing keys are not changed here.
 
 `.cargo/config.toml` already passes `-Wl,-z,max-page-size=16384` for the Android Rust targets so the `.so` can load on 16KB-page devices. `prepare_runtime` must run before import/export, or rslib writes temp files under a directory the app cannot use.
 

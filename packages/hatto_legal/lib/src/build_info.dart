@@ -21,3 +21,16 @@ class BuildInfo {
 
   bool get hasReleaseTag => releaseTag.isNotEmpty;
 }
+
+/// Opens the GitHub page for one release. The host app supplies this.
+typedef OpenSourceUrl = Future<void> Function(Uri url);
+
+/// Release page that holds this version's source, or null for a dev build.
+///
+/// The tag is the git tag, including a leading `v` when the tag has one.
+String? releaseSourceUrl(String tag) {
+  if (tag.isEmpty) {
+    return null;
+  }
+  return 'https://github.com/hatto-social/hatto/releases/tag/${Uri.encodeComponent(tag)}';
+}

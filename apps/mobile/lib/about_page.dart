@@ -3,11 +3,22 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:hatto_legal/hatto_legal.dart';
 
-/// License screen. The source-archive link is filled in by the release build.
+const _openUrlChannel = MethodChannel('social.hatto/open_url');
+
+/// Opens [url] in the Android view handler. No extra plugin: the activity
+/// sends `ACTION_VIEW`. Widget tests pass their own [OpenSourceUrl].
+Future<void> openExternalUrl(Uri url) {
+  return _openUrlChannel.invokeMethod<void>('open', url.toString());
+}
+
+/// License screen. A release build's source button opens the tag's release page.
 class AboutPage extends StatelessWidget {
-  const AboutPage({super.key});
+  const AboutPage({super.key, this.openUrl});
+
+  final OpenSourceUrl? openUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -15,29 +26,7 @@ class AboutPage extends StatelessWidget {
       appBar: AppBar(title: const Text('라이선스')),
       body: ListView(
         padding: const EdgeInsets.all(24),
-        children: [
-          const LegalNoticesSection(),
-          const SizedBox(height: 12),
-          FilledButton(
-            onPressed: () {
-              showDialog<void>(
-                context: context,
-                builder: (context) {
-                  return AlertDialog(
-                    content: const Text('이 버전의 소스 링크는 아직 없습니다.'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('닫기'),
-                      ),
-                    ],
-                  );
-                },
-              );
-            },
-            child: const Text('소스 코드'),
-          ),
-        ],
+        children: [LegalNoticesSection(openUrl: openUrl ?? openExternalUrl)],
       ),
     );
   }

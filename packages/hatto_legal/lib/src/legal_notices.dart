@@ -19,14 +19,19 @@ Future<String> loadBundledLicense() {
   return rootBundle.loadString(bundledLicenseAsset);
 }
 
-/// Copyright, warranty, and license actions for an About screen.
+/// Copyright, warranty, license text, and the per-version source link.
 ///
-/// The host app keeps its own app bar and its own source-code control.
-/// Desktop and mobile both use this widget.
+/// The host app keeps its own app bar. [openUrl] is how a release build
+/// opens the source page. Desktop and mobile both use this widget.
 class LegalNoticesSection extends StatelessWidget {
-  const LegalNoticesSection({super.key, this.info = BuildInfo.environment});
+  const LegalNoticesSection({
+    super.key,
+    this.info = BuildInfo.environment,
+    this.openUrl,
+  });
 
   final BuildInfo info;
+  final OpenSourceUrl? openUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -66,8 +71,54 @@ class LegalNoticesSection extends StatelessWidget {
           },
           child: const Text('오픈소스 고지'),
         ),
+        const SizedBox(height: 12),
+        FilledButton(
+          onPressed: () => _onSource(context),
+          child: const Text('소스 코드'),
+        ),
       ],
     );
+  }
+
+  void _onSource(BuildContext context) {
+    final url = releaseSourceUrl(info.releaseTag);
+    if (url == null) {
+      final sha = info.gitSha.isEmpty ? '(없음)' : info.gitSha;
+      showDialog<void>(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            content: Text('개발 빌드: 커밋 $sha'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('닫기'),
+              ),
+            ],
+          );
+        },
+      );
+      return;
+    }
+    final opener = openUrl;
+    if (opener == null) {
+      showDialog<void>(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            content: Text(url),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('닫기'),
+              ),
+            ],
+          );
+        },
+      );
+      return;
+    }
+    opener(Uri.parse(url));
   }
 }
 

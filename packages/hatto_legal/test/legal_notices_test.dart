@@ -7,6 +7,58 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hatto_legal/hatto_legal.dart';
 
 void main() {
+  test('release tag maps to the GitHub release URL', () {
+    expect(
+      releaseSourceUrl('v1.2.3'),
+      'https://github.com/hatto-social/hatto/releases/tag/v1.2.3',
+    );
+    expect(releaseSourceUrl(''), isNull);
+  });
+
+  testWidgets('source button opens the release page for a tag', (tester) async {
+    Uri? opened;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: LegalNoticesSection(
+            info: const BuildInfo(releaseTag: 'v1.2.3', gitSha: 'abc'),
+            openUrl: (uri) async {
+              opened = uri;
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('소스 코드'));
+    await tester.pumpAndSettle();
+
+    expect(
+      opened?.toString(),
+      'https://github.com/hatto-social/hatto/releases/tag/v1.2.3',
+    );
+    expect(find.text('개발 빌드: 커밋 abc'), findsNothing);
+  });
+
+  testWidgets('source button names the commit when the build has no tag', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: LegalNoticesSection(
+            info: BuildInfo(gitSha: '0123456789abcdef'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('소스 코드'));
+    await tester.pumpAndSettle();
+    expect(find.text('개발 빌드: 커밋 0123456789abcdef'), findsOneWidget);
+    expect(find.text('닫기'), findsOneWidget);
+  });
+
   testWidgets('legal notices name copyright, warranty, and AGPL', (
     tester,
   ) async {

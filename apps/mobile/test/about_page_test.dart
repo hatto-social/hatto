@@ -61,7 +61,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('소스 코드'));
     await tester.pumpAndSettle();
-    expect(find.text('이 버전의 소스 링크는 아직 없습니다.'), findsOneWidget);
+    expect(find.text('개발 빌드: 커밋 (없음)'), findsOneWidget);
     expect(find.text('닫기'), findsOneWidget);
   });
 
