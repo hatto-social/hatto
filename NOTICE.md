@@ -26,6 +26,14 @@ The name "Anki" is used only to describe compatibility with Anki decks and with 
 
 The submodule also points at Anki's translation checkouts (`ftl/core-repo`, `ftl/qt-repo`). Those repositories do not ship a `LICENSE` file. Anki's `LICENSE` describes translations in the `qt` folder as a mix of BSD and public domain. That sentence is not a license for the translation repositories. This notice does not add one.
 
+## Scheduling algorithms
+
+Hatto does not implement a scheduler. Scheduling is rslib's.
+
+FSRS is the `fsrs` crate from [open-spaced-repetition/fsrs-rs](https://github.com/open-spaced-repetition/fsrs-rs), BSD-3-Clause. Hatto uses it through rslib. The crate notice is in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) (`fsrs 6.6.2`).
+
+rslib's SM-2-family scheduler is based on SuperMemo's SM-2 algorithm by P. A. Woźniak. The algorithm is described at <https://www.super-memory.com/english/ol/sm2.htm>. The implementation in the binary is rslib's.
+
 ## Other notices
 
 License texts for third-party dependencies linked into the Android app are in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). Path-dependent Anki crates are not listed there as ordinary third-party entries. They are covered by the Anki section above. `tools/license/gen-notices.sh` regenerates that file.
