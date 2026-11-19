@@ -14,6 +14,7 @@ to tar. Crates and Dart packages are not copied in; the lockfiles are.
 from __future__ import annotations
 
 import argparse
+import gzip
 import hashlib
 import io
 import json
@@ -280,6 +281,64 @@ def require_present(dest: Path) -> None:
             raise SystemExit(f"staged tree is missing {rel}")
 
 
+def write_deterministic_archive(stage_dir: Path, archive: Path, mtime: int) -> None:
+    """Write a gzipped tar whose bytes do not depend on the clock or the uid.
+
+    The runner's tar stores atime or ctime. Those change between two builds
+    of the same tree, so the sha256 check failed on CI. This writer sets
+    every member's mtime to the commit time and leaves atime and ctime out.
+    """
+    parent = stage_dir.parent
+    paths: list[Path] = []
+    for dirpath, dirnames, filenames in os.walk(stage_dir, followlinks=False):
+        dirnames.sort()
+        filenames.sort()
+        current = Path(dirpath)
+        paths.append(current)
+        for name in filenames:
+            paths.append(current / name)
+    paths.sort(key=lambda path: path.relative_to(parent).as_posix())
+
+    archive.parent.mkdir(parents=True, exist_ok=True)
+    tmp = archive.with_suffix(archive.suffix + ".tmp")
+    with open(tmp, "wb") as raw:
+        with gzip.GzipFile(
+            filename="",
+            mode="wb",
+            fileobj=raw,
+            mtime=0,
+            compresslevel=6,
+        ) as gz:
+            with tarfile.open(fileobj=gz, mode="w|", format=tarfile.GNU_FORMAT) as tar:
+                for path in paths:
+                    rel = path.relative_to(parent).as_posix()
+                    info = tarfile.TarInfo(rel)
+                    info.mtime = mtime
+                    info.uid = 0
+                    info.gid = 0
+                    info.uname = ""
+                    info.gname = ""
+                    info.pax_headers = {}
+                    if path.is_symlink():
+                        info.type = tarfile.SYMTYPE
+                        info.linkname = os.readlink(path)
+                        info.mode = 0o777
+                        tar.addfile(info)
+                    elif path.is_dir():
+                        info.type = tarfile.DIRTYPE
+                        info.mode = 0o755
+                        tar.addfile(info)
+                    elif path.is_file():
+                        info.type = tarfile.REGTYPE
+                        info.size = path.lstat().st_size
+                        info.mode = 0o755 if path.lstat().st_mode & 0o111 else 0o644
+                        with open(path, "rb") as handle:
+                            tar.addfile(info, handle)
+                    else:
+                        raise SystemExit(f"unsupported file type: {path}")
+    os.replace(tmp, archive)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, required=True)
@@ -287,7 +346,11 @@ def main() -> None:
     parser.add_argument("--tag", required=True)
     parser.add_argument("--version", required=True)
     parser.add_argument("--sha", required=True)
+    parser.add_argument("--archive", type=Path)
+    parser.add_argument("--source-date", type=int)
     args = parser.parse_args()
+    if (args.archive is None) != (args.source_date is None):
+        raise SystemExit("pass --archive and --source-date together")
     root = args.root.resolve()
     dest = args.dest
     if dest.exists():
@@ -299,6 +362,8 @@ def main() -> None:
     info_path = dest / "BUILD_INFO.txt"
     info_path.write_text(info, encoding="utf-8", newline="\n")
     os.chmod(info_path, 0o644)
+    if args.archive is not None:
+        write_deterministic_archive(dest, args.archive, args.source_date)
 
 
 if __name__ == "__main__":

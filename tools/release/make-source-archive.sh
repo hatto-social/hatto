@@ -12,6 +12,8 @@
 #
 # Two runs from the same commit, tools, and lockfiles produce the same
 # sha256. The checksum file is next to the archive, not inside it.
+# The tar is written in Python. The platform tar on the CI runner stored
+# atime or ctime, so two archives of the same tree differed.
 
 set -euo pipefail
 
@@ -35,25 +37,17 @@ NAME="hatto-${VER}"
 rm -rf "$STAGE"
 mkdir -p "$STAGE"
 
+EPOCH="$(git -C "$ROOT" log -1 --format=%ct)"
+ARCHIVE="$DIST/${NAME}-source.tar.gz"
+mkdir -p "$DIST"
 python3 "$ROOT/tools/release/stage_source_tree.py" \
   --root "$ROOT" \
   --dest "$STAGE/$NAME" \
   --tag "$TAG" \
   --version "$VER" \
-  --sha "$RELEASE_SHA"
-
-EPOCH="$(git -C "$ROOT" log -1 --format=%ct)"
-ARCHIVE="$DIST/${NAME}-source.tar.gz"
-mkdir -p "$DIST"
-tar -C "$STAGE" \
-  --sort=name \
-  --mtime="@${EPOCH}" \
-  --owner=0 \
-  --group=0 \
-  --numeric-owner \
-  --format=gnu \
-  -cf - "$NAME" | gzip -n >"${ARCHIVE}.tmp"
-mv "${ARCHIVE}.tmp" "$ARCHIVE"
+  --sha "$RELEASE_SHA" \
+  --archive "$ARCHIVE" \
+  --source-date "$EPOCH"
 
 (
   cd "$DIST"
