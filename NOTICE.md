@@ -4,9 +4,9 @@
 
 Copyright 2026 Hatto Social contributors.
 
-Hatto is licensed under the GNU Affero General Public License, version 3, or any later version (`AGPL-3.0-or-later`). The license text is [`LICENSE`](LICENSE). The same bytes are in [`LICENSES/AGPL-3.0-or-later.txt`](LICENSES/AGPL-3.0-or-later.txt).
+Hatto is licensed under the GNU Affero General Public License, version 3, or any later version (`AGPL-3.0-or-later`). The license text is [`LICENSE`](LICENSE). The same bytes are in [`LICENSES/AGPL-3.0-or-later.txt`](LICENSES/AGPL-3.0-or-later.txt) and in [`packages/hatto_legal/assets/LICENSE`](packages/hatto_legal/assets/LICENSE). `tools/license/check.sh` checks the three copies. The asset is what the app shows offline. It is not a different license.
 
-The Dart packages in this repository set `publish_to: none`. They are not published to pub.dev. This repository does not keep a separate `LICENSE` copy in each package.
+The Dart packages in this repository set `publish_to: none`. They are not published to pub.dev. Packages do not each carry their own license file. `packages/hatto_legal` is the shared About-screen widget for the mobile app and, later, the desktop app.
 
 ## Anki
 
