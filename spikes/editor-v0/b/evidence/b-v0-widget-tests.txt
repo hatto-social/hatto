@@ -1,0 +1,15 @@
+01 marks: [Mks(bold)]굵게 [Mks(bold+italic)]굵고 기울임 [Mks(bold+italic+underline)]밑줄까지[Mks()] 보통 H[Mks(sub)]2[Mks()]O x[Mks(sup)]2[Mks()] [Mks(color #d32f2f)]빨강 [Mks(bold+color #d32f2f)]굵은빨강
+03 shortcuts -> <b>a</b><i>b</i><u>c</u><sub>d</sub><sup>e</sup>f
+04 composing trail:
+  안녕 ㅎ: 안녕 <b>ㅎ</b>
+  안녕 하: 안녕 <b>하</b>
+  안녕 한: 안녕 <b>한</b>
+  안녕 한ㄱ: 안녕 <b>한ㄱ</b>
+  안녕 한그: 안녕 <b>한그</b>
+  안녕 한글: 안녕 <b>한글</b>
+  안녕 한글: 안녕 <b>한글</b>
+04 final: [Mks()]안녕 [Mks(bold)]한글 입력  html=안녕 <b>한글 입력</b>
+08 after edit: 목록:추가 <ul class=x><li>가<li>나</ul> 그리고 <table border=1><tr><td>1</td></table> 끝
+09 reasons: [literal newline in text (whitespace, not <br>), literal newline in text (whitespace, not <br>), <script> without sliceable source]
+09 saved: <div>one</div>\n<div>two</div>\n<b>x</b>! removed=1
+12 pasteHtml removed=3 -> x<b>B</b><i>I</i><ul><li>l</li></ul>

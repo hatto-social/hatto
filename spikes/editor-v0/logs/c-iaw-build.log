@@ -1,0 +1,4 @@
+Building Linux application...                                   
+/workspace/editor-spikes/c/iaw_app/linux/flutter/ephemeral/.plugin_symlinks/flutter_inappwebview_linux/linux/in_app_webview/in_app_webview.cc:6214:23: error: use of undeclared identifier 'webkit_web_view_get_theme_color'
+Build process failed
+BUILD_DONE rc=1

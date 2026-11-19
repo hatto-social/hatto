@@ -1,0 +1,9 @@
+file app=alive rss_kb=220708
+text app=alive rss_kb=220708
+filetext app=alive rss_kb=220708
+png app=alive rss_kb=220708
+png_html app=alive rss_kb=220708
+truncated app=alive rss_kb=220708
+random app=alive rss_kb=220708
+hugedims app=alive rss_kb=221396
+huge120 app=alive rss_kb=467040

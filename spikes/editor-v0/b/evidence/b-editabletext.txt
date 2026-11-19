@@ -1,0 +1,17 @@
+B1 EditableText model preserves codec output for 33/33; semantic 33/33
+B2 golden written goldens/editable_b2.png
+B3 after backspace: abcd
+B4 after typing+bold: <b>hello</b> world  undoValue.canUndo=false
+B4 after deleting "hello ": world ranges=[]
+B4 built-in undo -> text="hello world" html=hello world ranges=[]  (expected <b>hello</b> world)
+B4 custom: after delete  world
+B4 custom snapshot restore -> <b>hello</b> world
+B5 plain-text wrap result html: {{c1::서울}}은 <b>수도</b>
+B5 typing at end of bold inherits bold: <b>굵게한</b>
+B6 굵ㅎ -> html=<b>굵ㅎ</b> ranges=[bold[0,2)]
+B6 굵하 -> html=<b>굵하</b> ranges=[bold[0,2)]
+B6 굵한 -> html=<b>굵한</b> ranges=[bold[0,2)]
+B6 굵한ㄱ -> html=<b>굵한ㄱ</b> ranges=[bold[0,3)]
+B6 굵한그 -> html=<b>굵한그</b> ranges=[bold[0,3)]
+B6 굵한글 -> html=<b>굵한글</b> ranges=[bold[0,3)]
+B6 굵한글 -> html=<b>굵한글</b> ranges=[bold[0,3)]

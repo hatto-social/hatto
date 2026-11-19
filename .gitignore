@@ -1,5 +1,9 @@
 # Anki source is fetched at build time (AGPL, large). Do not vendor it.
 spikes/rslib-26.09.3/vendor/
+spikes/editor-v0/vendor/
+
+# Compiled clipboard probe (build from e/clipset.c).
+spikes/editor-v0/e/clipset
 
 # Build outputs
 /target/
@@ -42,3 +46,6 @@ spikes/rslib-26.09.3/mobile/android/local.properties
 *.apk
 *.aab
 **/screenshots/
+# Prototype B v0 captures are committed spike evidence.
+!spikes/editor-v0/b/proto/screenshots/
+!spikes/editor-v0/b/proto/screenshots/**

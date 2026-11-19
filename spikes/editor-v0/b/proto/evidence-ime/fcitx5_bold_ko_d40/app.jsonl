@@ -1,0 +1,19 @@
+{"text":"안녕 ","html":"안녕 ","save":"안녕 ","pending":null,"sel":[3,3],"composing":[-1,-1],"dirty":false,"rich":true,"marks":"[Mks()]안녕 "}
+{"text":"안녕 ","html":"안녕 ","save":"안녕 ","pending":null,"sel":[3,3],"composing":[-1,-1],"dirty":false,"rich":true,"marks":"[Mks()]안녕 "}
+{"text":"안녕 ","html":"안녕 ","save":"안녕 ","pending":"Mks(bold)","sel":[3,3],"composing":[-1,-1],"dirty":false,"rich":true,"marks":"[Mks()]안녕 "}
+{"text":"안녕 ㅎ","html":"안녕 <b>ㅎ</b>","save":"안녕 <b>ㅎ</b>","pending":"Mks(bold)","sel":[4,4],"composing":[3,4],"dirty":true,"rich":true,"marks":"[Mks()]안녕 [Mks(bold)]ㅎ"}
+{"text":"안녕 하","html":"안녕 <b>하</b>","save":"안녕 <b>하</b>","pending":"Mks(bold)","sel":[4,4],"composing":[3,4],"dirty":true,"rich":true,"marks":"[Mks()]안녕 [Mks(bold)]하"}
+{"text":"안녕 한","html":"안녕 <b>한</b>","save":"안녕 <b>한</b>","pending":"Mks(bold)","sel":[4,4],"composing":[3,4],"dirty":true,"rich":true,"marks":"[Mks()]안녕 [Mks(bold)]한"}
+{"text":"안녕 한","html":"안녕 <b>한</b>","save":"안녕 <b>한</b>","pending":"Mks(bold)","sel":[4,4],"composing":[-1,-1],"dirty":true,"rich":true,"marks":"[Mks()]안녕 [Mks(bold)]한"}
+{"text":"안녕 한ㄱ","html":"안녕 <b>한ㄱ</b>","save":"안녕 <b>한ㄱ</b>","pending":"Mks(bold)","sel":[5,5],"composing":[4,5],"dirty":true,"rich":true,"marks":"[Mks()]안녕 [Mks(bold)]한ㄱ"}
+{"text":"안녕 한그","html":"안녕 <b>한그</b>","save":"안녕 <b>한그</b>","pending":"Mks(bold)","sel":[5,5],"composing":[4,5],"dirty":true,"rich":true,"marks":"[Mks()]안녕 [Mks(bold)]한그"}
+{"text":"안녕 한글","html":"안녕 <b>한글</b>","save":"안녕 <b>한글</b>","pending":"Mks(bold)","sel":[5,5],"composing":[4,5],"dirty":true,"rich":true,"marks":"[Mks()]안녕 [Mks(bold)]한글"}
+{"text":"안녕 한글","html":"안녕 <b>한글</b>","save":"안녕 <b>한글</b>","pending":"Mks(bold)","sel":[5,5],"composing":[-1,-1],"dirty":true,"rich":true,"marks":"[Mks()]안녕 [Mks(bold)]한글"}
+{"text":"안녕 한글 ","html":"안녕 <b>한글 </b>","save":"안녕 <b>한글 </b>","pending":"Mks(bold)","sel":[6,6],"composing":[-1,-1],"dirty":true,"rich":true,"marks":"[Mks()]안녕 [Mks(bold)]한글 "}
+{"text":"안녕 한글 ㅇ","html":"안녕 <b>한글 ㅇ</b>","save":"안녕 <b>한글 ㅇ</b>","pending":"Mks(bold)","sel":[7,7],"composing":[6,7],"dirty":true,"rich":true,"marks":"[Mks()]안녕 [Mks(bold)]한글 ㅇ"}
+{"text":"안녕 한글 이","html":"안녕 <b>한글 이</b>","save":"안녕 <b>한글 이</b>","pending":"Mks(bold)","sel":[7,7],"composing":[6,7],"dirty":true,"rich":true,"marks":"[Mks()]안녕 [Mks(bold)]한글 이"}
+{"text":"안녕 한글 입","html":"안녕 <b>한글 입</b>","save":"안녕 <b>한글 입</b>","pending":"Mks(bold)","sel":[7,7],"composing":[6,7],"dirty":true,"rich":true,"marks":"[Mks()]안녕 [Mks(bold)]한글 입"}
+{"text":"안녕 한글 입","html":"안녕 <b>한글 입</b>","save":"안녕 <b>한글 입</b>","pending":"Mks(bold)","sel":[7,7],"composing":[-1,-1],"dirty":true,"rich":true,"marks":"[Mks()]안녕 [Mks(bold)]한글 입"}
+{"text":"안녕 한글 입ㄹ","html":"안녕 <b>한글 입ㄹ</b>","save":"안녕 <b>한글 입ㄹ</b>","pending":"Mks(bold)","sel":[8,8],"composing":[7,8],"dirty":true,"rich":true,"marks":"[Mks()]안녕 [Mks(bold)]한글 입ㄹ"}
+{"text":"안녕 한글 입려","html":"안녕 <b>한글 입려</b>","save":"안녕 <b>한글 입려</b>","pending":"Mks(bold)","sel":[8,8],"composing":[7,8],"dirty":true,"rich":true,"marks":"[Mks()]안녕 [Mks(bold)]한글 입려"}
+{"text":"안녕 한글 입력","html":"안녕 <b>한글 입력</b>","save":"안녕 <b>한글 입력</b>","pending":"Mks(bold)","sel":[8,8],"composing":[7,8],"dirty":true,"rich":true,"marks":"[Mks()]안녕 [Mks(bold)]한글 입력"}

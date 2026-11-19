@@ -1,0 +1,12 @@
+corpus: spike corpus 33 (+dedupe 33), public-deck fields read: 212828 lines, empty 17086, unique non-empty tested 148231
+open mode: rich=148224  source-edit fallback=7 (0.00%)  [strict-DOM canon would put 7114 (4.80%) in source mode]
+  fallback reason: <script> without sliceable source = 1
+  fallback reason: <ro8+]^> without sliceable source = 1
+  fallback reason: <variable_name> without sliceable source = 1
+  fallback reason: <p> without sliceable source = 4
+  fallback reason: <ty> without sliceable source = 1
+  fallback reason: <table> without sliceable source = 1
+rich fields containing out-of-scope raw atoms: 14861; atoms total: 32321
+GATE (a) unedited save == original bytes: 148231/148231 pass (fail 0)
+GATE (b1) forced re-encode DOM(flat)-equivalent + raw atoms byte-identical: 148224/148224 pass (strict-DOM identical: 141117/148224)
+GATE (b2) edit(insert+bold toggle) via controller -> save == expected model, raw atoms byte-identical: 148224/148224 pass

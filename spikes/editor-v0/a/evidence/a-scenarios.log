@@ -1,0 +1,45 @@
+S1 outcome Done { ms: 0, field_value_changes: 0, notes: 5 }
+[PASS] S1 Basic->Reversed guid/id :: guids kept for 5 notes
+[PASS] S1 notetype_id==requested :: all mid==rev
+[PASS] S1 note_map unchanged + mapping check :: Ok(())
+[PASS] S1 journal rows +0 :: journal 5 -> 5
+[PASS] S1 intent done=1,pending=0 :: done=1 pending=0
+[PASS] S1 original card ids kept :: card ids kept
+S1 data: new-card decks vs home deck (note idx: original card deck, new card deck): [(1794986968793, Some(1794986968793)), (1794986968794, Some(1794986968794)), (1794986968795, Some(1794986968795)), (1794986968793, Some(1794986968793)), (1794986968794, Some(1794986968794))]
+S1 mtime changed: [1, 1, 1, 1, 1]
+S1b undo -> Ok("ok")
+[PASS] S1b undo: guid/id kept, mid back to old :: mid after undo = [true, true, true, true, true]
+[PASS] S1b undo: note_map still consistent :: Ok(())
+S1b NOTE: wrapper has no intent/journal for rslib undo unless it wraps col.undo(); rslib undo changed notetype_id silently -> side DB cannot know without M1 comparison
+S1b redo -> Ok("ok")
+[PASS] S1b redo: guid/id kept, mid==rev :: ok
+[PASS] S1b redo: mapping :: Ok(())
+[PASS] S2 Reversed->Basic guid/id :: cards 10 -> 5
+[PASS] S2 mapping :: Ok(())
+[PASS] S3 Basic->Cloze :: cards after = [1, 1]
+[PASS] S3 Cloze->Basic :: Done { ms: 0, field_value_changes: 0, notes: 2 }
+[PASS] S3 mapping :: Ok(())
+[PASS] S4 field swap guid/id :: Done { ms: 1, field_value_changes: 3, notes: 3 }
+S4 field values before=["Q0 한글", "A0"] after=["A0", "Q0 한글"]
+[PASS] S4 FINDING field-level journal gap :: field contents changed for 3 notes but journal rows = 0 (field-level LWW would not see this)
+[PASS] S5 guard rejects mixed notetypes (N3) :: Rejected("guard(N3): note 1794986975421 has notetype 1794986968792 != old 1794986968788")
+[PASS] S5 no state change after reject :: cloze note still cloze, pending=0
+S5b raw rslib with mixed note_ids -> Ok("accepted"); cloze note mid now = true
+[PASS] S6 guard rejects stale current_schema :: Rejected("guard: stale current_schema 1234 != 1794986975423")
+S6b raw rslib stale schema -> Err("InvalidInput { source: InvalidInputError { message: \"schema changed\", source: None, backtrace: None } }") (info schema 1794986975423)
+CRASH injected at after_intent
+crash@after_intent: child exit Some(137)
+[PASS] crash@after_intent: pending before recover=1, after=0 :: recover log ["intent 1: 0/5 notes already new -> discarded"]; all_old=true all_new=false
+[PASS] crash@after_intent: mapping consistent :: Ok(())
+[PASS] crash@after_intent: guid preserved :: ok
+CRASH injected at after_rslib
+crash@after_rslib: child exit Some(137)
+[PASS] crash@after_rslib: pending before recover=1, after=0 :: recover log ["intent 1: 5/5 notes already new -> done(recovered)"]; all_old=false all_new=true
+[PASS] crash@after_rslib: mapping consistent :: Ok(())
+[PASS] crash@after_rslib: guid preserved :: ok
+CRASH injected at before_complete
+crash@before_complete: child exit Some(137)
+[PASS] crash@before_complete: pending before recover=1, after=0 :: recover log ["intent 1: 5/5 notes already new -> done(recovered)"]; all_old=false all_new=true
+[PASS] crash@before_complete: mapping consistent :: Ok(())
+[PASS] crash@before_complete: guid preserved :: ok
+TOTAL FAILS: 0

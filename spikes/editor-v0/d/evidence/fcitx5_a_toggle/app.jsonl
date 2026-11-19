@@ -1,0 +1,6 @@
+{"f":"A","html":"ㅎ","text":"ㅎ","sel":"TextPosition(offset: 1, affinity: TextAffinity.downstream)"}
+{"f":"A","html":"하","text":"하","sel":"TextPosition(offset: 1, affinity: TextAffinity.downstream)"}
+{"f":"A","html":"하a","text":"하a","sel":"TextPosition(offset: 2, affinity: TextAffinity.downstream)"}
+{"f":"A","html":"하ab","text":"하ab","sel":"TextPosition(offset: 3, affinity: TextAffinity.downstream)"}
+{"f":"A","html":"하abㅎ","text":"하abㅎ","sel":"TextPosition(offset: 4, affinity: TextAffinity.downstream)"}
+{"f":"A","html":"하ab하","text":"하ab하","sel":"TextPosition(offset: 4, affinity: TextAffinity.downstream)"}

@@ -1,0 +1,21 @@
+{"f":"A","html":"ㅎ","text":"ㅎ","sel":"TextPosition(offset: 1, affinity: TextAffinity.downstream)"}
+{"f":"A","html":"하","text":"하","sel":"TextPosition(offset: 1, affinity: TextAffinity.downstream)"}
+{"f":"A","html":"한","text":"한","sel":"TextPosition(offset: 1, affinity: TextAffinity.downstream)"}
+{"f":"A","html":"","text":"","sel":"TextPosition(offset: 0, affinity: TextAffinity.downstream)"}
+{"f":"A","html":"한","text":"한","sel":"TextPosition(offset: 1, affinity: TextAffinity.downstream)"}
+{"f":"A","html":"한ㄱ","text":"한ㄱ","sel":"TextPosition(offset: 2, affinity: TextAffinity.downstream)"}
+{"f":"A","html":"한그","text":"한그","sel":"TextPosition(offset: 2, affinity: TextAffinity.downstream)"}
+{"f":"A","html":"한글","text":"한글","sel":"TextPosition(offset: 2, affinity: TextAffinity.downstream)"}
+{"f":"A","html":"한","text":"한","sel":"TextPosition(offset: 1, affinity: TextAffinity.downstream)"}
+{"f":"A","html":"한글","text":"한글","sel":"TextPosition(offset: 2, affinity: TextAffinity.downstream)"}
+{"f":"A","html":"한글ㄷ","text":"한글ㄷ","sel":"TextPosition(offset: 3, affinity: TextAffinity.downstream)"}
+{"f":"A","html":"한글데","text":"한글데","sel":"TextPosition(offset: 3, affinity: TextAffinity.downstream)"}
+{"f":"A","html":"한글뎅","text":"한글뎅","sel":"TextPosition(offset: 3, affinity: TextAffinity.downstream)"}
+{"f":"A","html":"한글","text":"한글","sel":"TextPosition(offset: 2, affinity: TextAffinity.downstream)"}
+{"f":"A","html":"한글데","text":"한글데","sel":"TextPosition(offset: 3, affinity: TextAffinity.downstream)"}
+{"f":"A","html":"한글데이","text":"한글데이","sel":"TextPosition(offset: 4, affinity: TextAffinity.downstream)"}
+{"f":"A","html":"한글데 ","text":"한글데 ","sel":"TextPosition(offset: 4, affinity: TextAffinity.downstream)"}
+{"f":"A","html":"한글데 잍","text":"한글데 잍","sel":"TextPosition(offset: 5, affinity: TextAffinity.downstream)"}
+{"f":"A","html":"한글데 ","text":"한글데 ","sel":"TextPosition(offset: 4, affinity: TextAffinity.downstream)"}
+{"f":"A","html":"한글데 이","text":"한글데 이","sel":"TextPosition(offset: 5, affinity: TextAffinity.downstream)"}
+{"f":"A","html":"한글데 이터","text":"한글데 이터","sel":"TextPosition(offset: 6, affinity: TextAffinity.downstream)"}

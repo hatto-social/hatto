@@ -1,0 +1,6 @@
+scale30000: setup 30000 notes in 5810 ms
+scale30000: Basic->Reversed Done { ms: 470, field_value_changes: 0, notes: 30000 }; wrapper total 902 ms (guard+intent+rslib+verify)
+[PASS] scale30000 guid kept + mapping :: journal +0
+scale30000: Reversed->Basic Done { ms: 528, field_value_changes: 0, notes: 30000 }; wrapper total 967 ms
+[PASS] scale30000 default cap(5000) guard :: Rejected("guard: 30000 notes > cap 5000")
+exit 0 wall_s 10.0 maxrss_MB 88

@@ -1,0 +1,20 @@
+A1 super_editor model preserves codec output for 33/33; semantic-equal 33/33
+A1b built-in Document.toHtml(): <p><strong>굵게</strong> and <i>it</i> line1
+line2</p>
+A2 golden written goldens/super_a2.png
+A3 after backspace html=abcd (token removed whole: true)
+A4 typed: hello world
+A4 bold: <b>hello</b> world
+A4 undo#1: hello world
+A4 undo#2: hello worl
+A4 redo#1: hello world
+A5 cloze: {{c1::서울}}은 수도
+A5 undo (one step?): 서울은 수도
+A6 initial IME value: TextEditingValue(text: ┤. ├, selection: TextSelection.collapsed(offset: 2, affinity: TextAffinity.downstream, isDirectional: false), composing: TextRange(start: -1, end: -1))
+A6 ㅎ  -> "ㅎ"
+A6 하  -> "하"
+A6 한  -> "한"
+A6 한ㄱ -> "한ㄱ"
+A6 한그 -> "한그"
+A6 한글 -> "한글"
+A6 final (commit): "한글"

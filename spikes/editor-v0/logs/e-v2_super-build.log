@@ -1,0 +1,9 @@
+Waiting for another flutter command to release the startup lock...
+Building Linux application...                                   
+ERROR: File modified during build. Build must be rerun.
+✓ Built build/linux/x64/release/bundle/e_app
+
+real	3m29.707s
+user	10m46.920s
+sys	0m57.867s
+BUILD_DONE rc=0

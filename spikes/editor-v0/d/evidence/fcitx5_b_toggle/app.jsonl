@@ -1,0 +1,8 @@
+{"f":"B","text":"","html":"","sel":[0,0],"composing":[-1,-1]}
+{"f":"B","text":"ㅎ","html":"ㅎ","sel":[1,1],"composing":[0,1]}
+{"f":"B","text":"하","html":"하","sel":[1,1],"composing":[0,1]}
+{"f":"B","text":"하","html":"하","sel":[1,1],"composing":[-1,-1]}
+{"f":"B","text":"하a","html":"하a","sel":[2,2],"composing":[-1,-1]}
+{"f":"B","text":"하ab","html":"하ab","sel":[3,3],"composing":[-1,-1]}
+{"f":"B","text":"하abㅎ","html":"하abㅎ","sel":[4,4],"composing":[3,4]}
+{"f":"B","text":"하ab하","html":"하ab하","sel":[4,4],"composing":[3,4]}

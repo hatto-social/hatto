@@ -1,0 +1,17 @@
+[package]
+name = "spike_a"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+# unmodified rslib, release tag 26.09.3 (29bb700) read-only checkout
+# Fetched by scripts/fetch-anki.sh into spikes/editor-v0/vendor/anki (gitignored).
+anki = { path = "../../vendor/anki/rslib" }
+anki_proto = { path = "../../vendor/anki/rslib/proto" }
+tokio = { version = "1.45", features = ["io-util"] }
+rusqlite = { version = "0.36.0", features = ["trace", "functions", "collation", "bundled"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v5","v4"] }
+
+[workspace]

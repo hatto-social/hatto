@@ -1,0 +1,16 @@
+Creating project iaw_app...
+Got dependencies in `iaw_app`.
+Wrote 19 files.
+
+All done!
+You can find general documentation for Flutter at: https://docs.flutter.dev/
+Detailed API documentation is available at: https://api.flutter.dev/
+If you prefer video documentation, consider: https://www.youtube.com/c/flutterdev
+
+In order to run your application, type:
+
+  $ cd iaw_app
+  $ flutter run
+
+Your application code is in iaw_app/lib/main.dart.
+

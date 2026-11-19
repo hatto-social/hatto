@@ -1,0 +1,13 @@
+#!/bin/bash
+# HOME variant. cargokit looks up $HOME/.cargo/bin/rustup BEFORE PATH
+# (super_native_extensions 0.9.1 cargokit build_tool/lib/src/rustup.dart executablePath()).
+# Install this as $PIN_HOME/.cargo/bin/rustup where PIN_HOME is a separate HOME.
+# Do not replace the real $HOME/.cargo/bin/rustup.
+#
+# The Linux box copy hardcoded REAL=/home/box/.cargo/bin/rustup. This copy uses
+# REAL_HOME so a Mac checkout does not point at that box and does not need to
+# overwrite the user's rustup.
+REAL="${REAL_HOME:?set REAL_HOME to the home that holds the real rustup}/.cargo/bin/rustup"
+echo "rustup $*" >> "${SHIM_LOG:-/tmp/rustup_shim2.log}"
+if [ "$1" = run ] && [ "$2" = stable ] && [ -n "$PIN_TOOLCHAIN" ]; then shift 2; exec "$REAL" run "$PIN_TOOLCHAIN" "$@"; fi
+exec "$REAL" "$@"

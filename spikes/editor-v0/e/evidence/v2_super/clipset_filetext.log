@@ -1,0 +1,3 @@
+
+(clipset:660892): dbind-WARNING **: 17:08:30.988: AT-SPI: Error retrieving accessibility bus address: org.freedesktop.DBus.Error.ServiceUnknown: The name org.a11y.Bus was not provided by any .service files
+clipboard set: filetext (4 targets)
