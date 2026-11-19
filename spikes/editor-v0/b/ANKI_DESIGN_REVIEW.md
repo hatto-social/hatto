@@ -64,6 +64,7 @@
 | 17 | 소스 패널 | CodeMirror 구문 강조 + fold gutter | — | 모노스페이스 단색, 강조·gutter 없음 | P3 (known gap) |
 | 18 | UI 언어 | 영어 | — | 한국어 라벨(필드…, 카드…, 태그 N개 등) → Q6 | P3 (question) |
 | 19 | 툴바에서 우리만 있는 것 | 없음(undo/redo 는 Ctrl+Z) | undo/redo | **유지**(자체 제작 글리프, 테스트·마우스용) → Q5 | P3 |
+| 20 | **Floating 표면 전체 (팔레트 팝오버, 툴바 툴팁, raw-chip/이미지 툴팁)** | 웹 Popover: 1px `--border-subtle` + `elevation(8)` 3중 그림자 + `--canvas-elevated` + radius 5 (`Popover.svelte:72-84`, `elevation.scss:29,41,55,59-61,85-87`). 실측(light/dark 동일 rgba): `0 8px 10px -5px rgba(20,20,20,.2), 0 16px 24px 2px rgba(20,20,20,.14), 0 6px 30px 5px rgba(20,20,20,.12)`, border `#e4e4e4`/`#252525`, bg `#fff`/`#363636`. 툴바 툴팁은 **네이티브 Qt QToolTip**(fg 색 1px 테두리, `--canvas` 배경, 그림자 없음 — `qt/aqt/stylesheets.py:123`) | 팔레트: 임의 border(`--border`)·약한 단일 그림자. 툴팁 3종: Flutter 기본(어두운 회색, border/그림자 없음) | 공통 토큰 `kAnkiElevation8` + `ankiFloating(k)` + `AnkiTooltip`(`anki_ui.dart`)을 팔레트·툴바/배지 툴팁·chip/이미지 툴팁에 일괄 적용, 두 테마 동일. 툴팁은 Qt 네이티브와 달리 Popover 외형으로 통일(재열 피드백). 컨텍스트 메뉴는 현재 없음(EditableText에 `contextMenuBuilder` 미설정) — `sbs_10_floating_*`, `ba_10_floating_*` | P1 (done) |
 
 before/after 비교용 이전 이미지: `proto.bak-prereview/screenshots/app/*`.
 
@@ -71,7 +72,7 @@ before/after 비교용 이전 이미지: `proto.bak-prereview/screenshots/app/*`
 ## 4. 구현 요약 (b/proto, v0 범위 안)
 
 - `lib/anki_ui.dart` (신규): `AnkiColors`(light/dark), `AnkiMetrics`, `AnkiTheme`, `AnkiIcon`, `AnkiGlyph`(자체 핀/undo/redo), `AnkiButton`(CustomPainter), `AnkiGroup`.
-- `lib/anki_icon_data.dart` (생성물, `tool/gen_anki_icons.py`): Anki DOM에서 뽑은 SVG path. 색 막대 사각형(`M0,24H24V20H0V24Z`)은 @mdi/svg·bootstrap-icons 어디에도 없어 맵에서 뺐고, `anki_ui.dart`가 직접 그린다. eraser / align / mic 이름은 업스트림 파일(`eraser`, `text-paragraph`, `mic`)과 path를 맞춘 뒤 고쳤다.
+- `lib/anki_icon_data.dart` (생성물, `tool/gen_anki_icons.py`): Anki DOM에서 뽑은 SVG path. 색 막대 사각형은 @mdi/svg·bootstrap-icons에 없어 맵에서 뺐고, `anki_ui.dart`가 직접 그린다.
 - `lib/note_editor.dart` (신규): `NoteEditor` / `NoteFieldSpec` (헤더·공유 툴바·필드·태그·푸터).
 - `lib/proto_editable.dart`: `AnkiFieldFrame`, `EditableField`, `FieldToolbar`(그룹/팔레트 팝오버), `FieldController.selectionFg`, `forcedByUser`(**비계약, 플래그**).
 - `lib/main.dart`: env `SAMPLE, INIT_HTML(Front), INIT_HTML2(Back), MEDIA_DIR, IME_LOG, THEME, VOLUNTARY_HTML, DEV_PANEL, TAGS, NOTETYPE, DECK`.
@@ -81,7 +82,7 @@ before/after 비교용 이전 이미지: `proto.bak-prereview/screenshots/app/*`
 ---
 ## 5. 테스트 결과 [확인]
 
-- `flutter test` 전체: **37개 통과** (기존 29 + 신규 `anki_ui_test.dart` 8). 포함: `corpus_gate_test`
+- `flutter test` 전체: **38개 통과** (기존 29 + 신규 `anki_ui_test.dart` 9; A9 = floating 표면 공통 decoration). 포함: `corpus_gate_test`
   - 코퍼스 148,231 필드: GATE (a) 미편집 저장==원본 **148231/148231**, (b1) **141344/141344**, (b2) **141344/141344**. 리치 141,344 / 소스 폴백 6,887(4.65%) — 이전과 동일.
 - 신규 A1–A8: 레이아웃/라이트·다크 스크린샷, 공유 툴바가 포커스 필드에만 작용, 색 적용·팔레트, 범위 밖 컨트롤 disabled, 접기, HTML 배지(강제/자발), 자발 토글 기본 off, **멀티필드 + 툴바 클릭 후 pending bold + 한글 조합 마크 유지**.
 - **실제 fcitx5 / ibus 16 시나리오** (`scripts/run_all_ime_v0.sh`): 레이아웃 변경 후, 그리고 선택 글자색 변경 후 두 번 재실행 → `evidence-ime/summary.txt` **이전 결과(`summary_before_anki_design.txt`)와 동일**.
@@ -95,6 +96,7 @@ before/after 비교용 이전 이미지: `proto.bak-prereview/screenshots/app/*`
 - `sbs_09_toolbar_zoom_light.png`, `sbs_10_toolbar_zoom_dark.png` 툴바 3배 확대
 - `sbs_04_back_collapsed_light.png` 접기 / `sbs_05a_html_toggle_light.png` HTML 토글 / `sbs_06_color_chooser_light.png` 색 선택 / `sbs_07_toolbar_hover_italic_light.png` hover
 - 개별: `anki_*.png`(실제 Anki), `ours_*.png`(우리), `ours_05b_html_forced_by_contract_light.png`, `ours_08_v0_demo_light.png`
+- **Floating 표면** (light/dark 각각): `sbs_10_floating_palette_*.png`, `sbs_10_floating_toolbar_tooltip_*.png`, `sbs_10_floating_chip_tooltip_*.png` (Anki|우리), `ba_10_floating_*_*.png` (before|after), 원본 `float_before_*` / `float_after_*` / `anki_floating_*`
 - 위젯 테스트 캡처: `screenshots/anki_01_note_editor_light.png`, `anki_02_note_editor_dark.png`, `anki_03_html_badge_forced_and_voluntary.png`
 
 ---
@@ -109,3 +111,5 @@ before/after 비교용 이전 이미지: `proto.bak-prereview/screenshots/app/*`
 7. **Q7 Type/Deck 선택, 태그 에디터, sticky 핀**: 지금은 정적 목업. 실제 동작 범위(v0 포함 여부)?
 8. **Q8 글자색 UX/기본색**: 네이티브 대화상자 vs 팔레트, 기본색 #1565c0 vs Anki #0000ff.
 9. **Q9 이미지 표시**: 계약의 64x48 고정 썸네일 vs Anki 자연 크기.
+
+10. **Q10 툴팁 외형**: Anki 툴바 툴팁은 네이티브 Qt(검은 1px 테두리, 그림자 없음 — OS가 그림자 부여)인데, 우리는 요청에 따라 Popover 외형(border-subtle + elevation 8)으로 통일했다. 이대로 둘지, Qt 외형(fg 테두리)으로 맞출지?

@@ -1,5 +1,6 @@
 // Anki-look note editor (lib/note_editor.dart + anki_ui.dart): behaviour gates + screenshots (../screenshots/anki_*.png).
 import 'dart:io';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -170,5 +171,35 @@ void main() {
     ime(tester, '안녕 한ㄱ', 4, 5); await tester.pump(); ime(tester, '안녕 한글', 4, 5); await tester.pump(); ime(tester, '안녕 한글', 0, 0, caret: 5); await tester.pump();
     expect(c.toHtml(), '안녕 <b>한글</b>');
     L('A8 ok');
+  });
+
+  testWidgets('A9 floating surfaces (colour palette, toolbar tooltip, raw-chip tooltip) share ONE decoration: Anki Popover border-subtle + elevation(8), light and dark; focus untouched', (tester) async {
+    for (final k in [AnkiColors.light, AnkiColors.darkTheme]) {
+      final want = ankiFloating(k);
+      expect(want.boxShadow!.length, 3); expect(want.border, Border.all(color: k.borderSubtle)); expect(want.color, k.canvasElevated);
+      await pumpNote(tester, colors: k, fields: const [NoteFieldSpec('Front', '가나다라<ul><li>목록</li></ul>')]);
+      final st = key.currentState!; final c = st.controllerAt(0);
+      await tester.tap(find.byType(EditableText)); await tester.pump();
+      final focused = st.focusNodeAt(0).hasFocus; expect(focused, isTrue);
+      // palette
+      await tester.tap(find.byKey(const ValueKey('tb-color'))); await tester.pump();
+      final pal = tester.widget<Container>(find.byKey(const ValueKey('palette')));
+      expect(pal.decoration, want, reason: 'palette uses the shared floating decoration (${k.dark ? 'dark' : 'light'})');
+      expect(st.focusNodeAt(0).hasFocus, isTrue, reason: 'opening the palette keeps the field focused');
+      await tester.tap(find.byKey(const ValueKey('swatch-none'))); await tester.pump();
+      // toolbar tooltip (hover)
+      final g = await tester.createGesture(kind: PointerDeviceKind.mouse); await g.addPointer(location: Offset.zero);
+      await g.moveTo(tester.getCenter(find.byKey(const ValueKey('tb-bold')))); await tester.pump(const Duration(milliseconds: 700)); await tester.pump();
+      final tips = tester.widgetList<Tooltip>(find.byType(Tooltip)).where((t) => (t.message ?? '').contains('Ctrl')).toList();
+      expect(tips, isNotEmpty); expect(tips.first.decoration, want, reason: 'toolbar tooltip uses the shared decoration');
+      expect(st.focusNodeAt(0).hasFocus, isTrue, reason: 'tooltip does not steal focus');
+      await g.moveTo(Offset.zero); await tester.pump(const Duration(milliseconds: 300)); await tester.pump();
+      // raw chip tooltip
+      final chip = tester.widgetList<Tooltip>(find.byType(Tooltip)).firstWhere((t) => (t.message ?? '').startsWith('<ul'));
+      expect(chip.decoration, want, reason: 'raw-chip tooltip uses the shared decoration');
+      expect(c.toHtml(), '가나다라<ul><li>목록</li></ul>');
+      await g.removePointer();
+    }
+    L('A9 ok');
   });
 }

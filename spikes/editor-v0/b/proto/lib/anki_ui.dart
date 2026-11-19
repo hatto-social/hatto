@@ -51,6 +51,33 @@ class AnkiTheme extends InheritedWidget {
   @override bool updateShouldNotify(AnkiTheme o) => o.colors != colors;
 }
 
+/// Floating surfaces (popover/dropdown/palette/tooltip): ONE shared decoration. Source: Anki `Popover.svelte:72-84`
+/// (`@include elevation(8)`, `border: 1px solid var(--border-subtle)`, `background: var(--canvas-elevated)`, `border-radius: var(--border-radius)`).
+/// Shadow = `elevation.scss:85-87` level 8 with default colour #141414: umbra `0 8px 10px -5px` @.2 (l.29, l.59), penumbra `0 16px 24px 2px` @.14 (l.41, l.60),
+/// ambient `0 6px 30px 5px` @.12 (l.55, l.61). Same rgba/offsets read back from real Anki (QtWebEngine computed style, light AND dark).
+/// Colours come from the theme (borderSubtle / canvasElevated), so both themes use this one function.
+const List<BoxShadow> kAnkiElevation8 = [
+  BoxShadow(color: Color(0x33141414), offset: Offset(0, 8), blurRadius: 10, spreadRadius: -5),
+  BoxShadow(color: Color(0x24141414), offset: Offset(0, 16), blurRadius: 24, spreadRadius: 2),
+  BoxShadow(color: Color(0x1f141414), offset: Offset(0, 6), blurRadius: 30, spreadRadius: 5),
+];
+BoxDecoration ankiFloating(AnkiColors k) => BoxDecoration(
+    color: k.canvasElevated, border: Border.all(color: k.borderSubtle), borderRadius: BorderRadius.circular(AnkiMetrics.radius), boxShadow: kAnkiElevation8);
+
+/// Tooltip with the shared floating decoration. [colors] must be given when no AnkiTheme is above (e.g. chips built inside the text controller).
+/// Anki's toolbar tooltips are native Qt QToolTips (`qt/aqt/stylesheets.py:123`: fg on --canvas, 1px frame); we deliberately use the
+/// Popover look instead (border + shadow) per design feedback — see review doc.
+class AnkiTooltip extends StatelessWidget {
+  const AnkiTooltip({super.key, required this.message, required this.child, this.colors, this.waitDuration = const Duration(milliseconds: 500)});
+  final String message; final Widget child; final AnkiColors? colors; final Duration waitDuration;
+  @override
+  Widget build(BuildContext context) {
+    final k = colors ?? AnkiTheme.of(context);
+    return Tooltip(message: message, waitDuration: waitDuration, decoration: ankiFloating(k),
+        textStyle: ankiText(k, size: 12).copyWith(height: 1.3), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), margin: const EdgeInsets.all(8), child: child);
+  }
+}
+
 const kUiFont = 'Noto Sans'; // Anki uses system-ui; on this Linux box that resolves to Noto Sans. macOS would use the system font.
 TextStyle ankiText(AnkiColors c, {double size = AnkiMetrics.fontSize, FontWeight? w, Color? color}) =>
     TextStyle(fontSize: size, height: 1.5, color: color ?? c.fg, fontWeight: w, decoration: TextDecoration.none, fontFamily: kUiFont, fontFamilyFallback: const ['NanumGothic']);
@@ -175,7 +202,7 @@ class _AnkiButtonState extends State<AnkiButton> {
         onTapDown: (_) => setState(() => down = true), onTapUp: (_) => setState(() => down = false), onTapCancel: () => setState(() => down = false),
         child: CustomPaint(painter: _BtnPainter(c, widget.leftRadius, widget.rightRadius, hover, down, widget.active, disabled),
           child: SizedBox(width: widget.width, height: widget.height, child: Center(child: widget.labelBuilder != null ? widget.labelBuilder!(fg) : widget.child)))));
-    if (widget.tooltip != null) b = Tooltip(message: widget.tooltip!, waitDuration: const Duration(milliseconds: 500), child: b);
+    if (widget.tooltip != null) b = AnkiTooltip(message: widget.tooltip!, child: b);
     return b;
   }
 }

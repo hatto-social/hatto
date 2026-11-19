@@ -71,6 +71,8 @@ class FieldController extends TextEditingController {
   String? mediaDir;
   /// When non-null, selected text is drawn in this colour (Anki's webview paints selected text white). Set by the field widget while focused.
   Color? selectionFg;
+  /// Theme for tooltips of inline atoms (chips/thumbnails are built here, below no BuildContext). Set by EditableField.
+  AnkiColors tipColors = AnkiColors.light;
   bool get isRich => analysis.richOk;
   String get modeLabel => isRich ? '서식 편집' : 'HTML 원문 편집';
 
@@ -364,14 +366,14 @@ class FieldController extends TextEditingController {
       return Container(width: thumbW, height: thumbH, margin: const EdgeInsets.symmetric(horizontal: 2),
         decoration: BoxDecoration(color: const Color(0xfff0f0f0), border: Border.all(color: const Color(0xffb0b0b0)), borderRadius: BorderRadius.circular(3)),
         clipBehavior: Clip.antiAlias,
-        child: Tooltip(message: src, child: bytes != null
+        child: AnkiTooltip(message: src, colors: tipColors, child: bytes != null
             ? Image.memory(bytes, fit: BoxFit.cover, width: thumbW, height: thumbH, gaplessPlayback: true, errorBuilder: (_, _, _) => _imgPlaceholder(src, base))
             : _imgPlaceholder(src, base)));
     }
     final src = s.token!;
     return Container(margin: const EdgeInsets.symmetric(horizontal: 2), padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
       decoration: BoxDecoration(color: const Color(0xffe0e8ff), border: Border.all(color: const Color(0xff9db0e8)), borderRadius: BorderRadius.circular(3)),
-      child: Tooltip(message: src.length > 400 ? '${src.substring(0, 400)}…' : src, waitDuration: const Duration(milliseconds: 300),
+      child: AnkiTooltip(message: src.length > 400 ? '${src.substring(0, 400)}…' : src, colors: tipColors, waitDuration: const Duration(milliseconds: 300),
         child: Text(rawLabel(src), style: base.copyWith(fontSize: 12, color: const Color(0xff2a3f8a), fontWeight: FontWeight.normal, fontStyle: FontStyle.normal, decoration: TextDecoration.none))));
   }
   Widget _imgPlaceholder(String src, TextStyle base) => Center(child: Padding(padding: const EdgeInsets.all(2), child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -501,6 +503,7 @@ class _EditableFieldState extends State<EditableField> {
     final k = AnkiTheme.of(context);
     final width = widget.width, minLines = widget.minLines, undo = widget.undo;
     c.selectionFg = focus.hasFocus && c.isRich ? Colors.white : null;
+    c.tipColors = k;
     final rich = c.isRich;
     // Rich: field font from the notetype (Anki default Arial 20px, line box 30px). Source mode: Anki CodeMirror = monospace 15px.
     final editStyle = rich
@@ -631,8 +634,7 @@ class _Palette extends StatelessWidget {
   final FieldController? c; final AnkiColors k; final void Function(String?) onPick; final VoidCallback onClose;
   @override
   Widget build(BuildContext context) => TapRegion(onTapOutside: (_) => onClose(), child: Container(key: const ValueKey('palette'), padding: const EdgeInsets.all(6),
-    decoration: BoxDecoration(color: k.canvasElevated, border: Border.all(color: k.border), borderRadius: BorderRadius.circular(AnkiMetrics.radius),
-      boxShadow: const [BoxShadow(color: Color(0x33000000), offset: Offset(0, 4), blurRadius: 10, spreadRadius: -2)]),
+    decoration: ankiFloating(k),
     child: Row(mainAxisSize: MainAxisSize.min, children: [
       for (final col in kPalette) GestureDetector(key: ValueKey('swatch-${col ?? 'none'}'), onTap: () => onPick(col),
         child: MouseRegion(cursor: SystemMouseCursors.click, child: Container(width: 22, height: 22, margin: const EdgeInsets.symmetric(horizontal: 2), alignment: Alignment.center,

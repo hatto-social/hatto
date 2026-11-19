@@ -124,7 +124,7 @@ class _BadgeState extends State<_Badge> {
     Widget w = MouseRegion(cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic, onEnter: (_) => setState(() => h = true), onExit: (_) => setState(() => h = false),
       child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: widget.onTap, child: SizedBox(width: widget.width, height: 22.5,
         child: Center(child: Opacity(opacity: h && enabled ? widget.hoverOpacity : widget.opacity, child: widget.child)))));
-    if (widget.tooltip != null) w = Tooltip(message: widget.tooltip!, waitDuration: const Duration(milliseconds: 500), child: w);
+    if (widget.tooltip != null) w = AnkiTooltip(message: widget.tooltip!, child: w);
     return w;
   }
 }
