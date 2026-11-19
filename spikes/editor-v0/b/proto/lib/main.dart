@@ -1,66 +1,75 @@
-// Prototype B desktop app (v0 minimum usable editor). Env: INIT_HTML | SAMPLE=<corpus key>, MEDIA_DIR, IME_LOG.
+// Prototype B desktop app: Anki-look Add-note window around the v0 editor.
+// Env: SAMPLE=<corpus key> | INIT_HTML (Front field html), INIT_HTML2 (Back), MEDIA_DIR, IME_LOG (logs Front), THEME=light|dark,
+//      VOLUNTARY_HTML=1 (FLAGGED option), DEV_PANEL=1 (side debug panel), TAGS="a,b", NOTETYPE, DECK, PALETTE_OPEN=1.
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'anki_ui.dart';
 import 'corpus.dart';
-import 'proto_editable.dart';
+import 'note_editor.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const EditorApp());
 }
 
-class EditorApp extends StatelessWidget {
-  const EditorApp({super.key});
-  @override
-  Widget build(BuildContext context) => MaterialApp(
-        debugShowCheckedModeBanner: false, title: 'editor_proto',
-        theme: ThemeData(fontFamily: 'Liberation Sans', fontFamilyFallback: const ['NanumGothic']),
-        home: const Scaffold(backgroundColor: Color(0xfff6f6f8), body: Padding(padding: EdgeInsets.all(16), child: _Home())));
-}
-
 const _extra = <String, String>{
   'v0-demo': '<b>굵게 <i>굵고 기울임</i></b> <u>밑줄</u> H<sub>2</sub>O x<sup>2</sup> <span style="color: #d32f2f">빨강</span> \\(e^{i\\pi}+1=0\\) {{c1::서울::수도}} [sound:rec.m4a]<br><img src="demo.png"> <ul><li>목록은 v1</li></ul> 끝',
   'empty': '',
 };
+const _back = '다음 줄 \\(e^{i\\pi}+1=0\\)<br>[sound:rec.m4a] <span style="color: #1565c0">파랑</span> 끝';
 
-class _Home extends StatefulWidget { const _Home(); @override State<_Home> createState() => _HomeState(); }
-class _HomeState extends State<_Home> {
-  late String sample = Platform.environment['SAMPLE'] ?? (Platform.environment['INIT_HTML'] != null ? '(INIT_HTML)' : 'v0-demo');
-  late FieldController c = _make();
-  final fn = FocusNode();
-  String? savedHtml;
-  final logPath = Platform.environment['IME_LOG'];
-
+class EditorApp extends StatefulWidget { const EditorApp({super.key}); @override State<EditorApp> createState() => _EditorAppState(); }
+class _EditorAppState extends State<EditorApp> {
+  final env = Platform.environment;
+  late bool dark = env['THEME'] == 'dark';
+  final key = GlobalKey<NoteEditorState>();
+  List<String>? saved; int? focusedIdx;
   Map<String, String> get samples => {..._extra, ...corpus};
-  FieldController _make() {
-    final html = sample == '(INIT_HTML)' ? Platform.environment['INIT_HTML']! : samples[sample] ?? '';
-    final k = FieldController(html, mediaDir: Platform.environment['MEDIA_DIR'] ?? 'screenshots/media');
+  String get frontHtml { final sample = env['SAMPLE'] ?? (env['INIT_HTML'] != null ? '(INIT_HTML)' : 'v0-demo'); return sample == '(INIT_HTML)' ? env['INIT_HTML']! : samples[sample] ?? ''; }
+  late final String mediaDir = env['MEDIA_DIR'] ?? 'screenshots/media';
+
+  @override
+  void initState() {
+    super.initState();
+    final logPath = env['IME_LOG'];
     if (logPath != null) {
-      k.addListener(() => File(logPath!).writeAsStringSync('${jsonEncode({'text': k.text, 'html': k.toHtml(), 'save': k.save(), 'pending': k.pending?.toString(), 'sel': [k.selection.start, k.selection.end], 'composing': [k.value.composing.start, k.value.composing.end], 'dirty': k.dirty, 'rich': k.isRich, 'marks': k.isRich ? k.marksDump() : null})}\n', mode: FileMode.append));
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final k = key.currentState!.controllerAt(0);
+        k.addListener(() => File(logPath).writeAsStringSync('${jsonEncode({'text': k.text, 'html': k.toHtml(), 'save': k.save(), 'pending': k.pending?.toString(), 'sel': [k.selection.start, k.selection.end], 'composing': [k.value.composing.start, k.value.composing.end], 'dirty': k.dirty, 'rich': k.isRich, 'marks': k.isRich ? k.marksDump() : null})}\n', mode: FileMode.append));
+      });
     }
-    return k;
   }
 
   @override
-  void initState() { super.initState(); WidgetsBinding.instance.addPostFrameCallback((_) => fn.requestFocus()); }
+  Widget build(BuildContext context) {
+    final colors = dark ? AnkiColors.darkTheme : AnkiColors.light;
+    final tags = (env['TAGS'] ?? 'korean::vocab,noun').split(',').where((e) => e.isNotEmpty).toList();
+    final editor = NoteEditor(key: key, colors: colors, mediaDir: mediaDir, tags: tags, notetype: env['NOTETYPE'] ?? 'Basic', deck: env['DECK'] ?? 'Default',
+      voluntaryHtmlToggle: env['VOLUNTARY_HTML'] == '1', onAdd: (h) => setState(() => saved = h), onFocusedChanged: (i) => setState(() => focusedIdx = i),
+      fields: [NoteFieldSpec('Front', frontHtml), NoteFieldSpec('Back', env['INIT_HTML2'] ?? (env['INIT_HTML'] != null ? '' : _back))]);
+    return MaterialApp(
+      debugShowCheckedModeBanner: false, title: 'editor_proto',
+      theme: ThemeData(fontFamily: kUiFont, fontFamilyFallback: const ['NanumGothic'], brightness: dark ? Brightness.dark : Brightness.light),
+      home: Shortcuts(
+        shortcuts: {const SingleActivator(LogicalKeyboardKey.keyD, control: true, alt: true): VoidCallbackIntent(() => setState(() => dark = !dark))},
+        child: Actions(actions: {VoidCallbackIntent: VoidCallbackAction()}, child: Scaffold(backgroundColor: colors.canvas, body: Row(children: [
+          Expanded(child: editor),
+          if (env['DEV_PANEL'] == '1') Container(width: 340, padding: const EdgeInsets.all(8), color: const Color(0xffeceff4), child: _Dev(key, saved, focusedIdx)),
+        ])))));
+  }
+}
 
+class _Dev extends StatelessWidget {
+  const _Dev(this.k, this.saved, this.focusedIdx);
+  final GlobalKey<NoteEditorState> k; final List<String>? saved; final int? focusedIdx;
   @override
   Widget build(BuildContext context) {
-    final names = ['(INIT_HTML)', ...samples.keys].where((n) => n != '(INIT_HTML)' || Platform.environment['INIT_HTML'] != null).toList();
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        const Text('필드 샘플: '),
-        DropdownButton<String>(value: sample, items: [for (final n in names) DropdownMenuItem(value: n, child: Text(n))], onChanged: (v) => setState(() { sample = v!; c = _make(); savedHtml = null; WidgetsBinding.instance.addPostFrameCallback((_) => fn.requestFocus()); })),
-        const SizedBox(width: 12),
-        FilledButton(onPressed: () => setState(() => savedHtml = c.save()), child: const Text('저장(save)')),
-      ]),
-      const SizedBox(height: 8),
-      FieldEditor(c, fn, width: 560, fontFamily: 'Liberation Sans', fontFamilyFallback: const ['NanumGothic']),
-      const SizedBox(height: 12),
-      ListenableBuilder(listenable: c, builder: (_, _) => Container(width: 560, padding: const EdgeInsets.all(8), color: const Color(0xffeceff4), child: Text(
-        '모드: ${c.modeLabel}   dirty: ${c.dirty}   pending: ${c.pending ?? '-'}\n저장 결과(HTML): ${savedHtml ?? '(저장 안 함)'}\n현재 인코딩: ${c.toHtml()}',
-        style: const TextStyle(fontSize: 12, fontFamily: 'NanumGothicCoding')))),
-    ]);
+    final st = k.currentState;
+    final c = st == null ? null : st.controllerAt(focusedIdx ?? 0);
+    return DefaultTextStyle(style: const TextStyle(fontSize: 11, color: Colors.black, fontFamily: 'NanumGothicCoding', decoration: TextDecoration.none),
+      child: SingleChildScrollView(child: c == null ? const Text('...') : ListenableBuilder(listenable: c, builder: (_, _) => Text(
+        '필드 #${focusedIdx ?? 0}  모드: ${c.modeLabel}  dirty: ${c.dirty}  pending: ${c.pending ?? '-'}\n\n저장(추가 버튼) 결과: ${saved ?? '(없음)'}\n\n현재 인코딩: ${c.toHtml()}'))));
   }
 }

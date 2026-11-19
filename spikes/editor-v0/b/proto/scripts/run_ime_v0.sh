@@ -46,7 +46,7 @@ WID=$(xdotool search --name editor_proto | head -1)
 xdotool windowfocus $WID 2>>$OUT/xdo.log; xdotool windowmove $WID 0 0; sleep 0.5
 xdotool getwindowgeometry $WID >> $OUT/xdo.log 2>&1
 # click inside the field (far right of first text line) then End => caret at end of text
-CX=${CLICKX:-420}; CY=${CLICKY:-140}
+CX=${CLICKX:-420}; CY=${CLICKY:-175}
 xdotool mousemove $CX $CY click 1; sleep 0.7
 xdotool key End; sleep 0.4
 if [ "$IM" = fcitx5 ]; then fcitx5-remote -o >>$OUT/im.log 2>&1; fcitx5-remote -s hangul >>$OUT/im.log 2>&1; echo "fcitx5-remote state: $(fcitx5-remote)" >> $OUT/im.log; fi

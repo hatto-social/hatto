@@ -1,0 +1,16 @@
+fcitx5 bold_ko delay=120ms: 안녕 <b>한글 입력</b> | pending= Mks(bold) | marks= [Mks()]안녕 [Mks(bold)]한글 입력
+fcitx5 bold_ko delay=40ms: 안녕 <b>한글 입력</b> | pending= Mks(bold) | marks= [Mks()]안녕 [Mks(bold)]한글 입력
+fcitx5 bi_ko delay=120ms: 안녕 <b><i>한글</i></b> | pending= Mks(bold+italic) | marks= [Mks()]안녕 [Mks(bold+italic)]한글
+fcitx5 bi_ko delay=40ms: 안녕 <b><i>한글</i></b> | pending= Mks(bold+italic) | marks= [Mks()]안녕 [Mks(bold+italic)]한글
+fcitx5 arrow_clear delay=120ms: 안녕한  | pending= None | marks= [Mks()]안녕한 
+fcitx5 arrow_clear delay=40ms: 안녕한  | pending= None | marks= [Mks()]안녕한 
+fcitx5 home_clear delay=120ms: 한안녕  | pending= None | marks= [Mks()]한안녕 
+fcitx5 home_clear delay=40ms: 한안녕  | pending= None | marks= [Mks()]한안녕 
+ibus bold_ko delay=120ms: 안녕 <b>한글 입력</b> | pending= Mks(bold) | marks= [Mks()]안녕 [Mks(bold)]한글 입력
+ibus bold_ko delay=40ms: 안녕 <b>한글 입력</b> | pending= Mks(bold) | marks= [Mks()]안녕 [Mks(bold)]한글 입력
+ibus bi_ko delay=120ms: 안녕 <b><i>한글</i></b> | pending= Mks(bold+italic) | marks= [Mks()]안녕 [Mks(bold+italic)]한글
+ibus bi_ko delay=40ms: 안녕 <b><i>한글</i></b> | pending= Mks(bold+italic) | marks= [Mks()]안녕 [Mks(bold+italic)]한글
+ibus arrow_clear delay=120ms: 안녕한  | pending= None | marks= [Mks()]안녕한 
+ibus arrow_clear delay=40ms: 안녕한  | pending= None | marks= [Mks()]안녕한 
+ibus home_clear delay=120ms: 한안녕  | pending= None | marks= [Mks()]한안녕 
+ibus home_clear delay=40ms: 한안녕  | pending= None | marks= [Mks()]한안녕 

@@ -37,6 +37,8 @@ dependencies:
   cupertino_icons: ^1.0.8
   html: ^0.15.7
   super_editor: 0.3.0-dev.52
+  # path_drawing 1.0.1, MIT, Dan Field 2018. Not vendored. Using it in Hatto is pending a tech-lead decision (review Q4).
+  path_drawing: ^1.0.1
 dev_dependencies:
   flutter_test:
     sdk: flutter

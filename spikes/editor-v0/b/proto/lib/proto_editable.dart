@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'field_codec.dart';
 import 'sanitize.dart';
+import 'anki_ui.dart';
 
 const kPh = '\uFFFC';
 enum RK { bold, italic, underline, sup, sub, color }
@@ -43,8 +44,8 @@ bool slidableLeft(String o, String n, int p, int oe, int ne) => p > 0 && o.codeU
 typedef MediaResolver = String? Function(String src);
 
 class FieldController extends TextEditingController {
-  FieldController(String html, {bool strict = false, bool wsNormalize = false, this.mediaDir, Sanitizer? sourceSanitizer})
-      : original = html, analysis = analyzeField(html, strict: strict, wsNormalize: wsNormalize), _sanitize = sourceSanitizer ?? sanitizer(allowImages: true) {
+  FieldController(String html, {bool strict = false, bool wsNormalize = false, this.mediaDir, Sanitizer? sourceSanitizer, this.forcedByUser = false})
+      : original = html, analysis = forcedByUser ? Analysis(const [], const ['user-requested HTML source edit (FLAGGED option, not in contract)']) : analyzeField(html, strict: strict, wsNormalize: wsNormalize), _sanitize = sourceSanitizer ?? sanitizer(allowImages: true) {
     final sb = StringBuffer();
     if (analysis.richOk) {
       for (final s in analysis.segs) {
@@ -64,8 +65,12 @@ class FieldController extends TextEditingController {
 
   final String original;
   final Analysis analysis;
+  /// FLAGGED (not contract): true only when the UI's voluntary "HTML editor" toggle opened this field in source mode.
+  final bool forcedByUser;
   final Sanitizer _sanitize;
   String? mediaDir;
+  /// When non-null, selected text is drawn in this colour (Anki's webview paints selected text white). Set by the field widget while focused.
+  Color? selectionFg;
   bool get isRich => analysis.richOk;
   String get modeLabel => isRich ? '서식 편집' : 'HTML 원문 편집';
 
@@ -409,17 +414,20 @@ class FieldController extends TextEditingController {
     if (!isRich) return super.buildTextSpan(context: context, style: style, withComposing: withComposing);
     final kids = <InlineSpan>[]; final comp = value.composing;
     final hasComp = withComposing && comp.isValid && !comp.isCollapsed;
+    final sl = selection; final hasSel = selectionFg != null && sl.isValid && !sl.isCollapsed;
+    bool inSel(int k) => hasSel && k >= sl.start && k < sl.end;
     var i = 0;
     while (i < text.length) {
       if (_a[i] != null) { kids.add(WidgetSpan(alignment: PlaceholderAlignment.middle, child: _atomWidget(_a[i]!, base))); i++; continue; }
-      final f = _f[i]; final c = _c[i]; final ic = hasComp && i >= comp.start && i < comp.end;
+      final f = _f[i]; final c = _c[i]; final ic = hasComp && i >= comp.start && i < comp.end; final isl = inSel(i);
       var j = i + 1;
-      while (j < text.length && _a[j] == null && _f[j] == f && _c[j] == c && (hasComp && j >= comp.start && j < comp.end) == ic) { j++; }
+      while (j < text.length && _a[j] == null && _f[j] == f && _c[j] == c && (hasComp && j >= comp.start && j < comp.end) == ic && inSel(j) == isl) { j++; }
       var st = base;
       if (f & 1 != 0) st = st.copyWith(fontWeight: FontWeight.bold);
       if (f & 2 != 0) st = st.copyWith(fontStyle: FontStyle.italic);
       if (f & 4 != 0 || ic) st = st.copyWith(decoration: TextDecoration.underline);
       if (c != null) st = st.copyWith(color: parseColor(c));
+      if (isl) st = st.copyWith(color: selectionFg);
       if (f & 24 != 0) { kids.addAll(_scriptSpans(text.substring(i, j), st, base, f & 8 != 0)); } else { kids.add(TextSpan(text: text.substring(i, j), style: st)); }
       i = j;
     }
@@ -454,10 +462,29 @@ Map<ShortcutActivator, Intent> _shortcuts() {
   return m;
 }
 
-/// The bare editable surface (no toolbar). Keeps the old (c, focus) constructor used by the IME probe apps.
+/// Anki field frame (EditorField.svelte:149-167 `.editor-field`): 1px --border, radius 5, elevation(1), 2px --border-focus ring
+/// drawn as an outline that covers the border and sticks 1px out (outline-offset:-1px; margin:1px makes room).
+class AnkiFieldFrame extends StatelessWidget {
+  const AnkiFieldFrame({super.key, required this.focused, required this.child, this.bg, this.dupe = false});
+  final bool focused, dupe; final Widget child; final Color? bg;
+  @override
+  Widget build(BuildContext context) {
+    final c = AnkiTheme.of(context);
+    return Padding(padding: const EdgeInsets.all(1), child: Stack(clipBehavior: Clip.none, children: [
+      Container(
+        decoration: BoxDecoration(color: bg ?? c.canvasElevated, borderRadius: BorderRadius.circular(AnkiMetrics.radius), border: Border.all(color: c.border),
+          boxShadow: const [BoxShadow(color: Color(0x33141414), offset: Offset(0, 2), blurRadius: 1, spreadRadius: -1), BoxShadow(color: Color(0x24141414), offset: Offset(0, 1), blurRadius: 1), BoxShadow(color: Color(0x1f141414), offset: Offset(0, 1), blurRadius: 3)]),
+        clipBehavior: Clip.antiAlias, child: child),
+      if (focused || dupe) Positioned(left: -1, top: -1, right: -1, bottom: -1, child: IgnorePointer(child: DecoratedBox(key: const ValueKey('focus-ring'),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(AnkiMetrics.radius + 1), border: Border.all(color: dupe ? c.danger : c.borderFocus, width: 2))))),
+    ]));
+  }
+}
+
+/// The editable surface (Anki `.rich-text-input` / CodeMirror source pane look). Keeps the (c, focus) constructor used by the IME probes.
 class EditableField extends StatefulWidget {
-  const EditableField(this.c, this.focus, {super.key, this.undo, this.width = 420, this.minLines = 2, this.fontFamily = 'NanumGothic', this.fontFamilyFallback, this.onClipboardNotice});
-  final FieldController c; final FocusNode focus; final UndoHistoryController? undo; final double width; final int minLines; final String fontFamily; final List<String>? fontFamilyFallback;
+  const EditableField(this.c, this.focus, {super.key, this.undo, this.width = 420, this.minLines = 1, this.fontFamily = 'NanumGothic', this.fontFamilyFallback, this.onClipboardNotice});
+  final FieldController c; final FocusNode focus; final UndoHistoryController? undo; final double? width; final int minLines; final String fontFamily; final List<String>? fontFamilyFallback;
   final void Function(String)? onClipboardNotice;
   @override State<EditableField> createState() => _EditableFieldState();
 }
@@ -465,11 +492,21 @@ class EditableField extends StatefulWidget {
 class _EditableFieldState extends State<EditableField> {
   FieldController get c => widget.c;
   FocusNode get focus => widget.focus;
+  @override void initState() { super.initState(); focus.addListener(_f); }
+  @override void didUpdateWidget(EditableField o) { super.didUpdateWidget(o); if (o.focus != focus) { o.focus.removeListener(_f); focus.addListener(_f); } }
+  @override void dispose() { focus.removeListener(_f); super.dispose(); }
+  void _f() => setState(() {});
   @override
   Widget build(BuildContext context) {
-    final width = widget.width, minLines = widget.minLines, fontFamily = widget.fontFamily, fontFamilyFallback = widget.fontFamilyFallback, undo = widget.undo;
-    final editStyle = TextStyle(fontSize: 16, color: Colors.black, fontFamily: fontFamily, fontFamilyFallback: fontFamilyFallback);
-    return SizedBox(width: width, child: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border.all(color: c.isRich ? Colors.grey : const Color(0xffd08000), width: c.isRich ? 1 : 1.5), color: Colors.white),
+    final k = AnkiTheme.of(context);
+    final width = widget.width, minLines = widget.minLines, undo = widget.undo;
+    c.selectionFg = focus.hasFocus && c.isRich ? Colors.white : null;
+    final rich = c.isRich;
+    // Rich: field font from the notetype (Anki default Arial 20px, line box 30px). Source mode: Anki CodeMirror = monospace 15px.
+    final editStyle = rich
+        ? TextStyle(fontSize: AnkiMetrics.fieldFontSize, height: AnkiMetrics.fieldLineHeight, color: k.fg, fontFamily: widget.fontFamily, fontFamilyFallback: widget.fontFamilyFallback)
+        : TextStyle(fontSize: 15, height: 1.5, color: k.fg, fontFamily: 'DejaVu Sans Mono', fontFamilyFallback: const ['NanumGothicCoding', 'NanumGothic']);
+    final surface = Container(color: rich ? k.canvasElevated : k.canvasCode, padding: const EdgeInsets.all(AnkiMetrics.inputPad),
       child: Shortcuts(shortcuts: _shortcuts(), child: Actions(actions: {
         _BoldIntent: CallbackAction<_BoldIntent>(onInvoke: (i) { c.toggleMark(i.k); return null; }),
         _UndoI: CallbackAction<_UndoI>(onInvoke: (_) { c.undo(); return null; }),
@@ -491,63 +528,120 @@ class _EditableFieldState extends State<EditableField> {
         child: Listener(onPointerDown: (_) => c.userMovedCaret(),
           child: EditableText(controller: c, focusNode: focus, style: editStyle,
             // EditableText defaults to forceStrutHeight:true, which clamps every line to text height so inline thumbnails overflow.
-            strutStyle: StrutStyle.fromTextStyle(editStyle, forceStrutHeight: false), cursorColor: Colors.blue, backgroundCursorColor: Colors.grey,
-            maxLines: null, minLines: minLines, selectionColor: Colors.blue.withValues(alpha: .3), undoController: undo)))))));
+            strutStyle: StrutStyle.fromTextStyle(editStyle, forceStrutHeight: false), cursorColor: k.fg, backgroundCursorColor: Colors.grey,
+            maxLines: null, minLines: minLines, selectionColor: k.selectionBg, undoController: undo))))));
+    final framed = AnkiFieldFrame(focused: focus.hasFocus, child: surface);
+    return width == null ? framed : SizedBox(width: width, child: framed);
   }
 }
 
+void _noop() {}
 const kPalette = <String?>[null, '#d32f2f', '#ef6c00', '#2e7d32', '#1565c0', '#6a1b9a', '#757575'];
+const kDefaultTextColor = '#1565c0'; // initial "last used" colour shown in the A button's bar (Anki shows blue)
 
-/// Minimal toolbar: active state reflects selection marks or pending marks.
+/// Anki editor toolbar (editor-toolbar/*.svelte) for ONE focused field controller. Disabled when [c] is null or the field is in source mode
+/// (CommandIconButton.svelte:33 `disabled = !$focusedInput || !editingInputIsRichText`). v0 scope: only Tier-1 marks + image are live;
+/// everything else Anki shows is rendered disabled (or omitted when [showNotetypeButtons] is false) and listed in the design review.
 class FieldToolbar extends StatefulWidget {
-  const FieldToolbar(this.c, this.focus, {super.key, this.onImage, this.initialPaletteOpen = false});
-  final FieldController c; final FocusNode focus; final VoidCallback? onImage; final bool initialPaletteOpen;
+  const FieldToolbar(this.c, this.focus, {super.key, this.onImage, this.initialPaletteOpen = false, this.showNotetypeButtons = false});
+  final FieldController? c; final FocusNode? focus; final VoidCallback? onImage; final bool initialPaletteOpen, showNotetypeButtons;
   @override State<FieldToolbar> createState() => _FieldToolbarState();
 }
 class _FieldToolbarState extends State<FieldToolbar> {
-  late bool open = widget.initialPaletteOpen;
-  Widget _b(String key, Widget child, bool active, VoidCallback? onTap, String tip) => Tooltip(message: tip, child: GestureDetector(
-    key: ValueKey(key), behavior: HitTestBehavior.opaque, onTap: onTap,
-    child: Container(width: 30, height: 28, alignment: Alignment.center, margin: const EdgeInsets.only(right: 3),
-      decoration: BoxDecoration(color: active ? const Color(0xffd6e4ff) : Colors.transparent, border: Border.all(color: active ? const Color(0xff4a78d0) : const Color(0xffcccccc)), borderRadius: BorderRadius.circular(4)),
-      child: child)));
+  final _ctl = OverlayPortalController();
+  final _link = LayerLink();
+  String lastColor = kDefaultTextColor;
+  @override void initState() { super.initState(); if (widget.initialPaletteOpen) WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) _ctl.show(); }); }
+
+  Widget _icon(Color fg, String n, {double size = AnkiMetrics.iconSize}) => AnkiIcon.one(n, fg, size: size);
+  AnkiButton _b(String key, Widget Function(Color) icon, bool active, VoidCallback? onTap, String tip, double l, double r, {double w = AnkiMetrics.buttonSize}) =>
+      AnkiButton(buttonKey: ValueKey(key), labelBuilder: icon, active: active, onTap: onTap, tooltip: tip, leftRadius: l, rightRadius: r, width: w, child: const SizedBox());
+
   @override
   Widget build(BuildContext context) {
+    final k = AnkiTheme.of(context);
     final c = widget.c;
-    return TextFieldTapRegion(child: ExcludeFocus(child: ListenableBuilder(listenable: c, builder: (_, __) {
-      final m = c.activeMarks; final rich = c.isRich;
-      TextStyle t(TextStyle s) => s.copyWith(fontSize: 14, color: Colors.black, fontFamily: 'NanumGothic', decoration: TextDecoration.none);
-      void tog(RK k) { c.toggleMark(k); }
-      return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        Row(mainAxisSize: MainAxisSize.min, children: [
-          if (!rich) Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3), decoration: BoxDecoration(color: const Color(0xfffff0d6), borderRadius: BorderRadius.circular(4)), child: Text('HTML 원문 편집', style: t(const TextStyle()))),
-          if (rich) ...[
-            _b('tb-bold', Text('B', style: t(const TextStyle(fontWeight: FontWeight.bold))), m.has(RK.bold), () => tog(RK.bold), '굵게 (Ctrl/Cmd+B)'),
-            _b('tb-italic', Text('I', style: t(const TextStyle(fontStyle: FontStyle.italic))), m.has(RK.italic), () => tog(RK.italic), '기울임 (Ctrl/Cmd+I)'),
-            _b('tb-underline', Text('U', style: t(const TextStyle(decoration: TextDecoration.underline))), m.has(RK.underline), () => tog(RK.underline), '밑줄 (Ctrl/Cmd+U)'),
-            _b('tb-sup', Text('x²', style: t(const TextStyle())), m.has(RK.sup), () => tog(RK.sup), '위첨자 (Ctrl/Cmd+Shift+=)'),
-            _b('tb-sub', Text('x₂', style: t(const TextStyle())), m.has(RK.sub), () => tog(RK.sub), '아래첨자 (Ctrl/Cmd+=)'),
-            _b('tb-color', Column(mainAxisSize: MainAxisSize.min, children: [Text('A', style: t(const TextStyle(fontWeight: FontWeight.bold))), Container(width: 16, height: 3, color: m.c != null ? FieldController.parseColor(m.c!) : Colors.black)]), m.c != null || open, () => setState(() => open = !open), '글자색'),
-            const SizedBox(width: 6),
-            _b('tb-img', const Icon(Icons.image_outlined, size: 16), false, widget.onImage ?? () => c.insertImage('paste-new.png'), '이미지 넣기'),
-            const SizedBox(width: 6),
-            _b('tb-undo', const Icon(Icons.undo, size: 16), false, c.canUndo ? c.undo : null, '되돌리기'),
-            _b('tb-redo', const Icon(Icons.redo, size: 16), false, c.canRedo ? c.redo : null, '다시 실행'),
-          ],
+    Widget content(FieldController? c) {
+      final rich = c?.isRich ?? false; final live = c != null && rich;
+      final m = live ? c.activeMarks : const Mks();
+      void tog(RK r) => c!.toggleMark(r);
+      VoidCallback? on(VoidCallback f) => live ? f : null;
+      Widget grp(List<Widget Function(double, double)> b) => AnkiGroup(b);
+      final items = <Widget>[
+        if (widget.showNotetypeButtons) ...[
+          grp([(l, r) => AnkiButton(width: 70, leftRadius: l, rightRadius: 0, tooltip: '필드 편집 (목업, 백엔드 없음)', onTap: _noop, labelBuilder: (fg) => Text('필드…', style: ankiText(k, color: fg).copyWith(height: 1)), child: const SizedBox()),
+               (l, r) => AnkiButton(width: 70, leftRadius: 0, rightRadius: r, tooltip: '카드 편집 (목업, 백엔드 없음)', onTap: _noop, labelBuilder: (fg) => Text('카드…', style: ankiText(k, color: fg).copyWith(height: 1)), child: const SizedBox())]),
+          grp([(l, r) => AnkiButton(width: 40, leftRadius: l, rightRadius: r, tooltip: '옵션 (목업, 백엔드 없음)', onTap: _noop, labelBuilder: (fg) => _icon(fg, 'gear'), child: const SizedBox())]),
+        ],
+        grp([
+          (l, r) => _b('tb-bold', (fg) => _icon(fg, 'bold'), m.has(RK.bold), on(() => tog(RK.bold)), '굵게 (Ctrl/Cmd+B)', l, 0),
+          (l, r) => _b('tb-italic', (fg) => _icon(fg, 'italic'), m.has(RK.italic), on(() => tog(RK.italic)), '기울임 (Ctrl/Cmd+I)', 0, 0),
+          (l, r) => _b('tb-underline', (fg) => _icon(fg, 'underline'), m.has(RK.underline), on(() => tog(RK.underline)), '밑줄 (Ctrl/Cmd+U)', 0, r),
         ]),
-        if (open && rich) Padding(padding: const EdgeInsets.only(top: 4), child: Container(key: const ValueKey('palette'), padding: const EdgeInsets.all(4), decoration: BoxDecoration(color: Colors.white, border: Border.all(color: const Color(0xffcccccc)), borderRadius: BorderRadius.circular(4)),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            for (final col in kPalette) GestureDetector(key: ValueKey('swatch-${col ?? 'none'}'), onTap: () { c.setColor(col); setState(() => open = false); },
-              child: Container(width: 22, height: 22, margin: const EdgeInsets.only(right: 4), alignment: Alignment.center,
-                decoration: BoxDecoration(color: col == null ? Colors.white : FieldController.parseColor(col), border: Border.all(color: m.c == col ? Colors.black : const Color(0xffaaaaaa), width: m.c == col ? 2 : 1), borderRadius: BorderRadius.circular(11)),
-                child: col == null ? const Text('✕', style: TextStyle(fontSize: 11, color: Colors.black87, decoration: TextDecoration.none)) : null)),
-          ]))),
-      ]);
-    })));
+        grp([
+          (l, r) => _b('tb-sup', (fg) => _icon(fg, 'superscript'), m.has(RK.sup), on(() => tog(RK.sup)), '위첨자 (Ctrl/Cmd+Shift+=)', l, 0),
+          (l, r) => _b('tb-sub', (fg) => _icon(fg, 'subscript'), m.has(RK.sub), on(() => tog(RK.sub)), '아래첨자 (Ctrl/Cmd+=)', 0, r),
+        ]),
+        grp([
+          // A = apply the colour shown in the bar; dropdown arrow = choose colour (Anki TextColorButton.svelte); key 'tb-color' stays on the chooser.
+          (l, r) => _b('tb-color-apply', (fg) => AnkiIcon([ 'textColor', 'colorBar'], [fg, FieldController.parseColor(lastColor)]), false, on(() => c!.setColor(lastColor)), '글자색 적용', l, 0),
+          (l, r) => CompositedTransformTarget(link: _link, child: _b('tb-color', (fg) => _icon(fg, 'chevronDown', size: 13.2), _ctl.isShowing, on(() { _ctl.toggle(); setState(() {}); }), '글자색 선택', 0, 0, w: AnkiMetrics.buttonMinWidth)),
+          (l, r) => _b('tb-highlight', (fg) => AnkiIcon(['highlight', 'colorBar'], [fg, k.fgFaint]), false, null, '형광펜 — v0 계약에 없음(배경색 마크). 질문 Q1', 0, 0),
+          (l, r) => _b('tb-highlight-arrow', (fg) => _icon(fg, 'chevronDown', size: 13.2), false, null, '형광펜 색 — v0 계약에 없음', 0, r, w: AnkiMetrics.buttonMinWidth),
+        ]),
+        grp([
+          (l, r) => _b('tb-eraser', (fg) => _icon(fg, 'eraser'), false, null, '서식 지우기 — 범위표에 명시 없음. 질문 Q2', l, 0),
+          (l, r) => _b('tb-eraser-arrow', (fg) => _icon(fg, 'chevronDown', size: 13.2), false, null, '지울 서식 선택 — 질문 Q2', 0, r, w: AnkiMetrics.buttonMinWidth),
+        ]),
+        grp([
+          (l, r) => _b('tb-ul', (fg) => _icon(fg, 'listUl'), false, null, '목록 — v1', l, 0),
+          (l, r) => _b('tb-ol', (fg) => _icon(fg, 'listOl'), false, null, '번호 목록 — v1', 0, 0),
+          (l, r) => _b('tb-align', (fg) => _icon(fg, 'align'), false, null, '정렬 — v1(범위 밖)', 0, r),
+        ]),
+        grp([
+          (l, r) => _b('tb-img', (fg) => _icon(fg, 'attach'), false, live ? (widget.onImage ?? () => c!.insertImage('paste-new.png')) : null, '이미지 넣기 (데모 파일)', l, 0),
+          (l, r) => _b('tb-mic', (fg) => _icon(fg, 'mic'), false, null, '녹음 — v0 범위이지만 이 프로토타입 밖(미구현)', 0, 0),
+          (l, r) => _b('tb-equation', (fg) => _icon(fg, 'equation'), false, null, '수식 메뉴 — 에디터에서는 평문(\\(..\\)), 미리보기 몫', 0, r),
+        ]),
+        // not in Anki: undo/redo buttons (v0 requires its own undo; kept for mouse-only use and the existing tests)
+        grp([
+          (l, r) => _b('tb-undo', (fg) => AnkiGlyph('undo', fg), false, c != null && c.canUndo ? c.undo : null, '되돌리기 (Ctrl/Cmd+Z)', l, 0),
+          (l, r) => _b('tb-redo', (fg) => AnkiGlyph('redo', fg), false, c != null && c.canRedo ? c.redo : null, '다시 실행 (Ctrl/Cmd+Shift+Z)', 0, r),
+        ]),
+        if (c != null && !rich) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+          decoration: BoxDecoration(color: k.dark ? const Color(0xff5a4420) : const Color(0xfffff0d6), borderRadius: BorderRadius.circular(AnkiMetrics.radius)),
+          child: Text('HTML 원문 편집', style: ankiText(k, size: 13).copyWith(height: 1.3))),
+      ];
+      return Padding(padding: const EdgeInsets.only(left: 2.25), child: Wrap(spacing: AnkiMetrics.groupGapX, runSpacing: AnkiMetrics.groupGapY, crossAxisAlignment: WrapCrossAlignment.center, children: items));
+    }
+    return TextFieldTapRegion(child: ExcludeFocus(child: ListenableBuilder(listenable: c ?? ValueNotifier(0), builder: (_, _) => OverlayPortal(
+      controller: _ctl,
+      overlayChildBuilder: (_) => CompositedTransformFollower(link: _link, targetAnchor: Alignment.bottomLeft, followerAnchor: Alignment.topLeft, offset: const Offset(-24, 3),
+        child: Align(alignment: Alignment.topLeft, child: TextFieldTapRegion(child: _Palette(c: c, k: k, onPick: (col) { if (col != null) lastColor = col; c?.setColor(col); _ctl.hide(); setState(() {}); }, onClose: () { _ctl.hide(); setState(() {}); })))),
+      child: Container(
+        padding: const EdgeInsets.only(bottom: 6), // 4px toolbar padding + 2.25px group margin, rounded so the 1px border lands on a pixel row (Anki: border at y=74)
+        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: k.border))),
+        child: content(c))))));
   }
 }
 
-/// Toolbar + surface.
+/// Colour chooser popover. Anki opens a native Qt colour dialog here; the prototype keeps its own small palette (contract colours only).
+class _Palette extends StatelessWidget {
+  const _Palette({required this.c, required this.k, required this.onPick, required this.onClose});
+  final FieldController? c; final AnkiColors k; final void Function(String?) onPick; final VoidCallback onClose;
+  @override
+  Widget build(BuildContext context) => TapRegion(onTapOutside: (_) => onClose(), child: Container(key: const ValueKey('palette'), padding: const EdgeInsets.all(6),
+    decoration: BoxDecoration(color: k.canvasElevated, border: Border.all(color: k.border), borderRadius: BorderRadius.circular(AnkiMetrics.radius),
+      boxShadow: const [BoxShadow(color: Color(0x33000000), offset: Offset(0, 4), blurRadius: 10, spreadRadius: -2)]),
+    child: Row(mainAxisSize: MainAxisSize.min, children: [
+      for (final col in kPalette) GestureDetector(key: ValueKey('swatch-${col ?? 'none'}'), onTap: () => onPick(col),
+        child: MouseRegion(cursor: SystemMouseCursors.click, child: Container(width: 22, height: 22, margin: const EdgeInsets.symmetric(horizontal: 2), alignment: Alignment.center,
+          decoration: BoxDecoration(color: col == null ? k.canvasElevated : FieldController.parseColor(col), border: Border.all(color: c?.activeMarks.c == col ? k.fg : k.border, width: c?.activeMarks.c == col ? 2 : 1), borderRadius: BorderRadius.circular(11)),
+          child: col == null ? Text('✕', style: TextStyle(fontSize: 11, color: k.fg, decoration: TextDecoration.none)) : null))),
+    ])));
+}
+
+/// Single-field harness (toolbar + surface); the note editor (note_editor.dart) composes the same pieces for many fields.
 class FieldEditor extends StatelessWidget {
   const FieldEditor(this.c, this.focus, {super.key, this.width = 420, this.onImage, this.paletteOpen = false, this.fontFamily = 'NanumGothic', this.fontFamilyFallback});
   final String fontFamily; final List<String>? fontFamilyFallback; final FieldController c; final FocusNode focus; final double width; final VoidCallback? onImage; final bool paletteOpen;

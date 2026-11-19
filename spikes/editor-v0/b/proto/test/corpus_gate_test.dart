@@ -34,14 +34,12 @@ void main() {
     final external = f.existsSync();
     if (!external) {
       print('public-deck corpus absent ($corpusPath); gates run on the in-repo spike corpus only');
-    } else {
-      for (final line in f.readAsLinesSync()) {
-        rawLines++;
-        final t = (jsonDecode(line) as Map)['text'] as String;
-        if (t.isEmpty) { empty++; continue; }
-        if (seen.add(t)) fields.add(t);
-        if (fields.length >= limit) break;
-      }
+    } else for (final line in f.readAsLinesSync()) {
+      rawLines++;
+      final t = (jsonDecode(line) as Map)['text'] as String;
+      if (t.isEmpty) { empty++; continue; }
+      if (seen.add(t)) fields.add(t);
+      if (fields.length >= limit) break;
     }
     final sb = StringBuffer();
     var rich = 0, srcMode = 0, strictSrc = 0, a_fail = 0, b1_fail = 0, b1_strictEq = 0, b2_fail = 0, b2_n = 0, atomsTotal = 0, withRaw = 0;

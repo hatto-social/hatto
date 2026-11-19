@@ -1,0 +1,69 @@
+I2026-11-19 15:19:52.544976 instance.cpp:1394] Override Enabled Addons: {}
+I2026-11-19 15:19:52.545032 instance.cpp:1395] Override Disabled Addons: {}
+E2026-11-19 15:19:52.547370 waylandmodule.cpp:239] Failed to open wayland connection
+I2026-11-19 15:19:52.547388 addonmanager.cpp:205] Loaded addon wayland
+I2026-11-19 15:19:52.556849 xcbconnection.cpp:179] Set XFIXES client disconnect mode to TERMINATE
+I2026-11-19 15:19:52.556985 xcbconnection.cpp:199] Connecting to X11 display, display name::99.
+I2026-11-19 15:19:52.557128 addonmanager.cpp:205] Loaded addon xcb
+I2026-11-19 15:19:52.558231 addonmanager.cpp:205] Loaded addon quickphrase
+I2026-11-19 15:19:52.558400 addonmanager.cpp:205] Loaded addon imselector
+I2026-11-19 15:19:52.562971 addonmanager.cpp:205] Loaded addon keyboard
+I2026-11-19 15:19:52.563557 addonmanager.cpp:205] Loaded addon clipboard
+I2026-11-19 15:19:52.563842 addonmanager.cpp:205] Loaded addon waylandim
+I2026-11-19 15:19:52.564019 addonmanager.cpp:205] Loaded addon unicode
+I2026-11-19 15:19:52.566143 addonmanager.cpp:205] Loaded addon dbus
+I2026-11-19 15:19:52.566991 addonmanager.cpp:205] Loaded addon ibusfrontend
+I2026-11-19 15:19:52.567452 addonmanager.cpp:205] Loaded addon xim
+I2026-11-19 15:19:52.567896 addonmanager.cpp:205] Loaded addon dbusfrontend
+I2026-11-19 15:19:52.571113 addonmanager.cpp:205] Loaded addon fcitx4frontend
+I2026-11-19 15:19:52.593829 inputmethodmanager.cpp:209] Found 738 input method(s) in addon keyboard
+I2026-11-19 15:19:52.606886 addonmanager.cpp:205] Loaded addon kimpanel
+I2026-11-19 15:19:52.607117 addonmanager.cpp:205] Loaded addon virtualkeyboard
+I2026-11-19 15:19:52.623692 classicui.cpp:88] Created classicui for x11 display::99
+I2026-11-19 15:19:52.623726 addonmanager.cpp:205] Loaded addon classicui
+I2026-11-19 15:19:52.624143 addonmanager.cpp:205] Loaded addon notificationitem
+I2026-11-19 15:19:52.624831 addonmanager.cpp:205] Loaded addon notifications
+I2026-11-19 15:19:52.627480 dbusmodule.cpp:790] Service name change: org.fcitx.Fcitx5  :1.0
+I2026-11-19 15:19:52.627543 kimpanel.cpp:116] Kimpanel new owner: 
+I2026-11-19 15:19:52.627562 virtualkeyboard.cpp:218] VirtualKeyboard new owner: 
+I2026-11-19 15:19:52.723398 portalsettingmonitor.cpp:97] A new portal show up, start a new query.
+E2026-11-19 15:19:52.724971 portalsettingmonitor.cpp:121] DBus call error: org.freedesktop.portal.Error.NotFound Requested setting not found
+I2026-11-19 15:19:53.673016 addonmanager.cpp:205] Loaded addon hangul
+=========================
+Fcitx 5.1.12 -- Get Signal No.: 15
+Date: try "date -d @1795069202" if you are using GNU date ***
+ProcessID: 978141
+fcitx5(+0x113b2) [0x562b50dd03b2]
+/lib/x86_64-linux-gnu/libc.so.6(+0x3fd70) [0x7fe983a4bd70]
+/lib/x86_64-linux-gnu/libc.so.6(+0x9a72e) [0x7fe983aa672e]
+/lib/x86_64-linux-gnu/libc.so.6(+0x8f388) [0x7fe983a9b388]
+/lib/x86_64-linux-gnu/libc.so.6(+0x8f3cd) [0x7fe983a9b3cd]
+/lib/x86_64-linux-gnu/libc.so.6(epoll_wait+0x1d) [0x7fe983b1c7ed]
+/lib/x86_64-linux-gnu/libsystemd.so.0(sd_event_wait+0x178) [0x7fe983f06b38]
+/lib/x86_64-linux-gnu/libsystemd.so.0(sd_event_run+0x14b) [0x7fe983f07dfb]
+/lib/x86_64-linux-gnu/libsystemd.so.0(sd_event_loop+0x57) [0x7fe983f07f87]
+/lib/x86_64-linux-gnu/libFcitx5Utils.so.2(+0x4a3d1) [0x7fe9840eb3d1]
+/lib/x86_64-linux-gnu/libFcitx5Core.so.7(_ZN5fcitx8Instance4execEv+0x59) [0x7fe9841e7cb9]
+fcitx5(+0x1008f) [0x562b50dcf08f]
+/lib/x86_64-linux-gnu/libc.so.6(+0x29ca8) [0x7fe983a35ca8]
+/lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x85) [0x7fe983a35d65]
+fcitx5(+0x106b1) [0x562b50dcf6b1]
+I2026-11-19 15:20:02.194698 addonmanager.cpp:308] Unloading addon hangul
+I2026-11-19 15:20:02.194777 addonmanager.cpp:308] Unloading addon notifications
+I2026-11-19 15:20:02.194817 addonmanager.cpp:308] Unloading addon notificationitem
+I2026-11-19 15:20:02.194866 addonmanager.cpp:308] Unloading addon classicui
+I2026-11-19 15:20:02.198621 addonmanager.cpp:308] Unloading addon virtualkeyboard
+I2026-11-19 15:20:02.198663 addonmanager.cpp:308] Unloading addon kimpanel
+I2026-11-19 15:20:02.198692 addonmanager.cpp:308] Unloading addon fcitx4frontend
+I2026-11-19 15:20:02.198828 addonmanager.cpp:308] Unloading addon dbusfrontend
+I2026-11-19 15:20:02.198863 addonmanager.cpp:308] Unloading addon xim
+I2026-11-19 15:20:02.198937 addonmanager.cpp:308] Unloading addon ibusfrontend
+I2026-11-19 15:20:02.199617 addonmanager.cpp:308] Unloading addon dbus
+I2026-11-19 15:20:02.199677 addonmanager.cpp:308] Unloading addon unicode
+I2026-11-19 15:20:02.199696 addonmanager.cpp:308] Unloading addon waylandim
+I2026-11-19 15:20:02.199729 addonmanager.cpp:308] Unloading addon clipboard
+I2026-11-19 15:20:02.199761 addonmanager.cpp:308] Unloading addon keyboard
+I2026-11-19 15:20:02.199981 addonmanager.cpp:308] Unloading addon imselector
+I2026-11-19 15:20:02.199996 addonmanager.cpp:308] Unloading addon quickphrase
+I2026-11-19 15:20:02.200171 addonmanager.cpp:308] Unloading addon xcb
+I2026-11-19 15:20:02.200546 addonmanager.cpp:308] Unloading addon wayland

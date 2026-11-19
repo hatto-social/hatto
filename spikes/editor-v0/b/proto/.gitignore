@@ -4,8 +4,6 @@
 *.pyc
 *.swp
 .DS_Store
-# evidence-ime run logs are committed spike evidence, not build noise.
-!evidence-ime/**/*.log
 .atom/
 .build/
 .buildlog/
@@ -48,3 +46,6 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# IME evidence logs are part of the spike record.
+!evidence-ime/**/*.log
