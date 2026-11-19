@@ -44,7 +44,7 @@ cd a/harness && cargo build --release
 ./target/release/spike_a render /tmp/spike_a_render ../c/evidence/rslib_render.txt
 ```
 
-b. 편집 표면 두 개. 유즈케이스 골든은 `test/use_case_goldens_test.dart` (`test/goldens/use_cases/`).
+b. 편집 표면. v0 에디터는 `EditableText`(`lib/proto_editable.dart`, `NOTES_v0.md`). `super_editor` 프로토타입은 비교용으로 남아 있다. 공개 덱 코퍼스(`ANKI_FIELDS_JSONL`)가 없으면 게이트는 저장소 안 코퍼스만 돌린다.
 
 ```bash
 cd b/proto && flutter test

@@ -1,0 +1,6 @@
+
+(com.example.editor_proto:936660): dbind-WARNING **: 14:38:44.986: AT-SPI: Error retrieving accessibility bus address: org.freedesktop.DBus.Error.ServiceUnknown: The name org.a11y.Bus was not provided by any .service files
+
+(com.example.editor_proto:936660): Atk-CRITICAL **: 14:38:45.047: atk_socket_embed: assertion 'plug_id != NULL' failed
+[IMPORTANT:flutter/shell/platform/embedder/embedder_surface_gl_impeller.cc(127)] Using the Impeller rendering backend (OpenGLESSDF).
+The Dart VM service is listening on http://127.0.0.1:38265/2q0ALI_wPQ8=/

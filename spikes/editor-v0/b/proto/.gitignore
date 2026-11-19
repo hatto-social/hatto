@@ -4,6 +4,8 @@
 *.pyc
 *.swp
 .DS_Store
+# evidence-ime run logs are committed spike evidence, not build noise.
+!evidence-ime/**/*.log
 .atom/
 .build/
 .buildlog/

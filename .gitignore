@@ -46,3 +46,6 @@ spikes/rslib-26.09.3/mobile/android/local.properties
 *.apk
 *.aab
 **/screenshots/
+# Prototype B v0 captures are committed spike evidence.
+!spikes/editor-v0/b/proto/screenshots/
+!spikes/editor-v0/b/proto/screenshots/**

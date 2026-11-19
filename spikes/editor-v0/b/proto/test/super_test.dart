@@ -13,7 +13,10 @@ final log = StringBuffer();
 void L(String s) { log.writeln(s); print(s); }
 
 Future<void> loadFont() async {
-  final fl = FontLoader('NanumGothic')..addFont(Future.value(ByteData.sublistView(File('../../fonts/NanumGothic.ttf').readAsBytesSync())));
+  final nanum = File('/usr/share/fonts/truetype/nanum/NanumGothic.ttf').existsSync()
+      ? File('/usr/share/fonts/truetype/nanum/NanumGothic.ttf')
+      : File('../../fonts/NanumGothic.ttf');
+  final fl = FontLoader('NanumGothic')..addFont(Future.value(ByteData.sublistView(nanum.readAsBytesSync())));
   await fl.load();
 }
 

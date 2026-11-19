@@ -2,7 +2,7 @@ EXACT     plain-ko
 EXACT     bold-italic-underline
 DIFF      nested-styles
     in : <b>bold <i>both</i></b> <u><i>ui</i></u>
-    out: <b>bold </b><b><i>both</i></b> <i><u>ui</u></i>
+    out: <b>bold <i>both</i></b> <i><u>ui</u></i>
     segs: [S(bold ,b), S(both,b,i), S( ), S(ui,i,u)]
 EXACT     sup-sub
 EXACT     br-lines
@@ -29,10 +29,7 @@ DOMEQ     nbsp-literal
     segs: [S(x y)]
 EXACT RAW div-lines
 EXACT RAW ul-list
-DOMEQ RAW table
-    in : <table><tr><td>1</td><td>2</td></tr></table>
-    out: <table><tbody><tr><td>1</td><td>2</td></tr></tbody></table>
-    segs: [T(TokenKind.raw:<table><tbody><tr><td>1</td><td>2</td></tr></tbody></table>)]
+EXACT RAW table
 EXACT RAW link
 EXACT RAW font-tag
 DOMEQ     strong-em
@@ -47,12 +44,6 @@ EXACT     only-br
 EXACT     whitespace
 EXACT     nfd-hangul
 EXACT RAW script-attempt
-DOMEQ     img-onerror
-    in : <img src=x onerror="alert(1)">
-    out: <img src="x" onerror="alert(1)">
-    segs: [T(TokenKind.img:<img src="x" onerror="alert(1)">)]
-DOMEQ     html-comment
-    in : a<!-- c -->b
-    out: ab
-    segs: [S(ab)]
-TOTAL 33 exact=25 domEquivalent=32 diff=1 withOpaqueRaw=9
+EXACT     img-onerror
+EXACT RAW html-comment
+TOTAL 33 exact=28 domEquivalent=32 diff=1 withOpaqueRaw=10
