@@ -54,34 +54,54 @@ FLUTTER_KEYS = (
 )
 
 
-def run(cmd: list[str], cwd: Path | None = None) -> str | None:
+def tool_env() -> dict[str, str]:
+    # rust-toolchain.toml makes rustup install 1.97.1 on the first rustc
+    # call when that toolchain is missing. The install's chatter is not the
+    # same text the second call prints, so the two archives differed on CI.
+    env = os.environ.copy()
+    env["RUSTUP_AUTO_INSTALL"] = "0"
+    env["LC_ALL"] = "C"
+    return env
+
+
+def tool_output(cmd: list[str], cwd: Path) -> str | None:
     try:
         done = subprocess.run(
             cmd,
             cwd=cwd,
             check=True,
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
+            stderr=subprocess.DEVNULL,
             text=True,
+            env=tool_env(),
         )
     except (OSError, subprocess.CalledProcessError):
         return None
-    return done.stdout.strip()
+    return done.stdout
 
 
-def first_line(cmd: list[str]) -> str:
-    out = run(cmd)
+def first_line(cmd: list[str], cwd: Path) -> str:
+    out = tool_output(cmd, cwd)
     if not out:
         return "absent"
-    return out.splitlines()[0]
+    for line in out.splitlines():
+        line = line.strip()
+        if not line or line.startswith("info:") or line.startswith("warn:"):
+            continue
+        return line
+    return "absent"
 
 
-def flutter_lines() -> list[str]:
-    out = run(["flutter", "--version", "--machine"])
+def flutter_lines(cwd: Path) -> list[str]:
+    out = tool_output(["flutter", "--version", "--machine"], cwd)
     if not out:
         return ["flutter: absent"]
+    start = out.find("{")
+    end = out.rfind("}")
+    if start < 0 or end < start:
+        return ["flutter: absent"]
     try:
-        data = json.loads(out)
+        data = json.loads(out[start : end + 1])
     except json.JSONDecodeError:
         return ["flutter: absent"]
     lines = []
@@ -114,7 +134,10 @@ def gradle_wrapper(root: Path) -> str:
 
 
 def submodule_lines(root: Path) -> list[str]:
-    out = run(["git", "-C", str(root), "submodule", "status", "--recursive"])
+    out = tool_output(
+        ["git", "-c", "color.ui=never", "submodule", "status", "--recursive"],
+        root,
+    )
     if out is None:
         raise SystemExit("git submodule status failed")
     rows: list[tuple[str, str]] = []
@@ -208,12 +231,12 @@ def build_info(root: Path, tag: str, version: str, sha: str) -> str:
         f"hatto_release_tag: {tag}",
         f"hatto_git_sha: {sha}",
         f"hatto_version: {version}",
-        f"rustc: {first_line(['rustc', '--version'])}",
-        f"cargo: {first_line(['cargo', '--version'])}",
-        f"protoc: {first_line(['protoc', '--version'])}",
+        f"rustc: {first_line(['rustc', '--version'], root)}",
+        f"cargo: {first_line(['cargo', '--version'], root)}",
+        f"protoc: {first_line(['protoc', '--version'], root)}",
         f"ndk: {ndk_revision()}",
         f"gradle.wrapper: {gradle_wrapper(root)}",
-        *flutter_lines(),
+        *flutter_lines(root),
         *submodule_lines(root),
         *sqlite3_hook(package_version, package_sha),
         "",
