@@ -1,0 +1,556 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    tags:
+      - "**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One workflow so the gate job can need every other job. Workflow-level
+# on.paths is not used: a required check that never runs is not a failure,
+# so branch protection would see a green pull request. Require `gate` only.
+#
+# pull_request: the changes job runs dorny/paths-filter and heavy jobs are
+# skipped when their output is not the string true.
+# push to main, any tag, and workflow_dispatch: every job runs. The filter
+# is not consulted.
+#
+# Linux analyzes and tests the desktop app, the bridge, mobile, hatto_store,
+# and hatto_legal, then builds the Linux app and cargo-tests the bridge.
+# macOS is an arm64 build plus smoke. Golden images are Linux-only, so the
+# macOS test excludes the golden tag. There is no signing or notarization.
+#
+# macos-14 is mapped to the runner image macos-14-arm64-us-default, which
+# this organization does not offer (the job is cancelled before any step).
+# macos-15 is the current GitHub-hosted Apple Silicon image.
+#
+# The archive job is the determinism check. The rebuild job unpacks that
+# archive on a runner that does not check out hatto, then builds the host
+# bridge library and the Android APK the way SOURCE.md describes.
+# Git fetches of hatto-social/hatto and ankitects/anki are rewritten to an
+# invalid host. crates.io, pub.dev, Maven, Flutter storage, and the sqlite3
+# prebuilt libraries (github.com/simolus3/sqlite3.dart) stay reachable.
+#
+# The local tag v0.0.0-ci is created in the guards job and is not pushed.
+# It is not a release tag.
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      linux: ${{ steps.set.outputs.linux }}
+      macos: ${{ steps.set.outputs.macos }}
+      notices: ${{ steps.set.outputs.notices }}
+      source: ${{ steps.set.outputs.source }}
+      reuse: ${{ steps.set.outputs.reuse }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # v4.0.3. list-files stays at its default (none). Do not interpolate
+      # a *_files output into a run script; pass file lists through env.
+      - name: Filter changed paths
+        id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: .github/filters.yaml
+          predicate-quantifier: some-with-excludes
+
+      - name: Set job gates
+        id: set
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          REF_TYPE: ${{ github.ref_type }}
+          F_CI: ${{ steps.filter.outputs.ci }}
+          F_ENGINE: ${{ steps.filter.outputs.engine }}
+          F_DESKTOP: ${{ steps.filter.outputs.desktop }}
+          F_MOBILE: ${{ steps.filter.outputs.mobile }}
+          F_LINUX: ${{ steps.filter.outputs.linux }}
+          F_SHIPPING: ${{ steps.filter.outputs.shipping }}
+        run: |
+          set -euo pipefail
+
+          run_all=false
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            run_all=true
+          elif [ "$EVENT_NAME" = "push" ] && { [ "$REF" = "refs/heads/main" ] || [ "$REF_TYPE" = "tag" ]; }; then
+            run_all=true
+          fi
+
+          write_outputs() {
+            {
+              echo "linux=$1"
+              echo "macos=$2"
+              echo "notices=$3"
+              echo "source=$4"
+              echo "reuse=true"
+            } >> "$GITHUB_OUTPUT"
+          }
+
+          if [ "$run_all" = true ]; then
+            echo "safety net: every job runs (event=$EVENT_NAME ref=$REF)"
+            write_outputs true true true true
+            exit 0
+          fi
+
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            echo "unexpected event $EVENT_NAME; failing closed" >&2
+            exit 1
+          fi
+
+          require_bool() {
+            if [ "$2" != "true" ] && [ "$2" != "false" ]; then
+              echo "filter output $1 is '${2:-}', expected true or false" >&2
+              exit 1
+            fi
+          }
+
+          require_bool ci "$F_CI"
+          require_bool engine "$F_ENGINE"
+          require_bool desktop "$F_DESKTOP"
+          require_bool mobile "$F_MOBILE"
+          require_bool linux "$F_LINUX"
+          require_bool shipping "$F_SHIPPING"
+
+          combine() {
+            if [ "$1" = "true" ] || [ "$2" = "true" ]; then
+              echo true
+            else
+              echo false
+            fi
+          }
+
+          linux="$(combine "$F_CI" "$F_LINUX")"
+          macos="$(combine "$F_CI" "$F_DESKTOP")"
+          notices="$(combine "$F_CI" "$F_SHIPPING")"
+          source="$(combine "$F_CI" "$F_SHIPPING")"
+          echo "ci=$F_CI engine=$F_ENGINE desktop=$F_DESKTOP mobile=$F_MOBILE shipping=$F_SHIPPING"
+          echo "gates linux=$linux macos=$macos notices=$notices source=$source reuse=true"
+          write_outputs "$linux" "$macos" "$notices" "$source"
+
+  linux:
+    needs: changes
+    if: needs.changes.outputs.linux == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Linux desktop packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-14-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+
+      - name: Set up Rust 1.97.1
+        uses: dtolnay/rust-toolchain@1.97.1
+
+      - name: Install protoc 31.1
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o /tmp/protoc.zip \
+            https://github.com/protocolbuffers/protobuf/releases/download/v31.1/protoc-31.1-linux-x86_64.zip
+          echo "96553041f1a91ea0efee963cb16f462f5985b4d65365f3907414c360044d8065  /tmp/protoc.zip" | sha256sum -c -
+          mkdir -p "$HOME/.local/protoc"
+          unzip -q -o /tmp/protoc.zip -d "$HOME/.local/protoc"
+          echo "$HOME/.local/protoc/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/protoc/bin/protoc" --version
+
+      - name: Install Flutter 3.47.9
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o /tmp/flutter.tar.xz \
+            https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.47.9-stable.tar.xz
+          echo "25ed8c3c29d51a7353f2a944310b478af8214920639524b19c50a19e6c044c5a  /tmp/flutter.tar.xz" | sha256sum -c -
+          tar -C "$RUNNER_TEMP" -xf /tmp/flutter.tar.xz
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/flutter/bin/flutter" config --no-analytics
+
+      - name: Resolve Dart packages
+        run: flutter pub get
+
+      - name: Analyze
+        run: |
+          flutter analyze apps/desktop
+          flutter analyze packages/rslib_bridge
+          flutter analyze apps/mobile
+          flutter analyze packages/hatto_store
+          flutter analyze packages/hatto_legal
+
+      - name: Test desktop, bridge, mobile, and the side database
+        run: |
+          # Each package looks up native assets relative to its own directory.
+          (cd apps/desktop && flutter test)
+          (cd packages/rslib_bridge && flutter test)
+          (cd apps/mobile && flutter test)
+          (cd packages/hatto_store && flutter test)
+          (cd packages/hatto_legal && flutter test)
+
+      - name: Build the Linux app
+        working-directory: apps/desktop
+        run: flutter build linux --release
+
+      - name: Test the bridge
+        run: cargo test -p rslib_bridge -- --test-threads=1
+
+  macos:
+    needs: changes
+    if: needs.changes.outputs.macos == 'true'
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Rust 1.97.1
+        uses: dtolnay/rust-toolchain@1.97.1
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Install protoc 31.1
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o /tmp/protoc.zip \
+            https://github.com/protocolbuffers/protobuf/releases/download/v31.1/protoc-31.1-osx-aarch_64.zip
+          echo "4aeea0a34b0992847b03a8489a8dbedf3746de01109b74cc2ce9b6888a901ed9  /tmp/protoc.zip" | shasum -a 256 -c -
+          mkdir -p "$HOME/.local/protoc"
+          unzip -q -o /tmp/protoc.zip -d "$HOME/.local/protoc"
+          echo "$HOME/.local/protoc/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/protoc/bin/protoc" --version
+
+      - name: Install Flutter 3.47.9
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o /tmp/flutter.zip \
+            https://storage.googleapis.com/flutter_infra_release/releases/stable/macos/flutter_macos_arm64_3.47.9-stable.zip
+          echo "6545b85938745dc5070e9faf2adf70233c1811009d87fe6d27bfcda5a04b7698  /tmp/flutter.zip" | shasum -a 256 -c -
+          unzip -q /tmp/flutter.zip -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/flutter/bin/flutter" config --no-analytics
+
+      - name: Resolve Dart packages
+        run: flutter pub get
+
+      - name: Analyze the desktop app
+        run: flutter analyze apps/desktop
+
+      - name: Smoke tests, excluding Linux goldens
+        working-directory: apps/desktop
+        run: flutter test --exclude-tags golden
+
+      - name: Build the macOS app without signing
+        working-directory: apps/desktop
+        run: flutter build macos --release
+
+  # REUSE lint is cheap and covers the whole tree, including docs. It runs
+  # on every event. Notice regeneration is not cheap; it follows `shipping`.
+  reuse:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install REUSE
+        # reuse 6.3.0 raises NoEncodingModuleError unless charset-normalizer
+        # is installed beside it.
+        run: python -m pip install "reuse==6.3.0" charset-normalizer
+
+      - name: Check licenses
+        run: tools/license/check.sh
+
+  notices:
+    needs: changes
+    if: needs.changes.outputs.notices == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@1.97.1
+
+      - name: Install cargo-about and cargo-deny
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL -o /tmp/cargo-about.tgz \
+            https://github.com/EmbarkStudios/cargo-about/releases/download/0.9.3/cargo-about-0.9.3-x86_64-unknown-linux-musl.tar.gz
+          curl -fsSL -o /tmp/cargo-deny.tgz \
+            https://github.com/EmbarkStudios/cargo-deny/releases/download/0.21.0/cargo-deny-0.21.0-x86_64-unknown-linux-musl.tar.gz
+          tar -xzf /tmp/cargo-about.tgz -C /tmp
+          tar -xzf /tmp/cargo-deny.tgz -C /tmp
+          install -m 755 /tmp/cargo-about-0.9.3-x86_64-unknown-linux-musl/cargo-about "$HOME/.local/bin/cargo-about"
+          install -m 755 /tmp/cargo-deny-0.21.0-x86_64-unknown-linux-musl/cargo-deny "$HOME/.local/bin/cargo-deny"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install Flutter 3.47.9
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o /tmp/flutter.tar.xz \
+            https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.47.9-stable.tar.xz
+          echo "25ed8c3c29d51a7353f2a944310b478af8214920639524b19c50a19e6c044c5a  /tmp/flutter.tar.xz" | sha256sum -c -
+          tar -C "$RUNNER_TEMP" -xf /tmp/flutter.tar.xz
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/flutter/bin/flutter" config --no-analytics
+          "$RUNNER_TEMP/flutter/bin/flutter" precache --android
+
+      - name: Install Gradle 9.3.1
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o /tmp/gradle.zip \
+            https://services.gradle.org/distributions/gradle-9.3.1-bin.zip
+          echo "b266d5ff6b90eada6dc3b20cb090e3731302e553a27c5d3e4df1f0d76beaff06  /tmp/gradle.zip" | sha256sum -c -
+          unzip -q /tmp/gradle.zip -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/gradle-9.3.1/bin" >> "$GITHUB_PATH"
+
+      - name: Install Android SDK packages
+        run: |
+          set -euo pipefail
+          if [ -z "${ANDROID_HOME:-}" ]; then
+            if [ -d /usr/local/lib/android/sdk ]; then
+              echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
+              ANDROID_HOME=/usr/local/lib/android/sdk
+            else
+              echo "ANDROID_HOME=$RUNNER_TEMP/android-sdk" >> "$GITHUB_ENV"
+              ANDROID_HOME="$RUNNER_TEMP/android-sdk"
+              mkdir -p "$ANDROID_HOME/cmdline-tools"
+              curl -fL --retry 3 -o /tmp/cmdtools.zip \
+                https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip
+              unzip -q /tmp/cmdtools.zip -d "$ANDROID_HOME/cmdline-tools"
+              mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest"
+            fi
+          fi
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" --licenses >/dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" \
+            "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+
+      - name: Resolve Dart packages
+        run: flutter pub get
+
+      - name: Regenerate notices and fail on drift
+        run: |
+          tools/license/gen-notices.sh
+          git diff --exit-code -- \
+            THIRD_PARTY_NOTICES.md \
+            apps/mobile/assets/licenses \
+            apps/desktop/assets/licenses
+
+  guards-and-archive:
+    needs: changes
+    if: needs.changes.outputs.source == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          submodules: recursive
+
+      - name: Release script guards
+        run: tools/release/build-android_test.sh
+
+      - name: BUILD_INFO release and placeholder modes
+        run: tools/release/build_info_test.sh
+
+      - name: Build the source archive twice
+        run: |
+          set -euo pipefail
+          git tag v0.0.0-ci
+          # No release toolchain on this job. Placeholder lines are labeled.
+          tools/release/make-source-archive.sh --determinism v0.0.0-ci
+          cp dist/hatto-0.0.0-ci-source.tar.gz /tmp/first-source.tar.gz
+          sha256sum dist/hatto-0.0.0-ci-source.tar.gz | awk '{ print $1 }' >/tmp/first.sha
+          tools/release/make-source-archive.sh --determinism v0.0.0-ci
+          sha256sum dist/hatto-0.0.0-ci-source.tar.gz | awk '{ print $1 }' >/tmp/second.sha
+          cmp /tmp/first.sha /tmp/second.sha
+          cmp /tmp/first-source.tar.gz dist/hatto-0.0.0-ci-source.tar.gz
+          echo "source archive sha256 matches across two builds"
+          cat /tmp/first.sha
+
+      - name: Upload source archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-archive
+          path: dist/hatto-0.0.0-ci-source.tar.gz
+          if-no-files-found: error
+
+  rebuild:
+    needs: [changes, guards-and-archive]
+    if: needs.changes.outputs.source == 'true' && needs['guards-and-archive'].result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Download source archive
+        uses: actions/download-artifact@v4
+        with:
+          name: source-archive
+          path: /tmp/archive
+
+      - name: Unpack away from any git checkout
+        run: |
+          set -euo pipefail
+          # A fixed path so later steps do not depend on the env context.
+          # Values written to GITHUB_ENV are process environment for later
+          # steps. They are not visible to an expression on this step.
+          rm -rf /tmp/hatto-src
+          mkdir -p /tmp/hatto-src
+          tar -xzf /tmp/archive/hatto-0.0.0-ci-source.tar.gz \
+            -C /tmp/hatto-src --strip-components=1
+          test ! -e /tmp/hatto-src/.git
+          test ! -e /tmp/hatto-src/third_party/anki/.git
+          test -z "$(find /tmp/hatto-src -name .git -print)"
+          test -f /tmp/hatto-src/SOURCE.md
+          test -f /tmp/hatto-src/BUILD_INFO.txt
+          test -f /tmp/hatto-src/third_party/anki/rslib/Cargo.toml
+          test -d /tmp/hatto-src/third_party/anki/ftl/core-repo
+          test -d /tmp/hatto-src/third_party/anki/ftl/qt-repo
+
+      - name: Block hatto and anki GitHub repositories
+        working-directory: /tmp/hatto-src
+        run: tools/release/block-upstream-repos.sh
+
+      - name: Install host build packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config cmake python3 unzip curl
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Rust 1.97.1
+        uses: dtolnay/rust-toolchain@1.97.1
+        with:
+          targets: >-
+            x86_64-unknown-linux-gnu,aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+
+      - name: Install protoc 31.1
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o /tmp/protoc.zip \
+            https://github.com/protocolbuffers/protobuf/releases/download/v31.1/protoc-31.1-linux-x86_64.zip
+          echo "96553041f1a91ea0efee963cb16f462f5985b4d65365f3907414c360044d8065  /tmp/protoc.zip" | sha256sum -c -
+          mkdir -p "$HOME/.local/protoc"
+          unzip -q -o /tmp/protoc.zip -d "$HOME/.local/protoc"
+          echo "$HOME/.local/protoc/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/protoc/bin/protoc" --version
+
+      - name: Install Flutter 3.47.9
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o /tmp/flutter.tar.xz \
+            https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.47.9-stable.tar.xz
+          echo "25ed8c3c29d51a7353f2a944310b478af8214920639524b19c50a19e6c044c5a  /tmp/flutter.tar.xz" | sha256sum -c -
+          tar -C "$RUNNER_TEMP" -xf /tmp/flutter.tar.xz
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/flutter/bin/flutter" config --no-analytics
+          "$RUNNER_TEMP/flutter/bin/flutter" precache --android
+
+      - name: Install Android SDK and NDK
+        run: |
+          set -euo pipefail
+          if [ -d /usr/local/lib/android/sdk ]; then
+            ANDROID_HOME=/usr/local/lib/android/sdk
+          else
+            ANDROID_HOME="$RUNNER_TEMP/android-sdk"
+            mkdir -p "$ANDROID_HOME/cmdline-tools"
+            curl -fL --retry 3 -o /tmp/cmdtools.zip \
+              https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip
+            unzip -q /tmp/cmdtools.zip -d "$ANDROID_HOME/cmdline-tools"
+            mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest"
+          fi
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" --licenses >/dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" \
+            "platforms;android-36" "build-tools;36.0.0" "platform-tools" "ndk;28.2.13676358"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+
+      - name: Rebuild host library and Android APK
+        working-directory: /tmp/hatto-src
+        env:
+          CARGO_BUILD_JOBS: "2"
+          # Drop the host target/ after librslib_bridge.so is confirmed so the
+          # Android compile has the disk. SOURCE.md builds both; this only
+          # frees the host artifacts in between.
+          HATTO_REBUILD_DROP_HOST_TARGET: "1"
+        run: tools/release/rebuild-from-archive.sh
+
+  # Skipped is success. failure and cancelled are not. A changes job that
+  # did not succeed fails the gate even when every heavy job was skipped,
+  # so a broken filter cannot look green.
+  gate:
+    needs:
+      - changes
+      - linux
+      - macos
+      - reuse
+      - notices
+      - guards-and-archive
+      - rebuild
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fail unless needed jobs succeeded or were skipped
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          LINUX: ${{ needs.linux.result }}
+          MACOS: ${{ needs.macos.result }}
+          REUSE: ${{ needs.reuse.result }}
+          NOTICES: ${{ needs.notices.result }}
+          GUARDS: ${{ needs['guards-and-archive'].result }}
+          REBUILD: ${{ needs.rebuild.result }}
+        run: |
+          set -euo pipefail
+          fail=0
+          echo "changes=$CHANGES linux=$LINUX macos=$MACOS reuse=$REUSE notices=$NOTICES guards=$GUARDS rebuild=$REBUILD"
+          if [ "$CHANGES" != "success" ]; then
+            echo "changes did not succeed ($CHANGES); refusing a fail-open result" >&2
+            fail=1
+          fi
+          allow() {
+            case "$2" in
+              success|skipped) ;;
+              *)
+                echo "$1 is $2" >&2
+                fail=1
+                ;;
+            esac
+          }
+          allow linux "$LINUX"
+          allow macos "$MACOS"
+          allow reuse "$REUSE"
+          allow notices "$NOTICES"
+          allow guards-and-archive "$GUARDS"
+          allow rebuild "$REBUILD"
+          exit "$fail"
