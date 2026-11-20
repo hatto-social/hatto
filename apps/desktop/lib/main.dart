@@ -18,6 +18,7 @@ import 'state/app_controller.dart';
 import 'state/bootstrap_state.dart';
 import 'third_party_licenses.dart';
 import 'ui/shell.dart';
+import 'ui/startup_failure.dart';
 
 /// Kept for the process lifetime so the instance lock is not released.
 final EngineHost desktopHost = EngineHost();
@@ -32,9 +33,14 @@ Future<void> main() async {
   prepareRuntime(tmpDir: cache.path);
   try {
     await desktopHost.open(dataDir: dataDir);
-  } on AlreadyRunningException {
-    stderr.writeln(alreadyRunningMessage);
-    exit(1);
+  } catch (err) {
+    final message = startupDialogMessage(err);
+    if (message != null) {
+      stderr.writeln(message);
+      runApp(StartupFailureApp(message: message));
+      return;
+    }
+    rethrow;
   }
   final api = desktopHost.flow!;
   final controller = AppController(api, audio: AudioplayersAudioService());
