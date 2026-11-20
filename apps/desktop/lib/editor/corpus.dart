@@ -1,0 +1,40 @@
+// SPDX-FileCopyrightText: 2026 Hatto Social contributors
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+// Representative Anki field HTML (hand-written; categories noted). Fixture source: Anki field conventions + Hatto scope §4 criteria.
+const corpus = <String, String>{
+  'plain-ko': '한글 텍스트 데이터 é 日本語',
+  'bold-italic-underline': '<b>굵게</b> <i>기울임</i> <u>밑줄</u> normal',
+  'nested-styles': '<b>bold <i>both</i></b> <u><i>ui</i></u>',
+  'sup-sub': 'H<sub>2</sub>O and x<sup>2</sup>',
+  'br-lines': 'line1<br>line2<br><br>line4',
+  'color-span': '<span style="color: #ff0000">red</span> text',
+  'color-span-compact': '<span style="color:#ff0000;">red</span> text',
+  'img': 'before <img src="paste-3f2a.png"> after',
+  'img-attrs': '<img src="a b.png" width="200" alt="한글 설명">',
+  'sound-m4a': 'listen [sound:rec-1a2b.m4a] now',
+  'mathjax-inline': 'Euler \\(e^{i\\pi}+1=0\\) done',
+  'mathjax-block': '\\[\\sum_{k=1}^{n} k = \\frac{n(n+1)}{2}\\]',
+  'mathjax-with-lt': 'if \\(a < b\\) then',
+  'cloze': '{{c1::서울::수도}}는 {{c2::한국}}의 수도',
+  'cloze-styled': '<b>{{c1::bold cloze}}</b> and {{c2::plain}}',
+  'entities': 'a &amp; b &lt;tag&gt; &quot;q&quot; 5&nbsp;km',
+  'nbsp-literal': 'x\u00a0y',
+  'div-lines': '<div>one</div><div>two</div>',
+  'ul-list': '<ul><li>a</li><li>b</li></ul>',
+  'table': '<table><tr><td>1</td><td>2</td></tr></table>',
+  'link': 'see <a href="https://example.com/x?a=1&amp;b=2">link</a>',
+  'font-tag': '<font color="#00f">old font</font>',
+  'strong-em': '<strong>S</strong><em>E</em>',
+  'span-class': '<span class="hl">cls</span>',
+  'code': '<code>x = 1</code>',
+  'anki-mathjax-el': '<anki-mathjax>x^2</anki-mathjax>',
+  'empty': '',
+  'only-br': '<br>',
+  'whitespace': '  leading and  double  spaces  ',
+  'nfd-hangul': '\u1112\u1161\u11ab\u1100\u1173\u11af',
+  'script-attempt': '<script>alert(1)</script>ok',
+  'img-onerror': '<img src=x onerror="alert(1)">',
+  'html-comment': 'a<!-- c -->b',
+};

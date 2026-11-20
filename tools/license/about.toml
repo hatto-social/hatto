@@ -38,9 +38,12 @@ targets = [
 # reads the file (0.9.3 rejects unknown keys) and writes a second document
 # with these triples. The Android `targets` list above is unchanged, so
 # apps/mobile/assets/licenses/rust-crates.json stays the Android graph.
+# aarch64-apple-darwin is the first release target. x86_64-apple-darwin is
+# included because `flutter build macos --release` also links that slice.
 desktop_targets = [
     "x86_64-unknown-linux-gnu",
     "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
 ]
 
 ignore-build-dependencies = true

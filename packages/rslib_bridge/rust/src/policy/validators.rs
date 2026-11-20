@@ -15,7 +15,7 @@ use prost::Message;
 use super::desktop::{require_inside_data_dir, PresentedStates};
 use super::{
     ANSWER_TAKEN_MAX_MILLIS, CARDS, COLLECTION, CONFIG, DECKS, FETCH_LIMIT_MAX, GRAPHS_DAYS_MAX,
-    IMPORT_EXPORT, NOTETYPES, SCHEDULER, STATS,
+    IMPORT_EXPORT, NOTES, NOTETYPES, OCCLUSION, SCHEDULER, SEARCH, STATS,
 };
 use crate::api::{dispatch_message, AnkiBackend};
 
@@ -37,21 +37,27 @@ pub(crate) fn prepare(
         (SCHEDULER, "bury_or_suspend_cards") => validate_bury(backend, input),
         (SCHEDULER, "restore_buried_and_suspended_cards") => validate_restore(backend, input),
         (NOTETYPES, "get_cloze_field_ords") => validate_cloze_field_ords(backend, input),
+        (DECKS, "add_deck") => validate_add_deck(backend, input),
+        (NOTES, "remove_notes") => validate_remove_notes(backend, input),
+        (OCCLUSION, "get_image_occlusion_note") => validate_image_occlusion_note(backend, input),
+        (SEARCH, "search_notes" | "search_cards") => validate_search(backend, input),
         _ => Ok(input.to_vec()),
     }
 }
 
 fn validate_open(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String> {
-    let request = decode::<anki_proto::collection::OpenCollectionRequest>(input)?;
+    let mut request = decode::<anki_proto::collection::OpenCollectionRequest>(input)?;
     let data_dir = data_dir(backend)?;
-    for (label, path) in [
-        ("collection_path", request.collection_path.as_str()),
-        ("media_folder_path", request.media_folder_path.as_str()),
-        ("media_db_path", request.media_db_path.as_str()),
-    ] {
-        require_inside_data_dir(path, &data_dir).map_err(|err| format!("{label}: {err}"))?;
-    }
-    Ok(input.to_vec())
+    let collection = require_inside_data_dir(&request.collection_path, &data_dir)
+        .map_err(|err| format!("collection_path: {err}"))?;
+    let media = require_inside_data_dir(&request.media_folder_path, &data_dir)
+        .map_err(|err| format!("media_folder_path: {err}"))?;
+    let media_db = require_inside_data_dir(&request.media_db_path, &data_dir)
+        .map_err(|err| format!("media_db_path: {err}"))?;
+    request.collection_path = collection.to_string_lossy().into_owned();
+    request.media_folder_path = media.to_string_lossy().into_owned();
+    request.media_db_path = media_db.to_string_lossy().into_owned();
+    Ok(request.encode_to_vec())
 }
 
 fn validate_close(input: &[u8]) -> Result<Vec<u8>, String> {
@@ -213,13 +219,69 @@ fn validate_graphs(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, Strin
     if request.days > GRAPHS_DAYS_MAX {
         return Err(format!("days {} is above {GRAPHS_DAYS_MAX}", request.days));
     }
-    let known = {
-        let session = backend.lock_session();
-        session.search_strings.contains(&request.search)
-    };
+    require_built_search(backend, &request.search)?;
+    Ok(input.to_vec())
+}
+
+fn validate_search(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String> {
+    let request = decode::<anki_proto::search::SearchRequest>(input)?;
+    require_built_search(backend, &request.search)?;
+    Ok(input.to_vec())
+}
+
+fn require_built_search(backend: &AnkiBackend, search: &str) -> Result<(), String> {
+    let known = backend.lock_session().search_strings.contains(search);
     if !known {
         return Err("search was not returned by a search builder in this session".into());
     }
+    Ok(())
+}
+
+fn validate_add_deck(_backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String> {
+    let deck = decode::<anki_proto::decks::Deck>(input)?;
+    if deck.name.is_empty() || deck.name.split("::").any(|part| part.is_empty()) {
+        return Err("deck name is empty or has an empty segment".into());
+    }
+    if deck.kind.is_none() || matches!(deck.kind, Some(anki_proto::decks::deck::Kind::Filtered(_)))
+    {
+        return Err("deck must be a normal deck".into());
+    }
+    // rslib creates missing parents for "A::B". Requiring the parent first
+    // would reject that request. The name is still checked for empty parts.
+    Ok(input.to_vec())
+}
+
+fn validate_remove_notes(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String> {
+    let request = decode::<anki_proto::notes::RemoveNotesRequest>(input)?;
+    if request.note_ids.is_empty() {
+        return Err("note_ids is empty".into());
+    }
+    if !request.card_ids.is_empty() {
+        return Err("card_ids must be empty".into());
+    }
+    for note_id in &request.note_ids {
+        dispatch_message(
+            backend,
+            NOTES,
+            "get_note",
+            &anki_proto::notes::NoteId { nid: *note_id },
+        )
+        .map_err(|_| format!("note {note_id} does not exist"))?;
+    }
+    Ok(input.to_vec())
+}
+
+fn validate_image_occlusion_note(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String> {
+    let request = decode::<anki_proto::image_occlusion::GetImageOcclusionNoteRequest>(input)?;
+    dispatch_message(
+        backend,
+        NOTES,
+        "get_note",
+        &anki_proto::notes::NoteId {
+            nid: request.note_id,
+        },
+    )
+    .map_err(|_| format!("note {} does not exist", request.note_id))?;
     Ok(input.to_vec())
 }
 

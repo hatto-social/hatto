@@ -53,12 +53,19 @@ void main() {
   });
 
   test('desktop code does not open the mobile-unrestricted backend', () {
+    final opener = RegExp(r'\bopenBackend\b');
+    final construct = RegExp(r'\bAnkiApi\s*\(');
     for (final file in sources) {
       final text = file.readAsStringSync();
       expect(
-        text.contains('openBackend('),
+        opener.hasMatch(text),
         isFalse,
-        reason: '${file.path} calls openBackend',
+        reason: '${file.path} names openBackend',
+      );
+      expect(
+        construct.hasMatch(text),
+        isFalse,
+        reason: '${file.path} constructs AnkiApi',
       );
     }
   });

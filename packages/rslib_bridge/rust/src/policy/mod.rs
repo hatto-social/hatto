@@ -6,10 +6,9 @@
 //!
 //! Names are `(Backend*Service, snake_case method)`. Numeric indexes are not
 //! an ABI. A call is forwarded only when this table says it is allowed and,
-//! for the ten checked calls, [validators] accepts the request. The seventeen
-//! calls whose validator is not implemented in this PR stay on the table and
-//! are denied. `SetActiveBrowserColumns` is recorded as deferred and is not
-//! part of the profile.
+//! for each checked call, [validators] accepts the request. Calls whose
+//! validator is still not implemented stay on the table and are denied.
+//! `SetActiveBrowserColumns` stays deferred and is not part of the profile.
 
 mod desktop;
 mod validators;
@@ -112,7 +111,7 @@ pub static ALLOWLIST: &[AllowEntry] = &[
     row!(DECKS, "get_deck_names", Read, NameOnly, NONE, NAME_ONLY_TEST),
     row!(DECKS, "get_deck_and_child_names", Read, NameOnly, NONE, NAME_ONLY_TEST),
     row!(DECKS, "deck_tree", Read, NameOnly, NONE, NAME_ONLY_TEST),
-    row!(DECKS, "add_deck", Write, Pending, "검증은 백엔드 조회로 가능. 거부는 deck_map 기록 때문", PENDING_TEST),
+    row!(DECKS, "add_deck", Write, Validated, "name is non-empty, has no empty :: segment, and kind is normal. rslib may create missing parents", "validates_add_deck"),
     row!(DECKS, "rename_deck", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
     row!(DECKS, "reparent_decks", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
     row!(DECKS, "remove_decks", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
@@ -130,7 +129,7 @@ pub static ALLOWLIST: &[AllowEntry] = &[
     row!(NOTES, "add_note", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
     row!(NOTES, "add_notes", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
     row!(NOTES, "update_notes", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
-    row!(NOTES, "remove_notes", Write, Pending, "검증은 상태 없이 가능. 이식 PR에서 함께 연다", PENDING_TEST),
+    row!(NOTES, "remove_notes", Write, Validated, "note_ids is a non-empty list of notes that exist; card_ids is empty", "validates_remove_notes"),
     // Notetypes (11)
     row!(NOTETYPES, "get_notetype", Read, NameOnly, NONE, NAME_ONLY_TEST),
     row!(NOTETYPES, "get_notetype_names", Read, NameOnly, NONE, NAME_ONLY_TEST),
@@ -157,8 +156,8 @@ pub static ALLOWLIST: &[AllowEntry] = &[
     row!(RENDERING, "encode_iri_paths", Read, NameOnly, NONE, NAME_ONLY_TEST),
     row!(RENDERING, "decode_iri_paths", Read, NameOnly, NONE, NAME_ONLY_TEST),
     // Search (7) and the deferred column call
-    row!(SEARCH, "search_notes", Read, NameOnly, "이름은 허용. 계약은 BuildSearchString 결과만이며 이 PR에서는 미구현", NAME_ONLY_TEST),
-    row!(SEARCH, "search_cards", Read, NameOnly, "이름은 허용. 계약은 BuildSearchString 결과만이며 이 PR에서는 미구현", NAME_ONLY_TEST),
+    row!(SEARCH, "search_notes", Read, Validated, "search was returned by BuildSearchString, JoinSearchNodes, or ReplaceSearchNode this session", "validates_search"),
+    row!(SEARCH, "search_cards", Read, Validated, "search was returned by BuildSearchString, JoinSearchNodes, or ReplaceSearchNode this session", "validates_search"),
     row!(SEARCH, "browser_row_for_id", Read, NameOnly, NONE, NAME_ONLY_TEST),
     row!(SEARCH, "all_browser_columns", Read, NameOnly, NONE, NAME_ONLY_TEST),
     row!(SEARCH, "build_search_string", Read, NameOnly, NONE, NAME_ONLY_TEST),
@@ -176,7 +175,7 @@ pub static ALLOWLIST: &[AllowEntry] = &[
     row!(OCCLUSION, "get_image_occlusion_fields", Read, NameOnly, NONE, NAME_ONLY_TEST),
     row!(OCCLUSION, "add_image_occlusion_notetype", Write, NameOnly, NONE, NAME_ONLY_TEST),
     row!(OCCLUSION, "update_image_occlusion_note", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
-    row!(OCCLUSION, "get_image_occlusion_note", Read, Pending, "GetNote 조회가 필요. note_map이 아님", PENDING_TEST),
+    row!(OCCLUSION, "get_image_occlusion_note", Read, Validated, "the note id exists (GetNote). note_map is not consulted", "validates_get_image_occlusion_note"),
     // Import / export (1)
     row!(IMPORT_EXPORT, "export_anki_package", Write, Validated, "with_scheduling=false, with_deck_configs=false, with_media=true, legacy=false; limit is one deck or a note id list", "validates_export_anki_package"),
     // Study scheduler (9) plus bury and restore

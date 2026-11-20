@@ -8,9 +8,14 @@ import 'package:path_provider/path_provider.dart';
 import 'package:rslib_bridge/rslib_bridge.dart';
 
 import 'app.dart';
-import 'effect/engine_host.dart';
+import 'editor/anki_ui.dart';
+import 'engine/anki_api.dart';
+import 'engine/engine.dart';
+import 'services/audio_service.dart';
+import 'state/app_controller.dart';
 import 'state/bootstrap_state.dart';
 import 'third_party_licenses.dart';
+import 'ui/shell.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,8 +25,31 @@ Future<void> main() async {
   final dataDir = p.join(support.path, 'hatto');
   final cache = await getTemporaryDirectory();
   prepareRuntime(tmpDir: cache.path);
-  final state = await EngineHost().open(dataDir: dataDir);
-  runApp(HattoDesktopApp(state: state));
+  final engine = await Engine.open(dataDir: dataDir, langs: const ['ko', 'en']);
+  final api = FlowApi(engine);
+  await api.openCollection(dataDir);
+  final controller = AppController(api, audio: AudioplayersAudioService());
+  await controller.refreshDecks();
+  runApp(FlowDesktopApp(controller: controller));
+}
+
+class FlowDesktopApp extends StatelessWidget {
+  const FlowDesktopApp({super.key, required this.controller});
+
+  final AppController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    const colors = AnkiColors.light;
+    return MaterialApp(
+      title: 'Hatto',
+      theme: ThemeData(
+        fontFamily: kUiFont,
+        fontFamilyFallback: const ['Noto Sans KR'],
+      ),
+      home: MainShell(app: controller, colors: colors),
+    );
+  }
 }
 
 /// Home screen used by tests that do not open a collection.

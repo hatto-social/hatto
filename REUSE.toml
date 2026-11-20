@@ -18,6 +18,7 @@ path = [
   "spikes/rslib-26.09.3/mobile/lib/gen_proto/**",
   "spikes/rslib-26.09.3/mobile/assets/service-ids.json",
   "spikes/rslib-26.09.3/napi/service-ids.json",
+  "apps/desktop/lib/src/gen/**",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = [

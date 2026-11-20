@@ -140,6 +140,37 @@ fn add_basic_card(backend: &crate::api::AnkiBackend) -> i64 {
     *ids.cids.first().expect("new note has a card")
 }
 
+fn add_basic_note(backend: &crate::api::AnkiBackend) -> i64 {
+    let id_bytes = dispatch_message(
+        backend,
+        "BackendNotetypesService",
+        "get_notetype_id_by_name",
+        &anki_proto::generic::String {
+            val: "Basic".into(),
+        },
+    )
+    .expect("basic notetype");
+    let notetype = anki_proto::notetypes::NotetypeId::decode(id_bytes.as_slice()).unwrap();
+    let note_bytes =
+        dispatch_message(backend, "BackendNotesService", "new_note", &notetype).expect("new note");
+    let mut note = anki_proto::notes::Note::decode(note_bytes.as_slice()).unwrap();
+    note.fields[0] = "front".into();
+    note.fields[1] = "back".into();
+    let added = dispatch_message(
+        backend,
+        "BackendNotesService",
+        "add_note",
+        &anki_proto::notes::AddNoteRequest {
+            note: Some(note),
+            deck_id: 1,
+        },
+    )
+    .expect("add note");
+    anki_proto::notes::AddNoteResponse::decode(added.as_slice())
+        .unwrap()
+        .note_id
+}
+
 fn fsrs_enabled(backend: &crate::api::AnkiBackend) -> bool {
     let bytes = dispatch_message(
         backend,
@@ -195,12 +226,12 @@ fn allowlist_names_resolve_and_counts_match() {
             Status::Deferred => deferred += 1,
         }
     }
-    assert_eq!(validated, 10);
-    assert_eq!(name_only, 60);
-    assert_eq!(pending, 17);
+    assert_eq!(validated, 15);
+    assert_eq!(name_only, 58);
+    assert_eq!(pending, 14);
     assert_eq!(deferred, 1);
     assert_eq!(ALLOWLIST.len(), 88);
-    assert_eq!(forwarded_names().len(), 70);
+    assert_eq!(forwarded_names().len(), 73);
 
     let pending_methods: std::collections::HashSet<_> = ALLOWLIST
         .iter()
@@ -210,25 +241,22 @@ fn allowlist_names_resolve_and_counts_match() {
     for method in [
         "undo",
         "redo",
-        "add_deck",
         "rename_deck",
         "reparent_decks",
         "remove_decks",
         "add_note",
         "add_notes",
         "update_notes",
-        "remove_notes",
         "add_notetype",
         "update_notetype",
         "remove_notetype",
         "change_notetype",
         "add_media_file",
         "update_image_occlusion_note",
-        "get_image_occlusion_note",
     ] {
         assert!(pending_methods.contains(method), "{method}");
     }
-    assert_eq!(pending_methods.len(), 17);
+    assert_eq!(pending_methods.len(), 14);
 }
 
 #[test]
@@ -290,8 +318,8 @@ fn desktop_denies_calls_outside_the_allowed_70() {
         }
         denied += 1;
     }
-    assert!(denied > 17, "denied {denied}");
-    assert_eq!(pending, 17);
+    assert!(denied > 14, "denied {denied}");
+    assert_eq!(pending, 14);
 }
 
 #[test]
@@ -402,7 +430,9 @@ fn name_only_calls_are_not_denied_by_the_desktop_profile() {
             assert!(
                 !message.contains("(not on allowlist)")
                     && !message.contains("(validator not implemented)")
-                    && !message.contains("collection is not open"),
+                    && !message.contains("collection is not open")
+                    && !message.contains("panicked")
+                    && !message.contains("backend poisoned"),
                 "{}.{}: {message}",
                 row.service,
                 row.method
@@ -671,6 +701,24 @@ fn validates_export_anki_package() {
         "BackendImportExportService",
         "export_anki_package",
         &cards,
+    );
+    assert!(
+        message_of(&denied).contains("note id list"),
+        "{}",
+        message_of(&denied)
+    );
+
+    let mut empty_notes = export_request(&paths);
+    empty_notes.limit = Some(anki_proto::import_export::ExportLimit {
+        limit: Some(anki_proto::import_export::export_limit::Limit::NoteIds(
+            anki_proto::notes::NoteIds { note_ids: vec![] },
+        )),
+    });
+    let denied = call(
+        &backend,
+        "BackendImportExportService",
+        "export_anki_package",
+        &empty_notes,
     );
     assert!(
         message_of(&denied).contains("note id list"),
@@ -1452,4 +1500,304 @@ fn fsrs_init_writes_a_marker_when_fsrs_is_already_on() {
         "already-on collection did not get a marker"
     );
     assert!(fsrs_enabled(&backend));
+}
+
+#[test]
+fn validates_search_requires_a_built_string() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let paths = col_paths(dir.path());
+    let backend = open_desktop_collection(&paths);
+    let raw = anki_proto::search::SearchRequest {
+        search: "deck:Default".into(),
+        order: None,
+    };
+    for method in ["search_notes", "search_cards"] {
+        let denied = call(&backend, "BackendSearchService", method, &raw);
+        assert!(!denied.success, "{method}");
+        assert!(
+            message_of(&denied).contains("search builder"),
+            "{method}: {}",
+            message_of(&denied)
+        );
+    }
+    let built = call(
+        &backend,
+        "BackendSearchService",
+        "build_search_string",
+        &anki_proto::search::SearchNode {
+            filter: Some(anki_proto::search::search_node::Filter::Deck(
+                "Default".into(),
+            )),
+        },
+    );
+    assert!(built.success, "{}", message_of(&built));
+    let search = anki_proto::generic::String::decode(built.payload.as_slice())
+        .unwrap()
+        .val;
+    let request = anki_proto::search::SearchRequest {
+        search,
+        order: None,
+    };
+    for method in ["search_notes", "search_cards"] {
+        let allowed = call(&backend, "BackendSearchService", method, &request);
+        assert!(allowed.success, "{method}: {}", message_of(&allowed));
+    }
+}
+
+#[test]
+fn validates_add_deck() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let paths = col_paths(dir.path());
+    let backend = open_desktop_collection(&paths);
+    let mut deck = new_deck(&backend);
+    deck.name.clear();
+    let denied = call(&backend, "BackendDecksService", "add_deck", &deck);
+    assert!(
+        message_of(&denied).contains("empty"),
+        "{}",
+        message_of(&denied)
+    );
+
+    let mut nested = new_deck(&backend);
+    nested.name = "Missing::Child".into();
+    let created = call(&backend, "BackendDecksService", "add_deck", &nested);
+    assert!(created.success, "{}", message_of(&created));
+
+    let mut added = new_deck(&backend);
+    added.name = "German".into();
+    let ok = call(&backend, "BackendDecksService", "add_deck", &added);
+    assert!(ok.success, "{}", message_of(&ok));
+}
+
+fn new_deck(backend: &crate::api::AnkiBackend) -> anki_proto::decks::Deck {
+    let bytes = dispatch_message(
+        backend,
+        "BackendDecksService",
+        "new_deck",
+        &anki_proto::generic::Empty {},
+    )
+    .expect("new deck");
+    anki_proto::decks::Deck::decode(bytes.as_slice()).unwrap()
+}
+
+#[test]
+fn validates_remove_notes() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let paths = col_paths(dir.path());
+    let backend = open_desktop_collection(&paths);
+    let empty = call(
+        &backend,
+        "BackendNotesService",
+        "remove_notes",
+        &anki_proto::notes::RemoveNotesRequest {
+            note_ids: vec![],
+            card_ids: vec![],
+        },
+    );
+    assert!(
+        message_of(&empty).contains("note_ids is empty"),
+        "{}",
+        message_of(&empty)
+    );
+    let missing = call(
+        &backend,
+        "BackendNotesService",
+        "remove_notes",
+        &anki_proto::notes::RemoveNotesRequest {
+            note_ids: vec![99],
+            card_ids: vec![],
+        },
+    );
+    assert!(
+        message_of(&missing).contains("does not exist"),
+        "{}",
+        message_of(&missing)
+    );
+    let note_id = add_basic_note(&backend);
+    let removed = call(
+        &backend,
+        "BackendNotesService",
+        "remove_notes",
+        &anki_proto::notes::RemoveNotesRequest {
+            note_ids: vec![note_id],
+            card_ids: vec![],
+        },
+    );
+    assert!(removed.success, "{}", message_of(&removed));
+}
+
+#[test]
+fn validates_get_image_occlusion_note() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let paths = col_paths(dir.path());
+    let backend = open_desktop_collection(&paths);
+    let missing = call(
+        &backend,
+        "BackendImageOcclusionService",
+        "get_image_occlusion_note",
+        &anki_proto::image_occlusion::GetImageOcclusionNoteRequest { note_id: 99 },
+    );
+    assert!(
+        message_of(&missing).contains("does not exist"),
+        "{}",
+        message_of(&missing)
+    );
+    let note_id = add_basic_note(&backend);
+    let forwarded = call(
+        &backend,
+        "BackendImageOcclusionService",
+        "get_image_occlusion_note",
+        &anki_proto::image_occlusion::GetImageOcclusionNoteRequest { note_id },
+    );
+    let message = message_of(&forwarded);
+    assert!(
+        !message.contains("does not exist") && !message.contains("validator not implemented"),
+        "{message}"
+    );
+}
+
+#[test]
+fn open_collection_rejects_symlink_targets_outside_data_dir() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let root = dir.path().join("data");
+    std::fs::create_dir_all(root.join("tmp")).unwrap();
+    crate::api::prepare_runtime(root.join("tmp").to_string_lossy().into_owned());
+    std::fs::create_dir_all(root.join("collection.media")).unwrap();
+    let outside = tempfile::TempDir::new_in("/tmp").unwrap();
+    std::fs::create_dir_all(outside.path().join("media")).unwrap();
+    std::fs::write(outside.path().join("db"), b"x").unwrap();
+    std::fs::write(outside.path().join("col"), b"x").unwrap();
+    let backend = desktop_backend(&root);
+
+    let media = root.join("collection.media");
+    std::fs::remove_dir_all(&media).unwrap();
+    std::os::unix::fs::symlink(outside.path().join("media"), &media).unwrap();
+    let denied = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &open_paths(&root),
+    );
+    assert!(
+        message_of(&denied).contains("escapes data_dir"),
+        "media folder: {}",
+        message_of(&denied)
+    );
+    std::fs::remove_file(&media).unwrap();
+    std::fs::create_dir_all(&media).unwrap();
+
+    let db = root.join("collection.media.db");
+    std::os::unix::fs::symlink(outside.path().join("db"), &db).unwrap();
+    let denied = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &open_paths(&root),
+    );
+    assert!(
+        message_of(&denied).contains("escapes data_dir"),
+        "media db: {}",
+        message_of(&denied)
+    );
+    std::fs::remove_file(&db).unwrap();
+
+    let collection = root.join("collection.anki2");
+    std::os::unix::fs::symlink(outside.path().join("col"), &collection).unwrap();
+    let denied = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &open_paths(&root),
+    );
+    assert!(
+        message_of(&denied).contains("escapes data_dir"),
+        "collection file: {}",
+        message_of(&denied)
+    );
+    std::fs::remove_file(&collection).unwrap();
+
+    std::os::unix::fs::symlink(outside.path().join("missing"), &collection).unwrap();
+    let denied = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &open_paths(&root),
+    );
+    assert!(!denied.success, "dangling collection symlink was allowed");
+    assert!(
+        message_of(&denied).contains("collection_path"),
+        "dangling: {}",
+        message_of(&denied)
+    );
+}
+
+fn open_paths(root: &Path) -> anki_proto::collection::OpenCollectionRequest {
+    anki_proto::collection::OpenCollectionRequest {
+        collection_path: root.join("collection.anki2").to_string_lossy().into_owned(),
+        media_folder_path: root.join("collection.media").to_string_lossy().into_owned(),
+        media_db_path: root
+            .join("collection.media.db")
+            .to_string_lossy()
+            .into_owned(),
+    }
+}
+
+#[test]
+fn open_collection_sends_the_canonical_path() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let real = dir.path().join("real");
+    std::fs::create_dir_all(&real).unwrap();
+    let link = dir.path().join("link");
+    std::os::unix::fs::symlink(&real, &link).unwrap();
+    let root = link.join("collection");
+    let paths = col_paths(&root);
+    let stored = paths.root.canonicalize().unwrap();
+    let spelled = paths.collection.to_string_lossy().into_owned();
+    let canonical = super::desktop::require_inside_data_dir(&spelled, &stored).unwrap();
+    assert_eq!(canonical, stored.join("collection.anki2"));
+    assert_ne!(canonical.to_string_lossy().as_ref(), spelled.as_str());
+    let backend = desktop_backend(&paths.root);
+    let opened = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &open_request(&paths),
+    );
+    assert!(opened.success, "{}", message_of(&opened));
+    assert_eq!(
+        paths.collection.canonicalize().unwrap(),
+        stored.join("collection.anki2")
+    );
+}
+
+#[test]
+fn a_caught_panic_poisons_the_session() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let paths = col_paths(dir.path());
+    let backend = open_desktop_collection(&paths);
+    let panicked = dispatch_message(
+        &backend,
+        "BackendNotetypesService",
+        "get_cloze_field_ords",
+        &anki_proto::notetypes::NotetypeId { ntid: 999_999 },
+    );
+    let message = panicked.unwrap_err();
+    assert!(
+        message.contains("panicked"),
+        "missing notetype did not panic: {message}"
+    );
+    let later = call(
+        &backend,
+        "BackendDecksService",
+        "get_deck_names",
+        &anki_proto::decks::GetDeckNamesRequest {
+            skip_empty_default: false,
+            include_filtered: false,
+        },
+    );
+    assert!(
+        message_of(&later).contains("backend poisoned"),
+        "{}",
+        message_of(&later)
+    );
 }

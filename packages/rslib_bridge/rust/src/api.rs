@@ -160,7 +160,10 @@ pub(crate) fn dispatch(
             success: false,
             payload,
         },
-        Err(_) => backend_error("rslib panicked"),
+        Err(_) => {
+            backend.lock_session().poisoned = true;
+            backend_error("rslib panicked")
+        }
     }
 }
 
