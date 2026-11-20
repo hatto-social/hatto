@@ -47,6 +47,7 @@ void main() {
       throwsA(isA<AlreadyRunningException>()),
     );
     expect(File(p.join(root.path, 'collection.anki2')).existsSync(), isFalse);
+    expect(File(p.join(root.path, 'hatto.sqlite')).existsSync(), isFalse);
   });
 
   test('a newer side database leaves the collection unopened', () async {
