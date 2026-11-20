@@ -48,9 +48,8 @@ Future<void> boot(WidgetTester t, Future<void> Function() seed, {bool fsrs = tru
   addTearDown(() async { try { await api.closeCollection(); } catch (_) {} eng.close(); try { await tmp.delete(recursive: true); } catch (_) {} });
 }
 
-// Tests that need AddNote, or an SM-2 collection, are skipped. Those calls
-// stay denied: the sanitizer contract is not specified, and the bridge
-// turns FSRS on for a new collection.
+// Tests that need AddNote, AddDeck, or an SM-2 collection are skipped.
+// Those calls stay denied, and the bridge turns FSRS on for a new collection.
 void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
@@ -58,11 +57,20 @@ void main() {
     await loadTestFonts();
   });
 
-  testWidgets('deck list: empty Default hidden, auto-created parent expanded with child visible', (t) async {
+  testWidgets('deck list: empty Default hidden, auto-created parent expanded with child visible', skip: true, (t) async {
     await boot(t, () async { await app.createDeck('한국어::기초'); });
     expect(find.byKey(const ValueKey('deck-row-Default')), findsNothing);
     expect(find.byKey(const ValueKey('deck-row-한국어')), findsOneWidget);
     expect(find.byKey(const ValueKey('deck-row-기초')), findsOneWidget, reason: 'child visible => parent is expanded');
+  });
+
+  testWidgets('add, delete, and image entry points stay closed', (t) async {
+    await boot(t, () async {});
+    expect(t.widget<GestureDetector>(find.byKey(const ValueKey('nav-add'))).onTap, isNull);
+    expect(widgetOf<PillButton>(t, 'create-deck').onTap, isNull);
+    await tapKey(t, 'nav-browse');
+    expect(widgetOf<QtPush>(t, 'br-delete').onTap, isNull);
+    expect(find.text('노트 편집은 이 버전에 없습니다.'), findsOneWidget);
   });
 
   testWidgets('deck overview + deck list: unplanned features visible but disabled', skip: true, (t) async {

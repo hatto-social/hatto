@@ -28,7 +28,7 @@ class DeckBrowserScreen extends StatelessWidget {
               _hdr(k, '새 카드', 66), _hdr(k, '학습', 66), _hdr(k, '복습', 66), const SizedBox(width: 26),
             ])),
             Container(height: 1, color: k.borderSubtle), const SizedBox(height: 12),
-            if (rows.isEmpty) Padding(padding: const EdgeInsets.all(18), child: Text('덱이 없어요. 아래 "덱 만들기"로 시작하세요.', key: const ValueKey('no-decks'), style: ankiText(k, color: k.fgSubtle)))
+            if (rows.isEmpty) Padding(padding: const EdgeInsets.all(18), child: Text('덱이 없어요. 덱 만들기는 이 버전에 없습니다.', key: const ValueKey('no-decks'), style: ankiText(k, color: k.fgSubtle)))
             else for (final n in rows) _DeckRow(app: app, node: n),
           ])),
         const SizedBox(height: 44),
@@ -36,10 +36,7 @@ class DeckBrowserScreen extends StatelessWidget {
       ]))))),
       Padding(padding: const EdgeInsets.only(bottom: 14), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
         const Tooltip(message: 'AnkiWeb 공유 덱 — 서버 연동 범위 밖', child: PillButton('공유 덱 받기', width: 90)), const SizedBox(width: 14),
-        PillButton('덱 만들기', key: const ValueKey('create-deck'), width: 86, onTap: () async {
-          final name = await promptText(context, k, title: '덱 만들기', label: '새 덱 이름:', hint: '하위 덱은 "상위::하위" 형식이에요');
-          if (name != null && name.trim().isNotEmpty) await app.createDeck(name.trim());
-        }), const SizedBox(width: 14),
+        const Tooltip(message: '덱 만들기는 이 버전에 없습니다', child: PillButton('덱 만들기', key: ValueKey('create-deck'), width: 86)), const SizedBox(width: 14),
         PillButton('파일 가져오기', key: const ValueKey('import-file'), width: 96, onTap: onImport),
       ])),
     ]);

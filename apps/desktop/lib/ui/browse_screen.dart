@@ -13,7 +13,6 @@ import '../state/browse_actions.dart';
 import '../state/card_preview.dart';
 import 'card_html.dart';
 import 'common.dart';
-import 'copy.dart';
 
 const _colLabels = {'noteFld': '정렬 필드', 'template': '카드', 'deck': '덱', 'cardDue': '기한', 'cardIvl': '간격', 'noteTags': '태그'};
 const _colWidths = {'noteFld': 170.0, 'template': 56.0, 'deck': 100.0, 'cardDue': 92.0, 'cardIvl': 62.0, 'noteTags': 100.0};
@@ -84,7 +83,7 @@ class _BrowseScreenState extends State<BrowseScreen> {
     Tooltip(message: '미루기 — v0에서는 지원하지 않아요', child: const QtPush('미루기(bury)', key: ValueKey('br-bury'), width: 90)),
     Tooltip(message: '기한 설정 — v0에서는 지원하지 않아요', child: const QtPush('기한 설정…', key: ValueKey('br-due'), width: 86)),
     QtPush('미리보기', key: const ValueKey('br-preview'), width: 70, onTap: sel.length == 1 ? _preview : null),
-    QtPush('노트 삭제', key: const ValueKey('br-delete'), width: 78, onTap: sel.isEmpty ? null : () async { final ok = await confirmDialog(context, k, title: '노트 삭제', message: '선택한 카드의 노트를 삭제할까요?\n\n$kDeleteNoteNotice', ok: '삭제', height: 200); if (ok) { final nids = <int>{}; for (final id in sel) { nids.add((await api.getCard(id)).noteId.toInt()); } await _act(() async { await api.removeNotes(nids.toList()); sel.clear(); }); } }),
+    const Tooltip(message: '노트 삭제는 이 버전에 없습니다', child: QtPush('노트 삭제', key: ValueKey('br-delete'), width: 78)),
   ]));
 
   /// Card preview (question / answer) with TeX rendered; same CardView as the reviewer.

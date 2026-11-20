@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Request checks for the ten desktop calls this PR implements.
+//! Request checks for the desktop calls this PR implements.
 //!
 //! A failure is returned to `command` and is not sent to rslib. Checks that
 //! need another collection read use [crate::api::dispatch_message], which
@@ -15,7 +15,7 @@ use prost::Message;
 use super::desktop::{require_inside_data_dir, PresentedStates};
 use super::{
     ANSWER_TAKEN_MAX_MILLIS, CARDS, COLLECTION, CONFIG, DECKS, FETCH_LIMIT_MAX, GRAPHS_DAYS_MAX,
-    IMPORT_EXPORT, NOTES, NOTETYPES, SCHEDULER, SEARCH, STATS,
+    IMPORT_EXPORT, NOTETYPES, SCHEDULER, SEARCH, STATS,
 };
 use crate::api::{dispatch_message, AnkiBackend};
 
@@ -38,9 +38,7 @@ pub(crate) fn prepare(
         (SCHEDULER, "bury_or_suspend_cards") => validate_bury(backend, input),
         (SCHEDULER, "restore_buried_and_suspended_cards") => validate_restore(backend, input),
         (NOTETYPES, "get_cloze_field_ords") => validate_cloze_field_ords(backend, input),
-        (DECKS, "add_deck") => validate_add_deck(backend, input),
         (DECKS, "rename_deck") => validate_rename_deck(backend, input),
-        (NOTES, "remove_notes") => validate_remove_notes(backend, input),
         (SEARCH, "search_notes" | "search_cards") => validate_search(backend, input),
         _ => Ok(input.to_vec()),
     }
@@ -280,39 +278,6 @@ fn check_deck_name(name: &str) -> Result<(), String> {
     }
     Ok(())
 }
-
-fn validate_add_deck(_backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String> {
-    let deck = decode::<anki_proto::decks::Deck>(input)?;
-    check_deck_name(&deck.name)?;
-    if deck.kind.is_none() || matches!(deck.kind, Some(anki_proto::decks::deck::Kind::Filtered(_)))
-    {
-        return Err("deck must be a normal deck".into());
-    }
-    // rslib creates missing parents for "A::B". Requiring the parent first
-    // would reject that request. The name is still checked for empty parts.
-    Ok(input.to_vec())
-}
-
-fn validate_remove_notes(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String> {
-    let request = decode::<anki_proto::notes::RemoveNotesRequest>(input)?;
-    if request.note_ids.is_empty() {
-        return Err("note_ids is empty".into());
-    }
-    if !request.card_ids.is_empty() {
-        return Err("card_ids must be empty".into());
-    }
-    for note_id in &request.note_ids {
-        dispatch_message(
-            backend,
-            NOTES,
-            "get_note",
-            &anki_proto::notes::NoteId { nid: *note_id },
-        )
-        .map_err(|_| format!("note {note_id} does not exist"))?;
-    }
-    Ok(input.to_vec())
-}
-
 
 fn validate_bury(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String> {
     let request = decode::<anki_proto::scheduler::BuryOrSuspendCardsRequest>(input)?;

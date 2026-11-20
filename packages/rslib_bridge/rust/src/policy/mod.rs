@@ -111,7 +111,7 @@ pub static ALLOWLIST: &[AllowEntry] = &[
     row!(DECKS, "get_deck_names", Read, NameOnly, NONE, NAME_ONLY_TEST),
     row!(DECKS, "get_deck_and_child_names", Read, NameOnly, NONE, NAME_ONLY_TEST),
     row!(DECKS, "deck_tree", Read, NameOnly, NONE, NAME_ONLY_TEST),
-    row!(DECKS, "add_deck", Write, Validated, "name is non-empty, has no empty :: segment, and kind is normal. rslib may create missing parents", "validates_add_deck"),
+    row!(DECKS, "add_deck", Write, Pending, "덱 만들기 화면이 같은 PR에 있을 때 연다. 학습 PR에는 소비자가 없다", PENDING_TEST),
     row!(DECKS, "rename_deck", Write, Validated, "the deck exists; the new name is non-empty, has no empty :: segment, is at most 255 bytes, and has no control character", "validates_rename_deck"),
     row!(DECKS, "reparent_decks", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
     row!(DECKS, "remove_decks", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
@@ -129,7 +129,7 @@ pub static ALLOWLIST: &[AllowEntry] = &[
     row!(NOTES, "add_note", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
     row!(NOTES, "add_notes", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
     row!(NOTES, "update_notes", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
-    row!(NOTES, "remove_notes", Write, Validated, "note_ids is a non-empty list of notes that exist; card_ids is empty", "validates_remove_notes"),
+    row!(NOTES, "remove_notes", Write, Pending, "노트 삭제 화면이 같은 PR에 있을 때 연다. 학습 PR에는 소비자가 없다", PENDING_TEST),
     // Notetypes (11)
     row!(NOTETYPES, "get_notetype", Read, NameOnly, NONE, NAME_ONLY_TEST),
     row!(NOTETYPES, "get_notetype_names", Read, NameOnly, NONE, NAME_ONLY_TEST),

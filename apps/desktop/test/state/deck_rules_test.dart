@@ -47,18 +47,16 @@ void main() {
     setUp(() async { tmp = await Directory.systemTemp.createTemp('hf_deck_'); });
     tearDown(() async { try { await tmp.delete(recursive: true); } catch (_) {} });
 
-    test('createDeck "A::B::C": auto-created parents A and A::B are expanded; a parent the user collapsed earlier stays collapsed', () async {
+    test('createDeck is denied while AddDeck stays closed', () async {
       final e = await Engine.open(langs: ['en'], dataDir: tmp.path); final api = FlowApi(e); await api.openCollection(tmp.path, fsrsDefault: false);
       final app = AppController(api);
-      await app.createDeck('한국어::기초::회화');
-      Map<String, bool> collapsed(DeckTreeNode r) { final m = <String, bool>{}; void w(DeckTreeNode n, String pre) { for (final c in n.children) { final f = pre.isEmpty ? c.name : '$pre::${c.name}'; m[f] = c.collapsed; w(c, f); } } w(r, ''); return m; }
-      var c = collapsed(app.tree!);
-      expect(c['한국어'], isFalse); expect(c['한국어::기초'], isFalse); // parents (the new leaf deck itself has no children; rslib creates it collapsed)
-      expect(visibleDeckRows(app.tree!).map((n) => n.name), ['한국어', '기초', '회화'], reason: 'Default (empty) hidden, tree fully expanded');
-      // user collapses the top parent, then adds a sibling under it: the pre-existing parent keeps the user's choice
-      final id = app.tree!.children.firstWhere((n) => n.name == '한국어').deckId.toInt();
       expect(
-        api.setDeckCollapsed(id, true),
+        app.createDeck('한국어::기초::회화'),
+        throwsA(isA<BackendException>()),
+        reason: 'AddDeck has no consumer in the learning PR',
+      );
+      expect(
+        api.setDeckCollapsed(1, true),
         throwsA(isA<BackendException>()),
         reason: 'SetDeckCollapsed is not in the 87-call contract',
       );

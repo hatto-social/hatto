@@ -140,37 +140,6 @@ fn add_basic_card(backend: &crate::api::AnkiBackend) -> i64 {
     *ids.cids.first().expect("new note has a card")
 }
 
-fn add_basic_note(backend: &crate::api::AnkiBackend) -> i64 {
-    let id_bytes = dispatch_message(
-        backend,
-        "BackendNotetypesService",
-        "get_notetype_id_by_name",
-        &anki_proto::generic::String {
-            val: "Basic".into(),
-        },
-    )
-    .expect("basic notetype");
-    let notetype = anki_proto::notetypes::NotetypeId::decode(id_bytes.as_slice()).unwrap();
-    let note_bytes =
-        dispatch_message(backend, "BackendNotesService", "new_note", &notetype).expect("new note");
-    let mut note = anki_proto::notes::Note::decode(note_bytes.as_slice()).unwrap();
-    note.fields[0] = "front".into();
-    note.fields[1] = "back".into();
-    let added = dispatch_message(
-        backend,
-        "BackendNotesService",
-        "add_note",
-        &anki_proto::notes::AddNoteRequest {
-            note: Some(note),
-            deck_id: 1,
-        },
-    )
-    .expect("add note");
-    anki_proto::notes::AddNoteResponse::decode(added.as_slice())
-        .unwrap()
-        .note_id
-}
-
 fn fsrs_enabled(backend: &crate::api::AnkiBackend) -> bool {
     let bytes = dispatch_message(
         backend,
@@ -259,12 +228,12 @@ fn allowlist_names_resolve_and_counts_match() {
             Status::Deferred => deferred += 1,
         }
     }
-    assert_eq!(validated, 17);
+    assert_eq!(validated, 15);
     assert_eq!(name_only, 58);
-    assert_eq!(pending, 12);
+    assert_eq!(pending, 14);
     assert_eq!(deferred, 1);
     assert_eq!(ALLOWLIST.len(), 88);
-    assert_eq!(forwarded_names().len(), 75);
+    assert_eq!(forwarded_names().len(), 73);
 
     let pending_methods: std::collections::HashSet<_> = ALLOWLIST
         .iter()
@@ -272,6 +241,7 @@ fn allowlist_names_resolve_and_counts_match() {
         .map(|row| row.method)
         .collect();
     for method in [
+        "add_deck",
         "reparent_decks",
         "remove_decks",
         "add_note",
@@ -281,13 +251,14 @@ fn allowlist_names_resolve_and_counts_match() {
         "update_notetype",
         "remove_notetype",
         "change_notetype",
+        "remove_notes",
         "add_media_file",
         "update_image_occlusion_note",
         "get_image_occlusion_note",
     ] {
         assert!(pending_methods.contains(method), "{method}");
     }
-    assert_eq!(pending_methods.len(), 12);
+    assert_eq!(pending_methods.len(), 14);
 }
 
 #[test]
@@ -350,7 +321,7 @@ fn desktop_denies_calls_outside_the_allowed_70() {
         denied += 1;
     }
     assert!(denied > 14, "denied {denied}");
-    assert_eq!(pending, 12);
+    assert_eq!(pending, 14);
 }
 
 #[test]
@@ -1576,88 +1547,6 @@ fn validates_search_requires_a_built_string() {
 }
 
 #[test]
-fn validates_add_deck() {
-    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
-    let paths = col_paths(dir.path());
-    let backend = open_desktop_collection(&paths);
-    let mut deck = new_deck(&backend);
-    deck.name.clear();
-    let denied = call(&backend, "BackendDecksService", "add_deck", &deck);
-    assert!(
-        message_of(&denied).contains("empty"),
-        "{}",
-        message_of(&denied)
-    );
-
-    let mut nested = new_deck(&backend);
-    nested.name = "Missing::Child".into();
-    let created = call(&backend, "BackendDecksService", "add_deck", &nested);
-    assert!(created.success, "{}", message_of(&created));
-
-    let mut added = new_deck(&backend);
-    added.name = "German".into();
-    let ok = call(&backend, "BackendDecksService", "add_deck", &added);
-    assert!(ok.success, "{}", message_of(&ok));
-}
-
-fn new_deck(backend: &crate::api::AnkiBackend) -> anki_proto::decks::Deck {
-    let bytes = dispatch_message(
-        backend,
-        "BackendDecksService",
-        "new_deck",
-        &anki_proto::generic::Empty {},
-    )
-    .expect("new deck");
-    anki_proto::decks::Deck::decode(bytes.as_slice()).unwrap()
-}
-
-#[test]
-fn validates_remove_notes() {
-    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
-    let paths = col_paths(dir.path());
-    let backend = open_desktop_collection(&paths);
-    let empty = call(
-        &backend,
-        "BackendNotesService",
-        "remove_notes",
-        &anki_proto::notes::RemoveNotesRequest {
-            note_ids: vec![],
-            card_ids: vec![],
-        },
-    );
-    assert!(
-        message_of(&empty).contains("note_ids is empty"),
-        "{}",
-        message_of(&empty)
-    );
-    let missing = call(
-        &backend,
-        "BackendNotesService",
-        "remove_notes",
-        &anki_proto::notes::RemoveNotesRequest {
-            note_ids: vec![99],
-            card_ids: vec![],
-        },
-    );
-    assert!(
-        message_of(&missing).contains("does not exist"),
-        "{}",
-        message_of(&missing)
-    );
-    let note_id = add_basic_note(&backend);
-    let removed = call(
-        &backend,
-        "BackendNotesService",
-        "remove_notes",
-        &anki_proto::notes::RemoveNotesRequest {
-            note_ids: vec![note_id],
-            card_ids: vec![],
-        },
-    );
-    assert!(removed.success, "{}", message_of(&removed));
-}
-
-#[test]
 fn open_collection_rejects_symlink_targets_outside_data_dir() {
     let dir = tempfile::TempDir::new_in("/tmp").unwrap();
     let root = dir.path().join("data");
@@ -1817,13 +1706,15 @@ fn validates_rename_deck() {
     let dir = tempfile::TempDir::new_in("/tmp").unwrap();
     let paths = col_paths(dir.path());
     let backend = open_desktop_collection(&paths);
-    let mut deck = new_deck(&backend);
-    deck.name = "German".into();
-    let added = call(&backend, "BackendDecksService", "add_deck", &deck);
-    assert!(added.success, "{}", message_of(&added));
-    let id = anki_proto::collection::OpChangesWithId::decode(added.payload.as_slice())
-        .unwrap()
-        .id;
+    // The default deck exists without AddDeck, which stays closed in this PR.
+    let id = 1_i64;
+    let existing = dispatch_message(
+        &backend,
+        "BackendDecksService",
+        "get_deck",
+        &anki_proto::decks::DeckId { did: id },
+    );
+    assert!(existing.is_ok(), "{:?}", existing.err());
     let renamed = call(
         &backend,
         "BackendDecksService",
