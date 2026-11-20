@@ -195,19 +195,77 @@ String cardHtmlFallbackText(String html) {
   return slice.replaceAll(RegExp(r'<[^<>]*>'), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
 }
 
+/// Counts characters [CssRules.parse] looks at. Tests use it to reject a
+/// quadratic scan of a stylesheet that contains no `{`.
+class CssScan {
+  int steps = 0;
+}
+
+String _withoutCssComments(String css, CssScan? scan) {
+  final buffer = StringBuffer();
+  final n = css.length;
+  var i = 0;
+  while (i < n) {
+    scan?.steps++;
+    if (i + 1 < n && css.codeUnitAt(i) == 0x2f && css.codeUnitAt(i + 1) == 0x2a) {
+      final end = css.indexOf('*/', i + 2);
+      if (end < 0) {
+        scan?.steps += n - (i + 2);
+        break;
+      }
+      scan?.steps += end - (i + 2);
+      i = end + 2;
+      continue;
+    }
+    buffer.writeCharCode(css.codeUnitAt(i));
+    i++;
+  }
+  return buffer.toString();
+}
+
 class CssRules {
   CssRules(this.rules);
   final List<(String, Map<String, String>)> rules;
-  factory CssRules.parse(String css) {
-    css = css.replaceAll(RegExp(r'/\*.*?\*/', dotAll: true), '');
+  factory CssRules.parse(String css, {CssScan? scan}) {
+    final source = _withoutCssComments(css, scan);
     final out = <(String, Map<String, String>)>[];
-    for (final m in RegExp(r'([^{}@]+)\{([^{}]*)\}').allMatches(css)) {
-      final props = <String, String>{};
-      for (final d in m.group(2)!.split(';')) {
-        final i = d.indexOf(':'); if (i < 0) continue;
-        props[d.substring(0, i).trim().toLowerCase()] = d.substring(i + 1).trim().replaceAll('!important', '').trim();
+    final n = source.length;
+    var i = 0;
+    while (i < n) {
+      final open = source.indexOf('{', i);
+      if (open < 0) {
+        scan?.steps += n - i;
+        break;
       }
-      for (final sel in m.group(1)!.split(',')) { out.add((sel.trim(), props)); }
+      scan?.steps += open - i + 1;
+      final close = source.indexOf('}', open + 1);
+      if (close < 0) {
+        scan?.steps += n - (open + 1);
+        break;
+      }
+      final nested = source.indexOf('{', open + 1);
+      if (nested >= 0 && nested < close) {
+        scan?.steps += nested - open;
+        i = open + 1;
+        continue;
+      }
+      scan?.steps += close - open;
+      var selector = source.substring(i, open);
+      final at = selector.lastIndexOf('@');
+      if (at >= 0) selector = selector.substring(at + 1);
+      if (selector.isNotEmpty) {
+        final props = <String, String>{};
+        for (final declaration in source.substring(open + 1, close).split(';')) {
+          final colon = declaration.indexOf(':');
+          if (colon < 0) continue;
+          props[declaration.substring(0, colon).trim().toLowerCase()] =
+              declaration.substring(colon + 1).trim().replaceAll('!important', '').trim();
+        }
+        for (final sel in selector.split(',')) {
+          out.add((sel.trim(), props));
+        }
+      }
+      i = close + 1;
     }
     return CssRules(out);
   }
