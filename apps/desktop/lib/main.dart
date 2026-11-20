@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:hatto_store/hatto_store.dart' hide AnkiApi;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:rslib_bridge/rslib_bridge.dart';
@@ -17,6 +20,12 @@ import 'state/bootstrap_state.dart';
 import 'third_party_licenses.dart';
 import 'ui/shell.dart';
 
+/// Process-lifetime lock. Closing the collection does not release it.
+InstanceLock? desktopInstanceLock;
+
+/// Side database opened before the collection. Held so it is not collected.
+SideDb? desktopSideDb;
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await registerBundledLicenses();
@@ -25,12 +34,29 @@ Future<void> main() async {
   final dataDir = p.join(support.path, 'hatto');
   final cache = await getTemporaryDirectory();
   prepareRuntime(tmpDir: cache.path);
-  final engine = await Engine.open(dataDir: dataDir, langs: const ['ko', 'en']);
-  final api = FlowApi(engine);
-  await api.openCollection(dataDir);
-  final controller = AppController(api, audio: AudioplayersAudioService());
-  await controller.refreshDecks();
-  runApp(FlowDesktopApp(controller: controller));
+  final lock = InstanceLock.tryAcquire(dataDir);
+  if (lock == null) {
+    stderr.writeln(alreadyRunningMessage);
+    exit(1);
+  }
+  desktopInstanceLock = lock;
+  final side = SideDb.openOrCreate(p.join(dataDir, 'hatto.sqlite'));
+  desktopSideDb = side;
+  try {
+    final engine = await Engine.open(
+      dataDir: dataDir,
+      langs: const ['ko', 'en'],
+    );
+    final api = FlowApi(engine);
+    await api.openCollection(dataDir);
+    final controller = AppController(api, audio: AudioplayersAudioService());
+    await controller.refreshDecks();
+    runApp(FlowDesktopApp(controller: controller));
+  } catch (_) {
+    side.close();
+    desktopSideDb = null;
+    rethrow;
+  }
 }
 
 class FlowDesktopApp extends StatelessWidget {

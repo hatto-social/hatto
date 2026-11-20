@@ -46,6 +46,7 @@ Done when all of these are true:
 5. macOS App Sandbox and Hardened Runtime are verified. v0 setup leaves the sandbox off. The sandbox is a Mac App Store requirement, and notarization needs the Hardened Runtime.
 6. If the desktop app depends on `hatto_store`, `SQLITE3_TARGETS` includes a macOS sqlite3 library.
 7. The mobile allowlist has landed before the mobile v0 release. `MobileUnrestricted` is not a release profile.
+8. Sign `libsqlite3.arm64.macos.dylib` with the same Developer ID as the app when Hardened Runtime is on. The desktop build is Apple Silicon only. Do not add `libsqlite3.x64.macos.dylib`.
 
 ## What is not in the source archive
 
