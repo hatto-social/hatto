@@ -1,0 +1,84 @@
+{
+  "description": "Golden note-guid cases for hatto_card_contract. Rust, Dart, and the Python smoke read this file. Expected values are RFC 4122 UUID version 5 from Python's uuid module.",
+  "imported": [
+    {
+      "label": "rfc4122-dns-python.org",
+      "job_id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+      "source_guid": "python.org",
+      "expect": "886313e1-3b8a-5372-9b90-0c9aee199e5d"
+    },
+    {
+      "label": "non-ascii-hangul",
+      "job_id": "11111111-2222-4333-8444-555555555555",
+      "source_guid": "\ud55c\uae00",
+      "expect": "a226ec56-a9bf-53e2-b4db-90573bafb0c1"
+    },
+    {
+      "label": "non-ascii-nfc-cafe",
+      "job_id": "11111111-2222-4333-8444-555555555555",
+      "source_guid": "caf\u00e9",
+      "expect": "87c181f5-0160-5ca2-849e-3748908354bb"
+    },
+    {
+      "label": "non-ascii-nfd-e-acute",
+      "job_id": "11111111-2222-4333-8444-555555555555",
+      "source_guid": "e\u0301",
+      "expect": "06b6c777-b227-5b23-95c7-ff9dc0acf5ee"
+    },
+    {
+      "label": "base91-named-quotes",
+      "job_id": "11111111-2222-4333-8444-555555555555",
+      "source_guid": "'\"`\\",
+      "expect": "cb427119-6c99-5526-9af9-a517eb68039d"
+    },
+    {
+      "label": "base91-alphabet",
+      "job_id": "11111111-2222-4333-8444-555555555555",
+      "source_guid": "anki '\"`\\!#$%&()*+,-./:;<=>?@[]^_{|}~",
+      "expect": "642dd0d9-b3da-5829-b1fe-e892d4c38642"
+    },
+    {
+      "label": "untrimmed",
+      "job_id": "11111111-2222-4333-8444-555555555555",
+      "source_guid": "  note  ",
+      "expect": "d3fef6ad-ec69-519f-b340-e629c60c724a"
+    },
+    {
+      "label": "single-space",
+      "job_id": "11111111-2222-4333-8444-555555555555",
+      "source_guid": " ",
+      "expect": "4ca28c33-66bd-576f-8f18-99d3968a2775"
+    },
+    {
+      "label": "empty-source-guid",
+      "job_id": "11111111-2222-4333-8444-555555555555",
+      "source_guid": "",
+      "error": "empty_source_guid"
+    }
+  ],
+  "local": [
+    {
+      "label": "k-0",
+      "op_id": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      "k": 0,
+      "expect": "a449370b-a995-55ff-babc-9f6de74aa90b"
+    },
+    {
+      "label": "k-1",
+      "op_id": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      "k": 1,
+      "expect": "37b79715-eed7-5757-b39e-bdaa9ef6df6a"
+    },
+    {
+      "label": "k-4294967295",
+      "op_id": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      "k": 4294967295,
+      "expect": "754ee130-ccd0-5a0e-9382-170cf547ed69"
+    }
+  ],
+  "smoke_jobs": {
+    "job1": "6f0c0a1e-7b2d-4c3a-8e91-0a1b2c3d4e5f",
+    "job2": "7a1d1b2f-8c3e-4d4b-9f02-1b2c3d4e5f60",
+    "job3": "8b2e2c30-9d4f-4e5c-a013-2c3d4e5f6071"
+  }
+}

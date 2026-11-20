@@ -22,9 +22,43 @@ void main() {
       uuid5('6ba7b810-9dad-11d1-80b4-00c04fd430c8', 'python.org'),
       '886313e1-3b8a-5372-9b90-0c9aee199e5d',
     );
-    final job = uuid5(namespaceUrl, 'smoke:job1');
-    expect(job, 'ade39d77-e71f-52e1-bdb9-4d405b7a656c');
-    expect(uuid5(job, 'abc123'), '9468cc32-8cb3-58b6-aee2-726cfdd69331');
+    final golden = jsonDecode(
+      File(
+        p.join(
+          _repoRoot()!.path,
+          'packages/hatto_card_contract/fixtures/note_guid_golden.json',
+        ),
+      ).readAsStringSync(),
+    ) as Map<String, dynamic>;
+    final jobs = (golden['smoke_jobs'] as Map<String, dynamic>).map(
+      (key, value) => MapEntry(key, value as String),
+    );
+    expect(smokeJobIds, jobs);
+    // The previous smoke namespace was uuid5(NAMESPACE_URL, 'smoke:job1')
+    // = ade39d77-e71f-52e1-bdb9-4d405b7a656c, and uuid5 of that with
+    // 'abc123' was 9468cc32-8cb3-58b6-aee2-726cfdd69331. The app rule is
+    // uuid5(fixed job id, source guid).
+    expect(
+      uuid5(smokeJobId('job1'), 'abc123'),
+      'a68db4fd-118d-5ad9-b151-638b9431e3a9',
+    );
+    for (final raw in golden['imported'] as List<dynamic>) {
+      final item = raw as Map<String, dynamic>;
+      if (item['error'] == 'empty_source_guid') {
+        continue;
+      }
+      expect(
+        uuid5(item['job_id'] as String, item['source_guid'] as String),
+        item['expect'],
+      );
+    }
+    for (final raw in golden['local'] as List<dynamic>) {
+      final item = raw as Map<String, dynamic>;
+      expect(
+        uuid5(item['op_id'] as String, 'note:${item['k']}'),
+        item['expect'],
+      );
+    }
   });
 
   test('note protobuf round-trips guid, empty field, and negative usn', () {

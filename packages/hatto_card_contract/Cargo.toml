@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: 2026 Hatto Social contributors
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+[package]
+name = "hatto_card_contract"
+description = "Pure note-guid derivation and guid format checks"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+uuid = { version = "1.11", default-features = false, features = ["std", "v5"] }
+
+[dev-dependencies]
+serde_json = "1"

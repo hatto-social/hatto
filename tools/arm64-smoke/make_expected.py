@@ -39,13 +39,26 @@ for i, (name, src) in enumerate(srcs.items()):
         fsrs=f1, fsrs_deterministic_on_host=(f1['params'] == f2['params'] and f1['fsrs_items'] == f2['fsrs_items']),
         pass_rule=dict(notes=rC['notes'] == eC['notes'], cards=rC['cards'] == eC['cards'], revlog_with_card=rC['revlog_with_card'] == eC['revlog_with_card']))
     R.close()
-# 노트타입: 스톡 apkg + guid 재작성(uuid5)만 하는 최소 준비. x6와 같은 순서 job1(기본) → job2(기본, 같은 apkg 다른 job) → job3(강제 복제)
+# 노트타입: 스톡 apkg + guid 재작성만 하는 최소 준비. x6와 같은 순서 job1(기본) → job2(기본, 같은 apkg 다른 job) → job3(강제 복제)
+# Guid rule: imported_note_guid(fixed job UUID, source guid). The old
+# uuid5(NAMESPACE_URL, 'smoke:'+job) namespace is not an app rule. Job ids
+# are the smoke_jobs object in the shared golden file.
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _script_dir)
+import check_note_guid_golden
+_golden = os.path.normpath(os.path.join(
+    _script_dir, '..', '..', 'packages', 'hatto_card_contract', 'fixtures', 'note_guid_golden.json'))
+_doc = check_note_guid_golden.load_golden(_golden)
+_errs = check_note_guid_golden.check(_doc)
+if _errs:
+    raise SystemExit('\n'.join(_errs))
+SMOKE_JOBS = {name: uuid.UUID(value) for name, value in _doc['smoke_jobs'].items()}
 apkg = FILES + '/stock-notes.apkg'; st0 = make_fixture(apkg, bulk=0, workdir=W + '/S')
 def nts(c): return {r[0]: r[1] for r in c.q('select id,name from notetypes')}
 R = Col(W + '/Rnt')
 def job(jn, force):
     E = Col(W + '/E' + jn); imp(E, apkg)
-    ns = uuid.uuid5(uuid.NAMESPACE_URL, 'smoke:' + jn)
+    ns = SMOKE_JOBS[jn]
     for nid, g0 in E.q('select id,guid from notes'):
         n = E.note(nid); n.guid = str(uuid.uuid5(ns, g0)); E.update_note(n)
     # 필터 덱 비우기(원본 fixture 에 Filt 가 있다): 카드 상태를 비교하려면 필요

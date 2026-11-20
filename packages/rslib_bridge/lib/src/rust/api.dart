@@ -71,6 +71,32 @@ ServiceMethodIndex? serviceMethodIndex({
 /// The rslib version string compiled into this binary (`26.09.3` for the pin).
 String ankiVersion() => RustLib.instance.api.crateApiAnkiVersion();
 
+/// `uuid5(namespace = job_id, name = source_guid UTF-8)`.
+///
+/// `job_id` is a UUID string. `source_guid` is not trimmed or normalized.
+/// The returned text is the canonical lowercase hyphenated form. An empty
+/// `source_guid` is an error. This calls `hatto_card_contract` and does not
+/// reimplement the hash.
+String importedNoteGuid({required String jobId, required String sourceGuid}) =>
+    RustLib.instance.api.crateApiImportedNoteGuid(
+      jobId: jobId,
+      sourceGuid: sourceGuid,
+    );
+
+/// `uuid5(namespace = op_id, name = "note:{k}")`.
+///
+/// `op_id` is a UUID string. `k` is the zero-based index inside one write.
+/// The returned text is the canonical lowercase hyphenated form.
+String localNoteGuid({required String opId, required int k}) =>
+    RustLib.instance.api.crateApiLocalNoteGuid(opId: opId, k: k);
+
+/// Canonical lowercase hyphenated UUID with version nibble 4 or 5
+/// and the RFC 4122 variant.
+///
+/// An AddNote guid check should call this instead of a separate pattern.
+bool isGuidFormat({required String text}) =>
+    RustLib.instance.api.crateApiIsGuidFormat(text: text);
+
 /// Export the collection in `dir` through `run_service_method`, then read the
 /// package offline.
 ///

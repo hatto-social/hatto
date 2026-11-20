@@ -230,6 +230,39 @@ pub fn anki_version() -> String {
     anki::version::version().to_string()
 }
 
+/// `uuid5(namespace = job_id, name = source_guid UTF-8)`.
+///
+/// `job_id` is a UUID string. `source_guid` is not trimmed or normalized.
+/// The returned text is the canonical lowercase hyphenated form. An empty
+/// `source_guid` is an error. This calls `hatto_card_contract` and does not
+/// reimplement the hash.
+#[flutter_rust_bridge::frb(sync)]
+pub fn imported_note_guid(job_id: String, source_guid: String) -> Result<String, String> {
+    let job = hatto_card_contract::parse_uuid(&job_id).map_err(|err| err.to_string())?;
+    let id = hatto_card_contract::imported_note_guid(job, &source_guid)
+        .map_err(|err| err.to_string())?;
+    Ok(hatto_card_contract::NoteGuid::from(id).to_string())
+}
+
+/// `uuid5(namespace = op_id, name = "note:{k}")`.
+///
+/// `op_id` is a UUID string. `k` is the zero-based index inside one write.
+/// The returned text is the canonical lowercase hyphenated form.
+#[flutter_rust_bridge::frb(sync)]
+pub fn local_note_guid(op_id: String, k: u32) -> Result<String, String> {
+    let op = hatto_card_contract::parse_uuid(&op_id).map_err(|err| err.to_string())?;
+    Ok(hatto_card_contract::NoteGuid::from(hatto_card_contract::local_note_guid(op, k)).to_string())
+}
+
+/// Canonical lowercase hyphenated UUID with version nibble 4 or 5
+/// and the RFC 4122 variant.
+///
+/// An AddNote guid check should call this instead of a separate pattern.
+#[flutter_rust_bridge::frb(sync)]
+pub fn is_guid_format(text: String) -> bool {
+    hatto_card_contract::is_guid_format(&text)
+}
+
 /// One row of `deck_config` after prost-decoding the `config` blob.
 ///
 /// `new_per_day` and `reviews_per_day` come from `DeckConfig.Config`. The
@@ -421,5 +454,40 @@ mod tests {
         assert!(!denied.success, "second open should fail");
         let err = anki_proto::backend::BackendError::decode(denied.payload.as_slice()).unwrap();
         assert_eq!(err.kind, 5, "DB_ERROR, message={}", err.message);
+    }
+
+    #[test]
+    fn note_guid_bridge_matches_the_contract_golden_file() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../hatto_card_contract/fixtures/note_guid_golden.json");
+        let text = std::fs::read_to_string(&path).unwrap_or_else(|err| panic!("{path:?}: {err}"));
+        let file: serde_json::Value = serde_json::from_str(&text).unwrap();
+        for case in file["imported"].as_array().unwrap() {
+            let job_id = case["job_id"].as_str().unwrap().to_string();
+            let source = case["source_guid"].as_str().unwrap().to_string();
+            let derived = imported_note_guid(job_id, source);
+            if case["error"] == "empty_source_guid" {
+                assert!(derived.is_err(), "{}", case["label"]);
+                continue;
+            }
+            assert_eq!(
+                derived.unwrap(),
+                case["expect"].as_str().unwrap(),
+                "{}",
+                case["label"]
+            );
+        }
+        for case in file["local"].as_array().unwrap() {
+            let op_id = case["op_id"].as_str().unwrap().to_string();
+            let k = case["k"].as_u64().unwrap() as u32;
+            assert_eq!(
+                local_note_guid(op_id, k).unwrap(),
+                case["expect"].as_str().unwrap()
+            );
+        }
+        assert!(is_guid_format(
+            "886313e1-3b8a-5372-9b90-0c9aee199e5d".into()
+        ));
+        assert!(!is_guid_format("hattoDummy".into()));
     }
 }

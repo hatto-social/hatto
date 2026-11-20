@@ -158,6 +158,8 @@ jobs:
 
       - name: Set up Rust 1.97.1
         uses: dtolnay/rust-toolchain@1.97.1
+        with:
+          targets: wasm32-unknown-unknown
 
       - name: Install protoc 31.1
         run: |
@@ -204,8 +206,15 @@ jobs:
         working-directory: apps/desktop
         run: flutter build linux --release
 
-      - name: Test the bridge
-        run: cargo test -p rslib_bridge -- --test-threads=1
+      - name: Check the card contract on wasm32
+        run: cargo check -p hatto_card_contract --target wasm32-unknown-unknown
+
+      - name: Test the card contract, the card CLI, and the bridge
+        run: |
+          cargo test -p hatto_card_contract -- --test-threads=1
+          cargo test -p hatto_card -- --test-threads=1
+          cargo test -p rslib_bridge -- --test-threads=1
+          python3 tools/arm64-smoke/check_note_guid_golden.py
 
   macos:
     needs: changes

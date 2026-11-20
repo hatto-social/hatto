@@ -9,6 +9,7 @@
 //! a collection.
 
 pub mod api;
+pub mod export_contract;
 mod fsrs_init;
 mod index;
 mod package_inspect;

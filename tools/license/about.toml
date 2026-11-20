@@ -1,6 +1,12 @@
 # cargo-about 0.9.3 configuration for the Android runtime graph of
 # packages/rslib_bridge/rust. Generate notices with tools/license/gen-notices.sh.
 #
+# Hatto's own path crates in that graph, besides rslib_bridge:
+# packages/hatto_card_contract (pure guid rules; a path dependency of the
+# bridge). packages/hatto_card is the developer CLI. It is not linked into
+# the apps. gen-notices.sh also runs cargo-deny on both new manifests.
+# render_notices.py drops these crates from the third-party list.
+#
 # `accepted` is a priority list. An `OR` expression is satisfied by the
 # earliest license in this list, so `Apache-2.0 OR GPL-2.0-only` resolves to
 # Apache-2.0 and `LGPL-3.0-or-later OR MPL-2.0` resolves to MPL-2.0. An `AND`

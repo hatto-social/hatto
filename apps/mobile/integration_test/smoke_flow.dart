@@ -381,7 +381,9 @@ Future<String> _prepareJob(
 }
 
 Future<void> _rewriteGuids(_Collection col, String job) async {
-  final namespace = uuid5(namespaceUrl, 'smoke:$job');
+  // Fixed job id from the shared golden file. The old
+  // uuid5(NAMESPACE_URL, 'smoke:'+job) namespace is not an app rule.
+  final jobId = smokeJobId(job);
   final rows = await col.q('select id, guid from notes');
   for (final row in rows) {
     final id = asInt(row[0]);
@@ -397,7 +399,7 @@ Future<void> _rewriteGuids(_Collection col, String job) async {
         idMessage(id),
       ),
     );
-    note.guid = uuid5(namespace, guid);
+    note.guid = importedNoteGuid(jobId: jobId, sourceGuid: guid);
     await _invoke(
       col.backend,
       'BackendNotesService',

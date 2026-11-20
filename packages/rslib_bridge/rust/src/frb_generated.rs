@@ -40,7 +40,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 2030265303;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1782988962;
 
 // Section: executor
 
@@ -136,6 +136,37 @@ fn wire__crate__api__command_impl(
         },
     )
 }
+fn wire__crate__api__imported_note_guid_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "imported_note_guid",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_job_id = <String>::sse_decode(&mut deserializer);
+            let api_source_guid = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, String>((move || {
+                let output_ok = crate::api::imported_note_guid(api_job_id, api_source_guid)?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__api__init_app_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -200,6 +231,67 @@ fn wire__crate__api__inspect_exported_deck_configs_impl(
                     std::result::Result::Ok(output_ok)
                 })())
             }
+        },
+    )
+}
+fn wire__crate__api__is_guid_format_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "is_guid_format",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_text = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Ok::<_, ()>(crate::api::is_guid_format(api_text))?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__local_note_guid_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "local_note_guid",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_op_id = <String>::sse_decode(&mut deserializer);
+            let api_k = <u32>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, String>((move || {
+                let output_ok = crate::api::local_note_guid(api_op_id, api_k)?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
@@ -539,14 +631,14 @@ fn pde_ffi_dispatcher_primary_impl(
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
         2 => wire__crate__api__command_impl(port, ptr, rust_vec_len, data_len),
-        3 => wire__crate__api__init_app_impl(port, ptr, rust_vec_len, data_len),
-        4 => {
+        4 => wire__crate__api__init_app_impl(port, ptr, rust_vec_len, data_len),
+        5 => {
             wire__crate__api__inspect_exported_deck_configs_impl(port, ptr, rust_vec_len, data_len)
         }
-        5 => wire__crate__api__open_backend_impl(port, ptr, rust_vec_len, data_len),
-        6 => wire__crate__api__open_desktop_backend_impl(port, ptr, rust_vec_len, data_len),
-        7 => wire__crate__api__prepare_runtime_impl(port, ptr, rust_vec_len, data_len),
-        9 => wire__crate__api__smoke_open_collection_impl(port, ptr, rust_vec_len, data_len),
+        8 => wire__crate__api__open_backend_impl(port, ptr, rust_vec_len, data_len),
+        9 => wire__crate__api__open_desktop_backend_impl(port, ptr, rust_vec_len, data_len),
+        10 => wire__crate__api__prepare_runtime_impl(port, ptr, rust_vec_len, data_len),
+        12 => wire__crate__api__smoke_open_collection_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -560,7 +652,10 @@ fn pde_ffi_dispatcher_sync_impl(
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
         1 => wire__crate__api__anki_version_impl(ptr, rust_vec_len, data_len),
-        8 => wire__crate__api__service_method_index_impl(ptr, rust_vec_len, data_len),
+        3 => wire__crate__api__imported_note_guid_impl(ptr, rust_vec_len, data_len),
+        6 => wire__crate__api__is_guid_format_impl(ptr, rust_vec_len, data_len),
+        7 => wire__crate__api__local_note_guid_impl(ptr, rust_vec_len, data_len),
+        11 => wire__crate__api__service_method_index_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
