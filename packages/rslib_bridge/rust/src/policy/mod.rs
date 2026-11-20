@@ -6,12 +6,13 @@
 //!
 //! Names are `(Backend*Service, snake_case method)`. Numeric indexes are not
 //! an ABI. A call is forwarded only when this table says it is allowed and,
-//! for the ten checked calls, [validators] accepts the request. The seventeen
-//! calls whose validator is not implemented in this PR stay on the table and
-//! are denied. `SetActiveBrowserColumns` is recorded as deferred and is not
-//! part of the profile.
+//! for the checked calls, [validators] accepts the request. Calls whose
+//! validator is not implemented stay on the table and are denied.
+//! `SetActiveBrowserColumns` is recorded as deferred and is not part of the
+//! profile.
 
 mod desktop;
+mod field_text;
 mod validators;
 
 pub(crate) use desktop::enforce;
@@ -127,9 +128,9 @@ pub static ALLOWLIST: &[AllowEntry] = &[
     row!(NOTES, "note_fields_check", Read, NameOnly, NONE, NAME_ONLY_TEST),
     row!(NOTES, "cards_of_note", Read, NameOnly, NONE, NAME_ONLY_TEST),
     row!(NOTES, "get_single_notetype_of_notes", Read, NameOnly, NONE, NAME_ONLY_TEST),
-    row!(NOTES, "add_note", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
+    row!(NOTES, "add_note", Write, Validated, "one new note; guid is a lowercase uuid version 4 or 5; notetype and normal deck exist; fields match the notetype; control characters and 512 KiB are the only field checks", "add_note_accepts_script_and_rejects_a_base91_guid"),
     row!(NOTES, "add_notes", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
-    row!(NOTES, "update_notes", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
+    row!(NOTES, "update_notes", Write, Validated, "exactly one note; skip_undo_entry is false; guid and notetype are unchanged; an unchanged field is byte-identical; a changed field is checked for size and control characters only", "update_notes_keeps_an_unedited_script_field"),
     row!(NOTES, "remove_notes", Write, Pending, "검증은 상태 없이 가능. 이식 PR에서 함께 연다", PENDING_TEST),
     // Notetypes (11)
     row!(NOTETYPES, "get_notetype", Read, NameOnly, NONE, NAME_ONLY_TEST),

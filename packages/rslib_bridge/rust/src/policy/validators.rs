@@ -13,9 +13,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use prost::Message;
 
 use super::desktop::{require_inside_data_dir, PresentedStates};
+use super::field_text::{check_field_text, check_tags, is_wrapper_guid};
 use super::{
     ANSWER_TAKEN_MAX_MILLIS, CARDS, COLLECTION, CONFIG, DECKS, FETCH_LIMIT_MAX, GRAPHS_DAYS_MAX,
-    IMPORT_EXPORT, NOTETYPES, SCHEDULER, STATS,
+    IMPORT_EXPORT, NOTES, NOTETYPES, SCHEDULER, STATS,
 };
 use crate::api::{dispatch_message, AnkiBackend};
 
@@ -37,6 +38,8 @@ pub(crate) fn prepare(
         (SCHEDULER, "bury_or_suspend_cards") => validate_bury(backend, input),
         (SCHEDULER, "restore_buried_and_suspended_cards") => validate_restore(backend, input),
         (NOTETYPES, "get_cloze_field_ords") => validate_cloze_field_ords(backend, input),
+        (NOTES, "add_note") => validate_add_note(backend, input),
+        (NOTES, "update_notes") => validate_update_notes(backend, input),
         _ => Ok(input.to_vec()),
     }
 }
@@ -267,6 +270,104 @@ fn load_card(backend: &AnkiBackend, card_id: i64) -> Result<anki_proto::cards::C
         &anki_proto::cards::CardId { cid: card_id },
     )
     .map_err(|_| format!("card {card_id} does not exist"))?;
+    decode(&bytes)
+}
+
+fn validate_add_note(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String> {
+    let request = decode::<anki_proto::notes::AddNoteRequest>(input)?;
+    let Some(note) = request.note.as_ref() else {
+        return Err("note is missing".into());
+    };
+    if note.id != 0 {
+        return Err("new note id must be 0".into());
+    }
+    if !is_wrapper_guid(&note.guid) {
+        return Err("note guid must be a lowercase uuid version 4 or 5".into());
+    }
+    check_note_shape(backend, note)?;
+    require_normal_deck(backend, request.deck_id)?;
+    Ok(input.to_vec())
+}
+
+fn validate_update_notes(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String> {
+    let request = decode::<anki_proto::notes::UpdateNotesRequest>(input)?;
+    if request.skip_undo_entry {
+        return Err("skip_undo_entry must be false".into());
+    }
+    if request.notes.len() != 1 {
+        return Err("update_notes accepts exactly one note".into());
+    }
+    let note = &request.notes[0];
+    let current = load_note(backend, note.id)?;
+    if note.guid != current.guid {
+        return Err("note guid is immutable".into());
+    }
+    if note.notetype_id != current.notetype_id {
+        return Err("note type is immutable".into());
+    }
+    if note.fields.len() != current.fields.len() {
+        return Err("field count does not match the stored note".into());
+    }
+    check_tags(&note.tags)?;
+    for (index, field) in note.fields.iter().enumerate() {
+        if field.as_str() == current.fields[index].as_str() {
+            continue;
+        }
+        check_field_text(field)?;
+    }
+    Ok(input.to_vec())
+}
+
+fn check_note_shape(backend: &AnkiBackend, note: &anki_proto::notes::Note) -> Result<(), String> {
+    let notetype = load_notetype(backend, note.notetype_id)?;
+    if note.fields.len() != notetype.fields.len() {
+        return Err("field count does not match the note type".into());
+    }
+    check_tags(&note.tags)?;
+    for field in &note.fields {
+        check_field_text(field)?;
+    }
+    Ok(())
+}
+
+fn require_normal_deck(backend: &AnkiBackend, deck_id: i64) -> Result<(), String> {
+    let bytes = dispatch_message(
+        backend,
+        DECKS,
+        "get_deck",
+        &anki_proto::decks::DeckId { did: deck_id },
+    )
+    .map_err(|_| format!("deck {deck_id} does not exist"))?;
+    let deck = decode::<anki_proto::decks::Deck>(&bytes)?;
+    let normal = matches!(deck.kind, Some(anki_proto::decks::deck::Kind::Normal(_)));
+    if !normal {
+        return Err(format!("deck {deck_id} is not a normal deck"));
+    }
+    Ok(())
+}
+
+fn load_note(backend: &AnkiBackend, note_id: i64) -> Result<anki_proto::notes::Note, String> {
+    let bytes = dispatch_message(
+        backend,
+        NOTES,
+        "get_note",
+        &anki_proto::notes::NoteId { nid: note_id },
+    )
+    .map_err(|_| format!("note {note_id} does not exist"))?;
+    decode(&bytes)
+}
+
+fn load_notetype(
+    backend: &AnkiBackend,
+    notetype_id: i64,
+) -> Result<anki_proto::notetypes::Notetype, String> {
+    let bytes = dispatch_message(
+        backend,
+        NOTETYPES,
+        "get_notetype",
+        &anki_proto::notetypes::NotetypeId { ntid: notetype_id },
+    )
+    .map_err(|_| format!("note type {notetype_id} does not exist"))?;
     decode(&bytes)
 }
 

@@ -195,12 +195,12 @@ fn allowlist_names_resolve_and_counts_match() {
             Status::Deferred => deferred += 1,
         }
     }
-    assert_eq!(validated, 10);
+    assert_eq!(validated, 12);
     assert_eq!(name_only, 60);
-    assert_eq!(pending, 17);
+    assert_eq!(pending, 15);
     assert_eq!(deferred, 1);
     assert_eq!(ALLOWLIST.len(), 88);
-    assert_eq!(forwarded_names().len(), 70);
+    assert_eq!(forwarded_names().len(), 72);
 
     let pending_methods: std::collections::HashSet<_> = ALLOWLIST
         .iter()
@@ -214,9 +214,7 @@ fn allowlist_names_resolve_and_counts_match() {
         "rename_deck",
         "reparent_decks",
         "remove_decks",
-        "add_note",
         "add_notes",
-        "update_notes",
         "remove_notes",
         "add_notetype",
         "update_notetype",
@@ -228,7 +226,7 @@ fn allowlist_names_resolve_and_counts_match() {
     ] {
         assert!(pending_methods.contains(method), "{method}");
     }
-    assert_eq!(pending_methods.len(), 17);
+    assert_eq!(pending_methods.len(), 15);
 }
 
 #[test]
@@ -1452,4 +1450,206 @@ fn fsrs_init_writes_a_marker_when_fsrs_is_already_on() {
         "already-on collection did not get a marker"
     );
     assert!(fsrs_enabled(&backend));
+}
+
+fn fresh_basic_note(backend: &crate::api::AnkiBackend) -> anki_proto::notes::Note {
+    let id_bytes = dispatch_message(
+        backend,
+        "BackendNotetypesService",
+        "get_notetype_id_by_name",
+        &anki_proto::generic::String {
+            val: "Basic".into(),
+        },
+    )
+    .expect("basic notetype");
+    let notetype = anki_proto::notetypes::NotetypeId::decode(id_bytes.as_slice()).unwrap();
+    let note_bytes =
+        dispatch_message(backend, "BackendNotesService", "new_note", &notetype).expect("new note");
+    anki_proto::notes::Note::decode(note_bytes.as_slice()).unwrap()
+}
+
+const WRAPPER_GUID: &str = "11111111-1111-4111-8111-111111111111";
+
+fn add_request(note: anki_proto::notes::Note) -> anki_proto::notes::AddNoteRequest {
+    anki_proto::notes::AddNoteRequest {
+        note: Some(note),
+        deck_id: 1,
+    }
+}
+
+#[test]
+fn add_note_accepts_script_and_rejects_a_base91_guid() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let paths = col_paths(dir.path());
+    let backend = open_desktop_collection(&paths);
+    let mut note = fresh_basic_note(&backend);
+    let base91 = note.guid.clone();
+    note.fields[0] = "<script>alert(1)</script>".into();
+    note.fields[1] = "<iframe src=\"https://x\"></iframe>".into();
+    let rejected = call(
+        &backend,
+        "BackendNotesService",
+        "add_note",
+        &add_request(note.clone()),
+    );
+    assert!(!rejected.success, "base91 guid was accepted");
+    assert!(
+        message_of(&rejected).contains("uuid"),
+        "{}",
+        message_of(&rejected)
+    );
+
+    note.guid = WRAPPER_GUID.into();
+    note.id = 7;
+    let bad_id = call(
+        &backend,
+        "BackendNotesService",
+        "add_note",
+        &add_request(note.clone()),
+    );
+    assert!(!bad_id.success);
+    assert!(message_of(&bad_id).contains("id must be 0"));
+
+    note.id = 0;
+    note.fields[0] = format!("{}{}", note.fields[0], '\u{0001}');
+    let control = call(
+        &backend,
+        "BackendNotesService",
+        "add_note",
+        &add_request(note.clone()),
+    );
+    assert!(
+        !control.success,
+        "control character was accepted: {}",
+        message_of(&control)
+    );
+    assert!(
+        message_of(&control).contains("control character"),
+        "{}",
+        message_of(&control)
+    );
+
+    note.fields[0] = "<script>alert(1)</script>".into();
+    note.tags = vec!["has space".into()];
+    let tags = call(
+        &backend,
+        "BackendNotesService",
+        "add_note",
+        &add_request(note.clone()),
+    );
+    assert!(!tags.success);
+    note.tags.clear();
+
+    let bytes = add_request(note.clone()).encode_to_vec();
+    let prepared =
+        super::validators::prepare(&backend, "BackendNotesService", "add_note", &bytes).unwrap();
+    assert_eq!(prepared, bytes);
+
+    let added = call(
+        &backend,
+        "BackendNotesService",
+        "add_note",
+        &add_request(note),
+    );
+    assert!(added.success, "{}", message_of(&added));
+    let response = anki_proto::notes::AddNoteResponse::decode(added.payload.as_slice()).unwrap();
+    let stored = dispatch_message(
+        &backend,
+        "BackendNotesService",
+        "get_note",
+        &anki_proto::notes::NoteId {
+            nid: response.note_id,
+        },
+    )
+    .unwrap();
+    let stored = anki_proto::notes::Note::decode(stored.as_slice()).unwrap();
+    assert_eq!(stored.fields[0], "<script>alert(1)</script>");
+    assert_eq!(stored.fields[1], "<iframe src=\"https://x\"></iframe>");
+    assert_eq!(stored.guid, WRAPPER_GUID);
+    assert!(!base91.is_empty());
+
+    let mut missing_note = fresh_basic_note(&backend);
+    missing_note.guid = "22222222-2222-4222-8222-222222222222".into();
+    let missing = call(
+        &backend,
+        "BackendNotesService",
+        "add_note",
+        &anki_proto::notes::AddNoteRequest {
+            note: Some(missing_note),
+            deck_id: 99,
+        },
+    );
+    assert!(!missing.success);
+    assert!(
+        message_of(&missing).contains("does not exist"),
+        "{}",
+        message_of(&missing)
+    );
+}
+
+#[test]
+fn update_notes_keeps_an_unedited_script_field() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let paths = col_paths(dir.path());
+    let backend = open_desktop_collection(&paths);
+    let mut note = fresh_basic_note(&backend);
+    note.guid = WRAPPER_GUID.into();
+    note.fields[0] = "<script>alert(1)</script>".into();
+    note.fields[1] = "back".into();
+    let added = call(
+        &backend,
+        "BackendNotesService",
+        "add_note",
+        &add_request(note),
+    );
+    assert!(added.success, "{}", message_of(&added));
+    let added = anki_proto::notes::AddNoteResponse::decode(added.payload.as_slice()).unwrap();
+    let mut stored = anki_proto::notes::Note::decode(
+        dispatch_message(
+            &backend,
+            "BackendNotesService",
+            "get_note",
+            &anki_proto::notes::NoteId { nid: added.note_id },
+        )
+        .unwrap()
+        .as_slice(),
+    )
+    .unwrap();
+    stored.fields[1] = "<iframe src=\"https://x\"></iframe>".into();
+    let updated = call(
+        &backend,
+        "BackendNotesService",
+        "update_notes",
+        &anki_proto::notes::UpdateNotesRequest {
+            notes: vec![stored.clone()],
+            skip_undo_entry: false,
+        },
+    );
+    assert!(updated.success, "{}", message_of(&updated));
+
+    let mut changed_guid = stored.clone();
+    changed_guid.guid = "33333333-3333-4333-8333-333333333333".into();
+    let denied = call(
+        &backend,
+        "BackendNotesService",
+        "update_notes",
+        &anki_proto::notes::UpdateNotesRequest {
+            notes: vec![changed_guid],
+            skip_undo_entry: false,
+        },
+    );
+    assert!(!denied.success);
+    assert!(message_of(&denied).contains("immutable"));
+
+    let skip = call(
+        &backend,
+        "BackendNotesService",
+        "update_notes",
+        &anki_proto::notes::UpdateNotesRequest {
+            notes: vec![stored],
+            skip_undo_entry: true,
+        },
+    );
+    assert!(!skip.success);
+    assert!(message_of(&skip).contains("skip_undo_entry"));
 }
