@@ -59,10 +59,9 @@ class _DeckRowState extends State<_DeckRow> {
     return MouseRegion(onEnter: (_) => setState(() => hover = true), onExit: (_) => setState(() => hover = false), child: Container(
       key: ValueKey('deck-row-${n.name}'), height: 30, margin: const EdgeInsets.only(bottom: 0), decoration: BoxDecoration(color: current ? (k.dark ? const Color(0xff3e3e3e) : const Color(0xffececec)) : (hover ? (k.dark ? const Color(0xff3a3a3a) : const Color(0xfff2f2f2)) : null), borderRadius: BorderRadius.circular(14)),
       child: Row(children: [
-        SizedBox(width: 10.0 + (n.level - 1) * 18), SizedBox(width: 16, child: hasKids ? GestureDetector(key: ValueKey('collapse-${n.name}'), onTap: () async {
-          try { await app.api.setDeckCollapsed(id, !n.collapsed); } catch (e) { app.toast('접기를 저장하지 못했어요: $e'); }
-          await app.refreshDecks();
-        }, child: Text(n.collapsed ? '+' : '−', textAlign: TextAlign.center, style: ankiText(k, size: 14, color: k.fgSubtle))) : null),
+        // SetDeckCollapsed is not in the contract. The list stays expanded, and
+        // the control does not call the denied method (that call toasted every click).
+        SizedBox(width: 10.0 + (n.level - 1) * 18), SizedBox(width: 16, child: hasKids ? Text(n.collapsed ? '+' : '−', key: ValueKey('collapse-${n.name}'), textAlign: TextAlign.center, style: ankiText(k, size: 14, color: k.fgSubtle)) : null),
         const SizedBox(width: 6),
         Expanded(child: GestureDetector(key: ValueKey('deck-${n.name}'), behavior: HitTestBehavior.opaque, onTap: () => app.openDeck(id, n.name), child: Align(alignment: Alignment.centerLeft, child: Text(deckLeaf(n.name), overflow: TextOverflow.ellipsis, style: ankiText(k, size: 15))))),
         cnt(n.newCount, StateColors.n(k), 66), cnt(n.learnCount, StateColors.l(k), 66), cnt(n.reviewCount, StateColors.r(k), 66),
