@@ -1,0 +1,76 @@
+# Path filters for the ci workflow. dorny/paths-filter flattens a list
+# entry that is an alias of another filter, so anchors compose groups.
+#
+# The action is invoked with predicate-quantifier: some-with-excludes.
+# The default quantifier 'some' ignores '!' patterns, which would make
+# the shipping exclusions below match every file.
+#
+# Patterns without a slash match only that path at the repo root
+# (picomatch matchBase is off). Spikes' own Cargo.lock files do not
+# match 'Cargo.lock'.
+
+engine: &engine
+  - 'packages/rslib_bridge/**'
+  - 'Cargo.lock'
+  - 'Cargo.toml'
+  - 'rust-toolchain.toml'
+  - 'packages/rslib_bridge/rust/rust-toolchain.toml'
+  - '.cargo/**'
+  - 'third_party/**'
+  - 'third_party/anki'
+  - '.gitmodules'
+  # make_synthetic_decks is a [[bin]] of the bridge crate.
+  - 'tools/arm64-smoke/**'
+
+# Root workspace files. Per-package analysis_options.yaml files live
+# under the package globs below; flutter analyze uses the nearest one.
+workspace: &workspace
+  - 'pubspec.yaml'
+  - 'pubspec.lock'
+  - 'analysis_options.yaml'
+
+# Both apps depend on hatto_legal.
+legal: &legal
+  - 'packages/hatto_legal/**'
+
+# Mobile depends on hatto_store. Desktop does not.
+store: &store
+  - 'packages/hatto_store/**'
+
+desktop: &desktop
+  - *engine
+  - *workspace
+  - *legal
+  - 'apps/desktop/**'
+
+mobile: &mobile
+  - *engine
+  - *workspace
+  - *legal
+  - *store
+  - 'apps/mobile/**'
+
+# The linux job analyzes and tests every workspace package, then builds
+# the Linux desktop app and runs cargo test for the bridge.
+linux:
+  - *desktop
+  - *mobile
+
+# A workflow change can skip or retarget every other filter. Force all jobs.
+ci:
+  - '.github/**'
+
+# License notices and the source-archive rebuild. '**' is deliberate:
+# a path we have not classified still ships until proven otherwise.
+# Exclusions are only paths that do not affect a binary, the notice
+# inputs, or the archive rebuild. '.github/**' is excluded here because
+# the ci filter forces those jobs on its own.
+shipping:
+  - '**'
+  - '!.github/**'
+  - '!docs/**'
+  - '!spikes/**'
+  - '!apps/demo-app/**'
+  - '!README.md'
+  - '!CONTRIBUTING.md'
+  - '!SOURCE.md'
