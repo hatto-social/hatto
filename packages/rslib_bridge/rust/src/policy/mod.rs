@@ -173,7 +173,7 @@ pub static ALLOWLIST: &[AllowEntry] = &[
     row!(MEDIA, "extract_static_media_files", Read, NameOnly, NONE, NAME_ONLY_TEST),
     // Image occlusion (4)
     row!(OCCLUSION, "get_image_occlusion_fields", Read, NameOnly, NONE, NAME_ONLY_TEST),
-    row!(OCCLUSION, "add_image_occlusion_notetype", Write, NameOnly, NONE, NAME_ONLY_TEST),
+    row!(OCCLUSION, "add_image_occlusion_notetype", Write, Pending, "이미지 가리기 노트타입 UI가 생길 때 연다", PENDING_TEST),
     row!(OCCLUSION, "update_image_occlusion_note", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
     row!(OCCLUSION, "get_image_occlusion_note", Read, Pending, "N1 초크포인트가 없다. 이미지 필드 경로 가드가 생기기 전에는 거부", PENDING_TEST),
     // Import / export (1)

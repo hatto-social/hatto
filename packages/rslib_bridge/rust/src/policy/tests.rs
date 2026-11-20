@@ -229,11 +229,11 @@ fn allowlist_names_resolve_and_counts_match() {
         }
     }
     assert_eq!(validated, 15);
-    assert_eq!(name_only, 58);
-    assert_eq!(pending, 14);
+    assert_eq!(name_only, 57);
+    assert_eq!(pending, 15);
     assert_eq!(deferred, 1);
     assert_eq!(ALLOWLIST.len(), 88);
-    assert_eq!(forwarded_names().len(), 73);
+    assert_eq!(forwarded_names().len(), 72);
 
     let pending_methods: std::collections::HashSet<_> = ALLOWLIST
         .iter()
@@ -253,12 +253,13 @@ fn allowlist_names_resolve_and_counts_match() {
         "change_notetype",
         "remove_notes",
         "add_media_file",
+        "add_image_occlusion_notetype",
         "update_image_occlusion_note",
         "get_image_occlusion_note",
     ] {
         assert!(pending_methods.contains(method), "{method}");
     }
-    assert_eq!(pending_methods.len(), 14);
+    assert_eq!(pending_methods.len(), 15);
 }
 
 #[test]
@@ -321,7 +322,7 @@ fn desktop_denies_calls_outside_the_allowed_70() {
         denied += 1;
     }
     assert!(denied > 14, "denied {denied}");
-    assert_eq!(pending, 14);
+    assert_eq!(pending, 15);
 }
 
 #[test]
