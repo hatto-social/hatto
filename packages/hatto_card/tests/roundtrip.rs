@@ -7,6 +7,7 @@
 use std::fs;
 use std::path::Path;
 use std::process::Command;
+use std::sync::{Mutex, MutexGuard};
 
 use anki_proto::generic;
 use hatto_card_contract::{imported_note_guid, local_note_guid, parse_uuid, NoteGuid};
@@ -15,6 +16,15 @@ use rslib_bridge::api::{
     command, open_backend, prepare_runtime, service_method_index, AnkiBackend,
 };
 use rslib_bridge::export_contract::anki_package_import_options;
+
+/// `import_apkg` calls `prepare_runtime`, which sets TMPDIR/TMP/TEMP for the
+/// whole process, and `run` spawns children that inherit them. Two tests on two
+/// threads would point each other's temp files at a directory the other one is
+/// about to delete. Hold this for the whole test body so tests never overlap.
+fn serial() -> MutexGuard<'static, ()> {
+    static LOCK: Mutex<()> = Mutex::new(());
+    LOCK.lock().unwrap_or_else(|err| err.into_inner())
+}
 
 fn bin() -> Command {
     Command::new(env!("CARGO_BIN_EXE_hatto-card"))
@@ -30,6 +40,7 @@ fn run(args: &[&str]) -> (i32, String, String) {
 
 #[test]
 fn export_then_import_matches_guids_fields_and_media() {
+    let _serial = serial();
     let root = tempfile::tempdir().unwrap();
     fs::create_dir(root.path().join("media")).unwrap();
     let png = tiny_png();
@@ -76,6 +87,7 @@ fn export_then_import_matches_guids_fields_and_media() {
 
 #[test]
 fn add_note_then_export_imports_the_added_notes() {
+    let _serial = serial();
     let root = tempfile::tempdir().unwrap();
     fs::create_dir(root.path().join("media")).unwrap();
     let png = tiny_png();
@@ -304,8 +316,9 @@ impl TmpEnv {
 impl Drop for TmpEnv {
     fn drop(&mut self) {
         for (key, value) in &self.saved {
-            // SAFETY: tests run on one thread. This value is dropped before
-            // the temp dir that `prepare_runtime` pointed at.
+            // SAFETY: every test holds `serial()` for its whole body, so no
+            // other thread reads or writes the environment. This value is
+            // dropped before the temp dir that `prepare_runtime` pointed at.
             match value {
                 Some(value) => unsafe { std::env::set_var(key, value) },
                 None => unsafe { std::env::remove_var(key) },
