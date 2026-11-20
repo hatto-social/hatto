@@ -33,6 +33,12 @@ void main() {
       expect(findMath(r'\[x\]').single.$3.raw, r'\[x\]');
     });
     test('unmatched delimiters are left alone', () { expect(findMath(r'\(x'), isEmpty); expect(findMath(r'x\]'), isEmpty); });
+    test('many unclosed delimiters finish in bounded time', () {
+      final html = r'\(' * 20000;
+      final watch = Stopwatch()..start();
+      expect(findMath(html), isEmpty);
+      expect(watch.elapsed, lessThan(const Duration(seconds: 2)));
+    });
   });
 
   group('CardView renders math', () {

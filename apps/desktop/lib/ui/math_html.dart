@@ -15,8 +15,6 @@ class MathSpan {
   final String tex, raw; final bool display;
 }
 
-final _mathRe = RegExp(r'\\\((.+?)\\\)|\\\[(.+?)\\\]', dotAll: true);
-
 /// Entity-decoded TeX body with tags (<br>, <div> ...) flattened to spaces. Null when nothing is left.
 String? _cleanTex(String body) {
   final withSpaces = body.replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), ' ');
@@ -25,14 +23,33 @@ String? _cleanTex(String body) {
 }
 
 /// Finds math spans in an HTML string. Returns (start, end, span) triples in order; no overlap.
+///
+/// A single left-to-right scan. An unclosed `\(` or `\[` advances past the
+/// opener instead of asking a reluctant regex to rescan the rest of the string.
 List<(int, int, MathSpan)> findMath(String html) {
   final out = <(int, int, MathSpan)>[];
-  for (final m in _mathRe.allMatches(html)) {
-    final display = m.group(2) != null;
-    final tex = _cleanTex(m.group(display ? 2 : 1)!);
-    if (tex == null) continue; // `\(\)` stays raw
-    final rawText = (hp.parseFragment(html.substring(m.start, m.end)).text ?? '').trim();
-    out.add((m.start, m.end, MathSpan(tex, rawText, display)));
+  var i = 0;
+  while (i < html.length) {
+    final open = html.indexOf(r'\', i);
+    if (open < 0 || open + 1 >= html.length) break;
+    final marker = html[open + 1];
+    if (marker != '(' && marker != '[') {
+      i = open + 1;
+      continue;
+    }
+    final closer = marker == '(' ? r'\)' : r'\]';
+    final end = html.indexOf(closer, open + 2);
+    if (end < 0) {
+      i = open + 2;
+      continue;
+    }
+    final display = marker == '[';
+    final tex = _cleanTex(html.substring(open + 2, end));
+    if (tex != null) {
+      final rawText = (hp.parseFragment(html.substring(open, end + 2)).text ?? '').trim();
+      out.add((open, end + 2, MathSpan(tex, rawText, display)));
+    }
+    i = end + 2;
   }
   return out;
 }
