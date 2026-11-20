@@ -901,11 +901,29 @@ fn answer(
     milliseconds_taken: u32,
     answered_at_millis: i64,
 ) -> anki_proto::scheduler::CardAnswer {
+    answer_rated(
+        card_id,
+        current,
+        new_state,
+        anki_proto::scheduler::card_answer::Rating::Good as i32,
+        milliseconds_taken,
+        answered_at_millis,
+    )
+}
+
+fn answer_rated(
+    card_id: i64,
+    current: Option<anki_proto::scheduler::SchedulingState>,
+    new_state: anki_proto::scheduler::SchedulingState,
+    rating: i32,
+    milliseconds_taken: u32,
+    answered_at_millis: i64,
+) -> anki_proto::scheduler::CardAnswer {
     anki_proto::scheduler::CardAnswer {
         card_id,
         current_state: current,
         new_state: Some(new_state),
-        rating: anki_proto::scheduler::card_answer::Rating::Good as i32,
+        rating,
         answered_at_millis,
         milliseconds_taken,
     }
@@ -1544,6 +1562,165 @@ fn validates_search_requires_a_built_string() {
         let allowed = call(&backend, "BackendSearchService", method, &request);
         assert!(allowed.success, "{method}: {}", message_of(&allowed));
     }
+
+    let mut none = request.clone();
+    none.order = Some(anki_proto::search::SortOrder {
+        value: Some(anki_proto::search::sort_order::Value::None(
+            anki_proto::generic::Empty {},
+        )),
+    });
+    let mut builtin = request.clone();
+    builtin.order = Some(anki_proto::search::SortOrder {
+        value: Some(anki_proto::search::sort_order::Value::Builtin(
+            anki_proto::search::sort_order::Builtin {
+                column: "noteFld".into(),
+                reverse: true,
+            },
+        )),
+    });
+    let mut custom = request.clone();
+    custom.order = Some(anki_proto::search::SortOrder {
+        value: Some(anki_proto::search::sort_order::Value::Custom(
+            "due desc".into(),
+        )),
+    });
+    let mut unknown = request;
+    unknown.order = Some(anki_proto::search::SortOrder {
+        value: Some(anki_proto::search::sort_order::Value::Builtin(
+            anki_proto::search::sort_order::Builtin {
+                column: "not_a_column".into(),
+                reverse: false,
+            },
+        )),
+    });
+    for method in ["search_notes", "search_cards"] {
+        let allowed = call(&backend, "BackendSearchService", method, &none);
+        assert!(allowed.success, "{method} none: {}", message_of(&allowed));
+        let allowed = call(&backend, "BackendSearchService", method, &builtin);
+        assert!(
+            allowed.success,
+            "{method} builtin: {}",
+            message_of(&allowed)
+        );
+        let denied = call(&backend, "BackendSearchService", method, &custom);
+        assert!(
+            message_of(&denied).contains("custom sort order"),
+            "{method}: {}",
+            message_of(&denied)
+        );
+        let denied = call(&backend, "BackendSearchService", method, &unknown);
+        assert!(
+            message_of(&denied).contains("not allowlisted"),
+            "{method}: {}",
+            message_of(&denied)
+        );
+    }
+}
+
+#[test]
+fn undo_restores_an_answered_card_and_rejects_the_stale_answer() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let paths = col_paths(dir.path());
+    let backend = open_desktop_collection(&paths);
+    let card_id = add_basic_card(&backend);
+    let current = call(
+        &backend,
+        "BackendDecksService",
+        "set_current_deck",
+        &anki_proto::decks::DeckId { did: 1 },
+    );
+    assert!(current.success, "{}", message_of(&current));
+    assert_eq!(
+        queued_ids(&backend),
+        vec![card_id],
+        "the new card was not offered before the answer"
+    );
+    let offered = scheduling_states(&backend, card_id);
+    let easy = offered.easy.clone().unwrap();
+    let easy_rating = anki_proto::scheduler::card_answer::Rating::Easy as i32;
+    let answered = call(
+        &backend,
+        "BackendSchedulerService",
+        "answer_card",
+        &answer_rated(card_id, offered.current, easy.clone(), easy_rating, 1_000, 0),
+    );
+    assert!(answered.success, "{}", message_of(&answered));
+    let after_answer = queued_ids(&backend);
+    assert!(
+        after_answer.is_empty(),
+        "answered card stayed in the queue: {after_answer:?} queue={}",
+        card_queue(&backend, card_id)
+    );
+
+    let undone = call(
+        &backend,
+        "BackendCollectionService",
+        "undo",
+        &anki_proto::generic::Empty {},
+    );
+    assert!(undone.success, "{}", message_of(&undone));
+    let stale = call(
+        &backend,
+        "BackendSchedulerService",
+        "answer_card",
+        &answer_rated(card_id, None, easy, easy_rating, 1_000, 0),
+    );
+    assert!(
+        message_of(&stale).contains("was not offered"),
+        "{}",
+        message_of(&stale)
+    );
+    let restored = queued_ids(&backend);
+    assert_eq!(
+        restored,
+        vec![card_id],
+        "after undo queue={restored:?} card_queue={}",
+        card_queue(&backend, card_id)
+    );
+
+    let redone = call(
+        &backend,
+        "BackendCollectionService",
+        "redo",
+        &anki_proto::generic::Empty {},
+    );
+    assert!(redone.success, "{}", message_of(&redone));
+    assert!(
+        queued_ids(&backend).is_empty(),
+        "redo did not take the card back out of the queue"
+    );
+}
+
+fn card_queue(backend: &crate::api::AnkiBackend, card_id: i64) -> i32 {
+    let response = call(
+        backend,
+        "BackendCardsService",
+        "get_card",
+        &anki_proto::cards::CardId { cid: card_id },
+    );
+    assert!(response.success, "{}", message_of(&response));
+    anki_proto::cards::Card::decode(response.payload.as_slice())
+        .unwrap()
+        .queue
+}
+
+fn queued_ids(backend: &crate::api::AnkiBackend) -> Vec<i64> {
+    let response = call(
+        backend,
+        "BackendSchedulerService",
+        "get_queued_cards",
+        &anki_proto::scheduler::GetQueuedCardsRequest {
+            fetch_limit: 10,
+            intraday_learning_only: false,
+        },
+    );
+    assert!(response.success, "{}", message_of(&response));
+    let queued = anki_proto::scheduler::QueuedCards::decode(response.payload.as_slice()).unwrap();
+    queued
+        .cards
+        .into_iter()
+        .filter_map(|card| card.card.map(|card| card.id))
+        .collect()
 }
 
 #[test]

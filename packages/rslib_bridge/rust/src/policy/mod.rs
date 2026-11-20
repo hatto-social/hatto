@@ -156,8 +156,8 @@ pub static ALLOWLIST: &[AllowEntry] = &[
     row!(RENDERING, "encode_iri_paths", Read, NameOnly, NONE, NAME_ONLY_TEST),
     row!(RENDERING, "decode_iri_paths", Read, NameOnly, NONE, NAME_ONLY_TEST),
     // Search (7) and the deferred column call
-    row!(SEARCH, "search_notes", Read, Validated, "search was returned by BuildSearchString, JoinSearchNodes, or ReplaceSearchNode this session", "validates_search"),
-    row!(SEARCH, "search_cards", Read, Validated, "search was returned by BuildSearchString, JoinSearchNodes, or ReplaceSearchNode this session", "validates_search"),
+    row!(SEARCH, "search_notes", Read, Validated, "search was returned by BuildSearchString, JoinSearchNodes, or ReplaceSearchNode this session; order is absent, none, or an allowlisted builtin column", "validates_search"),
+    row!(SEARCH, "search_cards", Read, Validated, "search was returned by BuildSearchString, JoinSearchNodes, or ReplaceSearchNode this session; order is absent, none, or an allowlisted builtin column", "validates_search"),
     row!(SEARCH, "browser_row_for_id", Read, NameOnly, NONE, NAME_ONLY_TEST),
     row!(SEARCH, "all_browser_columns", Read, NameOnly, NONE, NAME_ONLY_TEST),
     row!(SEARCH, "build_search_string", Read, NameOnly, NONE, NAME_ONLY_TEST),

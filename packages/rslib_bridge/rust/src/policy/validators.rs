@@ -229,10 +229,57 @@ fn validate_graphs(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, Strin
     Ok(input.to_vec())
 }
 
+/// Browser columns rslib maps to SQL itself. `SortOrder.custom` is appended
+/// after `ORDER BY` verbatim, so it stays rejected.
+const SEARCH_SORT_COLUMNS: &[&str] = &[
+    "answer",
+    "cardMod",
+    "template",
+    "deck",
+    "cardDue",
+    "cardEase",
+    "cardLapses",
+    "cardIvl",
+    "noteCrt",
+    "noteMod",
+    "note",
+    "originalPosition",
+    "question",
+    "cardReps",
+    "noteFld",
+    "noteTags",
+    "stability",
+    "difficulty",
+    "retrievability",
+];
+
 fn validate_search(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String> {
     let request = decode::<anki_proto::search::SearchRequest>(input)?;
     require_built_search(backend, &request.search)?;
+    check_search_order(request.order.as_ref())?;
     Ok(input.to_vec())
+}
+
+fn check_search_order(order: Option<&anki_proto::search::SortOrder>) -> Result<(), String> {
+    let Some(order) = order else {
+        return Ok(());
+    };
+    match order.value.as_ref() {
+        None | Some(anki_proto::search::sort_order::Value::None(_)) => Ok(()),
+        Some(anki_proto::search::sort_order::Value::Custom(_)) => {
+            Err("custom sort order is not allowed".into())
+        }
+        Some(anki_proto::search::sort_order::Value::Builtin(builtin)) => {
+            if SEARCH_SORT_COLUMNS.contains(&builtin.column.as_str()) {
+                Ok(())
+            } else {
+                Err(format!(
+                    "sort column '{}' is not allowlisted",
+                    builtin.column
+                ))
+            }
+        }
+    }
 }
 
 fn require_built_search(backend: &AnkiBackend, search: &str) -> Result<(), String> {
