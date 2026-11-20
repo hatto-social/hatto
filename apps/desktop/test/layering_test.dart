@@ -122,7 +122,11 @@ void main() {
       RegExp(r'\bHttpClient\b'),
       RegExp(r'\bImage\.network\b'),
       RegExp(r'\bNetworkImage\b'),
+      RegExp(r'\bFadeInImage\.network\b'),
       RegExp(r'\bSocket\b'),
+      RegExp(r'\bRawSocket\b'),
+      RegExp(r'\bSecureSocket\b'),
+      RegExp(r'\bServerSocket\b'),
       RegExp(r'\bWebSocket\b'),
     ];
     final processRun = RegExp(r'\bProcess\.run\b');
