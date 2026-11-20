@@ -39,7 +39,9 @@ class _ReviewerScreenState extends State<ReviewerScreen> {
   KeyEventResult _key(FocusNode _, KeyEvent e) {
     if (e is! KeyDownEvent) return KeyEventResult.ignored;
     final k = e.logicalKey; final ctrl = HardwareKeyboard.instance.isControlPressed || HardwareKeyboard.instance.isMetaPressed;
-    if (ctrl && k == LogicalKeyboardKey.keyZ) { _run(s.undo); return KeyEventResult.handled; }
+    final shift = HardwareKeyboard.instance.isShiftPressed;
+    if (ctrl && shift && k == LogicalKeyboardKey.keyZ) { _run(s.redo); return KeyEventResult.handled; }
+    if (ctrl && !shift && k == LogicalKeyboardKey.keyZ) { _run(s.undo); return KeyEventResult.handled; }
     if (s.phase == ReviewPhase.question && (k == LogicalKeyboardKey.space || k == LogicalKeyboardKey.enter)) { _show(); return KeyEventResult.handled; }
     if (s.phase == ReviewPhase.answer) {
       if (k == LogicalKeyboardKey.digit1) { _answer(CardAnswer_Rating.AGAIN); return KeyEventResult.handled; }

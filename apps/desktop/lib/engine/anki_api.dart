@@ -12,8 +12,6 @@ import '../src/gen/anki/cards.pb.dart';
 import '../src/gen/anki/collection.pb.dart';
 import '../src/gen/anki/decks.pb.dart';
 import '../src/gen/anki/generic.pb.dart' as g;
-import '../src/gen/anki/import_export.pb.dart';
-import '../src/gen/anki/media.pb.dart';
 import '../src/gen/anki/notes.pb.dart';
 import '../src/gen/anki/notetypes.pb.dart';
 import '../src/gen/anki/scheduler.pb.dart';
@@ -54,7 +52,7 @@ class FlowApi {
   // ---- collection ----
   /// Open `<dir>/collection.anki2`. FSRS init runs inside the bridge.
   /// `SetActiveBrowserColumns` stays deferred, so browse uses rslib's columns.
-  Future<void> openCollection(String directory, {bool fsrsDefault = true}) async {
+  Future<void> openCollection(String directory) async {
     dir = directory;
     await Directory(directory).create(recursive: true);
     await Directory(p.join(directory, 'collection.media')).create(recursive: true);
@@ -68,16 +66,8 @@ class FlowApi {
 
   // ---- decks ----
   Future<DeckTreeNode> deckTree() => engine.call(Rpcs.deckTree, DeckTreeRequest(now: Int64(DateTime.now().millisecondsSinceEpoch ~/ 1000)), DeckTreeNode.fromBuffer);
-  Future<int> addDeck(String name) async {
-    final d = await engine.call(Rpcs.newDeck, g.Empty(), Deck.fromBuffer);
-    d.name = name;
-    final r = await engine.call(Rpcs.addDeck, d, OpChangesWithId.fromBuffer);
-    return r.id.toInt();
-  }
   Future<void> renameDeck(int id, String name) => engine.call(Rpcs.renameDeck, RenameDeckRequest(deckId: Int64(id), newName: name), OpChanges.fromBuffer);
-  Future<int> removeDecks(List<int> ids) async => (await engine.call(Rpcs.removeDecks, DeckIds(dids: ids.map(Int64.new)), OpChangesWithCount.fromBuffer)).count;
   Future<List<DeckNameId>> deckNames() async => (await engine.call(Rpcs.getDeckNames, GetDeckNamesRequest(skipEmptyDefault: true, includeFiltered: false), DeckNames.fromBuffer)).entries;
-  Future<void> setDeckCollapsed(int id, bool c) => engine.call(Rpcs.setDeckCollapsed, SetDeckCollapsedRequest(deckId: Int64(id), collapsed: c, scope: SetDeckCollapsedRequest_Scope.REVIEWER), OpChanges.fromBuffer);
   Future<void> setCurrentDeck(int id) => engine.call(Rpcs.setCurrentDeck, DeckId(did: Int64(id)), OpChanges.fromBuffer);
   Future<DeckTreeNode?> deckTreeNode(int id) async {
     DeckTreeNode? walk(DeckTreeNode n) { if (n.deckId.toInt() == id) return n; for (final c in n.children) { final r = walk(c); if (r != null) return r; } return null; }
@@ -88,19 +78,12 @@ class FlowApi {
   Future<List<NotetypeNameId>> notetypeNames() async => (await engine.call(Rpcs.getNotetypeNames, g.Empty(), NotetypeNames.fromBuffer)).entries;
   Future<List<String>> fieldNames(int ntid) async => (await engine.call(Rpcs.getFieldNames, NotetypeId(ntid: Int64(ntid)), g.StringList.fromBuffer)).vals;
   Future<Note> newNote(int ntid) => engine.call(Rpcs.newNote, NotetypeId(ntid: Int64(ntid)), Note.fromBuffer);
-  Future<int> addNote(Note n, int deckId) async => (await engine.call(Rpcs.addNote, AddNoteRequest(note: n, deckId: Int64(deckId)), AddNoteResponse.fromBuffer)).noteId.toInt();
   Future<Note> getNote(int id) => engine.call(Rpcs.getNote, NoteId(nid: Int64(id)), Note.fromBuffer);
-  Future<void> updateNote(Note n) => engine.call(Rpcs.updateNotes, UpdateNotesRequest(notes: [n], skipUndoEntry: false), OpChanges.fromBuffer);
   Future<DeckAndNotetype> defaultsForAdding() => engine.call(Rpcs.defaultsForAdding, DefaultsForAddingRequest(), DeckAndNotetype.fromBuffer);
   Future<List<String>> allTags() async => (await engine.call(Rpcs.allTags, g.Empty(), g.StringList.fromBuffer)).vals;
-  Future<int> removeNotes(List<int> noteIds) async => (await engine.call(Rpcs.removeNotes, RemoveNotesRequest(noteIds: noteIds.map(Int64.new)), OpChangesWithCount.fromBuffer)).count;
   Future<List<int>> cardsOfNote(int nid) async => (await engine.call(Rpcs.cardsOfNote, NoteId(nid: Int64(nid)), CardIds.fromBuffer)).cids.map((e) => e.toInt()).toList();
   /// rslib's field-check (duplicate / empty first field / cloze with no cloze).
   Future<NoteFieldsCheckResponse_State> checkNote(Note n) async => (await engine.call(Rpcs.noteFieldsCheck, n, NoteFieldsCheckResponse.fromBuffer)).state;
-
-  // ---- media ----
-  /// Copies a file into collection.media (rslib decides the final, de-duplicated file name).
-  Future<String> addMediaFromPath(String path) async => (await engine.call(Rpcs.addMediaFromPath, AddMediaFromPathRequest(path: path), g.String.fromBuffer)).val;
 
   // ---- search / browse ----
   Future<String> _builtSearch(String q) async {
@@ -158,13 +141,11 @@ class FlowApi {
   Future<ExtractAvTagsResponse> extractAvTags(String text, bool question) => engine.call(Rpcs.extractAvTags, ExtractAvTagsRequest(text: text, questionSide: question), ExtractAvTagsResponse.fromBuffer);
   Future<UndoStatus> undoStatus() => engine.call(Rpcs.getUndoStatus, g.Empty(), UndoStatus.fromBuffer);
   Future<UndoStatus> undo() async { await engine.call(Rpcs.undo, g.Empty(), OpChangesAfterUndo.fromBuffer); return undoStatus(); }
+  Future<UndoStatus> redo() async { await engine.call(Rpcs.redo, g.Empty(), OpChangesAfterUndo.fromBuffer); return undoStatus(); }
   Future<CongratsInfoResponse> congratsInfo() => engine.call(Rpcs.congratsInfo, g.Empty(), CongratsInfoResponse.fromBuffer);
   Future<String> studiedToday() async => (await engine.call(Rpcs.studiedToday, g.Empty(), g.String.fromBuffer)).val;
 
-  // ---- import / stats ----
-  Future<ImportResponse> importApkg(String path) => engine.call(Rpcs.importAnkiPackage, ImportAnkiPackageRequest(packagePath: path, options: ImportAnkiPackageOptions(mergeNotetypes: true, updateNotes: ImportAnkiPackageUpdateCondition.IMPORT_ANKI_PACKAGE_UPDATE_CONDITION_IF_NEWER, updateNotetypes: ImportAnkiPackageUpdateCondition.IMPORT_ANKI_PACKAGE_UPDATE_CONDITION_IF_NEWER, withScheduling: true, withDeckConfigs: true)), ImportResponse.fromBuffer);
-  /// Export one deck (cards + media only; with_scheduling=false and with_deck_configs=false are FIXED, no parameter) as .apkg through rslib's exporter (used to generate the demo sample deck).
-  Future<int> exportApkg(String outPath, int deckId) async => (await engine.call(Rpcs.exportAnkiPackage, ExportAnkiPackageRequest(outPath: outPath, options: ExportAnkiPackageOptions(withScheduling: false, withDeckConfigs: false, withMedia: true, legacy: false), limit: ExportLimit(deckId: Int64(deckId))), g.UInt32.fromBuffer)).val;
+  // ---- stats ----
   /// FSRS is a collection-wide switch; stats reports it (GraphsResponse.fsrs).
   Future<bool> fsrsEnabled() async => (await graphs(days: 1)).fsrs;
   Future<GraphsResponse> graphs({String search = '', int days = 30}) async {

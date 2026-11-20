@@ -15,7 +15,7 @@ use prost::Message;
 use super::desktop::{require_inside_data_dir, PresentedStates};
 use super::{
     ANSWER_TAKEN_MAX_MILLIS, CARDS, COLLECTION, CONFIG, DECKS, FETCH_LIMIT_MAX, GRAPHS_DAYS_MAX,
-    IMPORT_EXPORT, NOTETYPES, SCHEDULER, SEARCH, STATS,
+    NOTETYPES, SCHEDULER, SEARCH, STATS,
 };
 use crate::api::{dispatch_message, AnkiBackend};
 
@@ -30,7 +30,6 @@ pub(crate) fn prepare(
         (COLLECTION, "close_collection") => validate_close(input),
         (COLLECTION, "undo" | "redo") => validate_undo(input),
         (CONFIG, "get_config_bool") => validate_get_config_bool(input),
-        (IMPORT_EXPORT, "export_anki_package") => validate_export(input),
         (SCHEDULER, "get_queued_cards") => validate_queued(input),
         (SCHEDULER, "answer_card") => validate_answer(backend, input),
         (DECKS, "set_current_deck") => validate_current_deck(backend, input),
@@ -79,41 +78,6 @@ fn validate_get_config_bool(input: &[u8]) -> Result<Vec<u8>, String> {
     let allowed = anki_proto::config::config_key::Bool::NormalizeNoteText as i32;
     if request.key != allowed {
         return Err("only NormalizeNoteText is allowed".into());
-    }
-    Ok(input.to_vec())
-}
-
-fn validate_export(input: &[u8]) -> Result<Vec<u8>, String> {
-    let request = decode::<anki_proto::import_export::ExportAnkiPackageRequest>(input)?;
-    if request.out_path.is_empty() {
-        return Err("out_path is empty".into());
-    }
-    let Some(options) = request.options.as_ref() else {
-        return Err("options are required".into());
-    };
-    if options.with_scheduling {
-        return Err("with_scheduling must be false".into());
-    }
-    if options.with_deck_configs {
-        return Err("with_deck_configs must be false".into());
-    }
-    if !options.with_media {
-        return Err("with_media must be true".into());
-    }
-    if options.legacy {
-        return Err("legacy must be false".into());
-    }
-    match request.limit.and_then(|limit| limit.limit) {
-        Some(anki_proto::import_export::export_limit::Limit::DeckId(_)) => {}
-        Some(anki_proto::import_export::export_limit::Limit::NoteIds(ids))
-            if !ids.note_ids.is_empty() => {}
-        Some(anki_proto::import_export::export_limit::Limit::WholeCollection(_)) => {
-            return Err("limit must be a single deck or a note id list".into());
-        }
-        Some(anki_proto::import_export::export_limit::Limit::CardIds(_)) => {
-            return Err("limit must be a single deck or a note id list".into());
-        }
-        _ => return Err("limit must be a single deck or a note id list".into()),
     }
     Ok(input.to_vec())
 }

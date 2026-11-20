@@ -9,17 +9,22 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:html/dom.dart' as dom;
+import 'package:html/parser.dart' as html_parser;
 import 'package:path/path.dart' as p;
 import 'math_html.dart';
 
 /// Decode cap for a media image. A large source is resized while decoding.
 const kCardImageCacheWidth = 1280;
 
-/// Fields larger than this, or nested or tagged past the caps below, are shown
+/// Cap on [String.length]. That count is UTF-16 code units, not UTF-8 bytes.
+/// A field past this length, or nested or tagged past the caps below, is shown
 /// as plain text so layout cannot recurse without a bound.
 const kCardHtmlMaxBytes = 1 << 20;
 const kCardHtmlMaxDepth = 64;
 const kCardHtmlMaxTags = 2000;
+
+/// How much of an over-cap field is scanned when turning it into plain text.
+const kCardHtmlPlainPrefix = 4000;
 
 /// Network, asset, and data images are never loaded. A `file:` image is loaded
 /// only when its canonical path is a regular file inside [mediaDir].
@@ -56,6 +61,8 @@ File? cardImageFile(String mediaDir, String src) {
     return null;
   }
   if (decoded.isEmpty ||
+      _hasControl(src) ||
+      _hasControl(decoded) ||
       decoded.contains('/') ||
       decoded.contains('\\') ||
       decoded.contains(':') ||
@@ -79,6 +86,13 @@ File? fileInsideMedia(String mediaDir, String url) {
   }
   if (path.isEmpty) return null;
   return _openInsideMedia(mediaDir, path);
+}
+
+bool _hasControl(String value) {
+  for (final unit in value.codeUnits) {
+    if (unit < 0x20 || unit == 0x7f) return true;
+  }
+  return false;
 }
 
 File? _openInsideMedia(String mediaDir, String path) {
@@ -105,28 +119,80 @@ File? _openInsideMedia(String mediaDir, String path) {
   return File(resolved);
 }
 
+/// How many times the depth check parsed HTML. A repeated call with the same
+/// string does not increment this.
+int cardHtmlParseCount = 0;
+
+String? _fallbackHtml;
+bool _fallbackValue = false;
+
+/// Depth of the parsed tree. An unmatched closer such as `</b>` does not
+/// reduce the depth of an open `<div>`, which is what the HTML parser does.
+/// The walk is iterative and returns as soon as the depth passes the cap.
 int cardHtmlTagDepth(String html) {
-  var depth = 0;
-  var maxDepth = 0;
-  final tags = RegExp(r'<\s*(/?)([a-zA-Z][\w:-]*)');
-  const voids = {'br', 'img', 'hr', 'meta', 'link', 'input', 'source', 'wbr', 'area', 'col', 'embed'};
-  for (final match in tags.allMatches(html)) {
-    final name = match.group(2)!.toLowerCase();
-    if (voids.contains(name)) continue;
-    if (match.group(1) == '/') {
-      if (depth > 0) depth--;
-    } else {
-      depth++;
-      if (depth > maxDepth) maxDepth = depth;
+  cardHtmlParseCount++;
+  final root = html_parser.parseFragment(html);
+  final stack = <(dom.Node, int)>[];
+  void pushChildren(dom.Node parent, int parentDepth) {
+    final children = parent.nodes;
+    for (var i = children.length - 1; i >= 0; i--) {
+      final child = children[i];
+      final depth = child is dom.Element ? parentDepth + 1 : parentDepth;
+      stack.add((child, depth));
     }
+  }
+
+  pushChildren(root, 0);
+  var maxDepth = 0;
+  while (stack.isNotEmpty) {
+    final (node, depth) = stack.removeLast();
+    if (depth > maxDepth) maxDepth = depth;
+    if (maxDepth > kCardHtmlMaxDepth) return maxDepth;
+    pushChildren(node, depth);
   }
   return maxDepth;
 }
 
+bool _tooManyTags(String html) {
+  var count = 0;
+  for (var i = 0; i < html.length; i++) {
+    if (html.codeUnitAt(i) != 0x3c) continue;
+    count++;
+    if (count > kCardHtmlMaxTags) return true;
+  }
+  return false;
+}
+
+bool _fallbackUncached(String html) {
+  if (html.length > kCardHtmlMaxBytes || _tooManyTags(html)) return true;
+  return cardHtmlTagDepth(html) > kCardHtmlMaxDepth;
+}
+
+/// True when [html] must be shown as plain text. The tag-count cap runs before
+/// any parse. The decision for one string is remembered so a rebuild does not
+/// parse it again.
 bool cardHtmlNeedsPlainFallback(String html) {
-  return html.length > kCardHtmlMaxBytes ||
-      cardHtmlTagDepth(html) > kCardHtmlMaxDepth ||
-      '<'.allMatches(html).length > kCardHtmlMaxTags;
+  if (html == _fallbackHtml) return _fallbackValue;
+  final value = _fallbackUncached(html);
+  _fallbackHtml = html;
+  _fallbackValue = value;
+  return value;
+}
+
+/// Drops the remembered fallback decision. Widget tests call this so one case
+/// cannot satisfy the next.
+void resetCardHtmlFallbackCache() {
+  _fallbackHtml = null;
+  _fallbackValue = false;
+  cardHtmlParseCount = 0;
+}
+
+/// Plain text for an over-cap field. Only the first [kCardHtmlPlainPrefix]
+/// code units are scanned, and a tag cannot contain another `<`, so a long
+/// run of `<` does not rescan the rest of the string.
+String cardHtmlFallbackText(String html) {
+  final slice = html.length > kCardHtmlPlainPrefix ? html.substring(0, kCardHtmlPlainPrefix) : html;
+  return slice.replaceAll(RegExp(r'<[^<>]*>'), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
 }
 
 class CssRules {
@@ -189,7 +255,7 @@ class CardView extends StatelessWidget {
     final style = TextStyle(color: fg, fontSize: size, fontFamily: family == 'arial' || family == null ? 'Liberation Sans' : family, fontFamilyFallback: const ['NanumGothic'], height: 1.25);
     final alignName = switch (align) { TextAlign.left => 'left', TextAlign.right => 'right', _ => 'center' };
     if (cardHtmlNeedsPlainFallback(html)) {
-      final text = html.replaceAll(RegExp(r'<[^>]*>'), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+      final text = cardHtmlFallbackText(html);
       final shown = text.length > 200 ? text.substring(0, 200) : text;
       return ColoredBox(color: bg, child: Text(shown, key: const ValueKey('card-html-fallback'), style: style));
     }

@@ -17,12 +17,14 @@ import 'package:hatto_desktop/ui/card_html.dart';
 final _requests = <Uri>[];
 
 class _RecordingClient implements HttpClient {
-  _RecordingClient(this.urls);
+  _RecordingClient(this.urls, [this.seen]);
   final List<Uri> urls;
+  final Completer<Uri>? seen;
 
   @override
   Future<HttpClientRequest> getUrl(Uri url) async {
     urls.add(url);
+    if (seen != null && !seen!.isCompleted) seen!.complete(url);
     throw StateError('recorded $url');
   }
 
@@ -39,13 +41,13 @@ const _png = <int>[
   0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
 ];
 
-Widget host(String html, String mediaDir) => MaterialApp(
+Widget host(String html, String mediaDir, {String css = ''}) => MaterialApp(
   debugShowCheckedModeBanner: false,
   home: Material(
     child: SizedBox(
       width: 420,
       height: 280,
-      child: CardView(html: html, css: '', mediaDir: mediaDir),
+      child: CardView(html: html, css: css, mediaDir: mediaDir),
     ),
   ),
 );
@@ -61,14 +63,13 @@ String visibleText(WidgetTester tester) {
   return buffer.toString();
 }
 
-Future<void> show(WidgetTester tester, String html, String mediaDir) async {
+Future<void> show(WidgetTester tester, String html, String mediaDir, {String css = ''}) async {
   debugNetworkImageHttpClientProvider = () => _RecordingClient(_requests);
-  await tester.pumpWidget(host(html, mediaDir));
+  await tester.pumpWidget(host(html, mediaDir, css: css));
   await tester.pump();
-  // NetworkImage.getUrl is asynchronous. Leave the recorder installed until
-  // that call would have happened, then clear it before the test returns.
-  // Flutter checks that this debug hook is unset when a widget test ends.
-  await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 40)));
+  // Image resolves are scheduled as microtasks. An extra frame lets them
+  // record, and the hook is cleared before the test callback returns.
+  await tester.pump(Duration.zero);
   debugNetworkImageHttpClientProvider = null;
 }
 
@@ -78,6 +79,7 @@ void main() {
   late File outside;
 
   setUp(() async {
+    resetCardHtmlFallbackCache();
     _requests.clear();
     root = await Directory.systemTemp.createTemp('hatto-card-html-');
     media = Directory('${root.path}/media')..createSync();
@@ -152,6 +154,56 @@ void main() {
     expect(find.byKey(const ValueKey('card-img')), findsNothing);
     expect(find.byKey(const ValueKey('card-img-placeholder')), findsWidgets);
     expect(_requests, isEmpty);
+  });
+
+  testWidgets('notetype CSS background images do not fetch', (tester) async {
+    const cases = <String>[
+      '.card { background-image: url(https://example.test/card.png); } div { background-image: url(https://example.test/div.png); }',
+      'div { background-image: url(HTTPS://example.test/up.png); }',
+      'div { background-image: url(//example.test/rel.png); }',
+    ];
+    for (final css in cases) {
+      _requests.clear();
+      await show(tester, '<div>x</div>', media.path, css: css);
+      expect(visibleText(tester), contains('x'), reason: css);
+      expect(_requests, isEmpty, reason: css);
+      expect(tester.takeException(), isNull, reason: css);
+    }
+  });
+
+  testWidgets('a data image and a NUL src stay local placeholders', (tester) async {
+    await show(tester, '<img src="data:image/png;base64,AAAA">', media.path);
+    expect(find.byKey(const ValueKey('card-img-placeholder')), findsOneWidget);
+    expect(find.byKey(const ValueKey('card-img')), findsNothing);
+    expect(_requests, isEmpty);
+    expect(tester.takeException(), isNull);
+    await show(tester, '<img src="inside.png\u0000.png">', media.path);
+    expect(find.byKey(const ValueKey('card-img-placeholder')), findsOneWidget);
+    expect(_requests, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('R4 fails without the factory override', (tester) async {
+    final seen = Completer<Uri>();
+    debugNetworkImageHttpClientProvider = () => _RecordingClient(_requests, seen);
+    await tester.pumpWidget(MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: HtmlWidget('<div style="background-image:url(https://example.test/plain.png)">x</div>'),
+    ));
+    await tester.pump();
+    await tester.pump(Duration.zero);
+    expect(seen.isCompleted, isTrue, reason: 'the stock factory did not request the background image');
+    expect(_requests.single.toString(), 'https://example.test/plain.png');
+    while (tester.takeException() != null) {}
+    debugNetworkImageHttpClientProvider = null;
+    _requests.clear();
+    await show(
+      tester,
+      '<div style="background-image:url(https://example.test/plain.png)">x</div>',
+      media.path,
+    );
+    expect(_requests, isEmpty);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('R4 inline background-image does not fetch', (tester) async {
@@ -242,6 +294,47 @@ void main() {
     );
     expect(tester.widget<HtmlWidget>(find.byType(HtmlWidget)).onTapUrl, isNull);
     expect(_requests, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  test('four unmatched closers nest four elements deep', () {
+    expect(cardHtmlTagDepth('<div></b>' * 4), 4);
+  });
+
+  test('oversized tag lists are rejected before a parse', () {
+    resetCardHtmlFallbackCache();
+    final nested = '<div>' * 50000;
+    final flat = '<b>x</b>' * 100000;
+    final watch = Stopwatch()..start();
+    expect(cardHtmlNeedsPlainFallback(nested), isTrue);
+    expect(cardHtmlNeedsPlainFallback(flat), isTrue);
+    expect(watch.elapsed, lessThan(const Duration(milliseconds: 500)));
+    expect(cardHtmlParseCount, 0);
+  });
+
+  test('the fallback decision is cached for one HTML string', () {
+    final html = '<b>x</b>';
+    resetCardHtmlFallbackCache();
+    expect(cardHtmlNeedsPlainFallback(html), isFalse);
+    expect(cardHtmlNeedsPlainFallback(html), isFalse);
+    expect(cardHtmlParseCount, 1);
+  });
+
+  testWidgets('R11 unmatched closers still count as nested elements', (tester) async {
+    final html = '<div></b>' * (kCardHtmlMaxDepth + 8);
+    expect(cardHtmlTagDepth(html), greaterThan(kCardHtmlMaxDepth));
+    await show(tester, html, media.path);
+    expect(find.byKey(const ValueKey('card-html-fallback')), findsOneWidget);
+    expect(_requests, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a megabyte of angle brackets falls back quickly', (tester) async {
+    final html = '<' * (1 << 20);
+    final watch = Stopwatch()..start();
+    await show(tester, html, media.path);
+    expect(watch.elapsed, lessThan(const Duration(seconds: 2)));
+    expect(find.byKey(const ValueKey('card-html-fallback')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

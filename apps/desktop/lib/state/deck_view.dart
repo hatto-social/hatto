@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Deck list rules (pure): which rows are visible, and which auto-created parents must be expanded.
+// Deck list rules (pure): which rows are visible.
 import '../engine/anki_api.dart';
 
 /// Rows in display order. Collapsed decks hide their children. The empty built-in Default deck (id 1, no cards, no children)
@@ -16,14 +16,3 @@ List<DeckTreeNode> visibleDeckRows(DeckTreeNode root) {
   return out.where((n) => !(otherExists && _isEmptyDefault(n))).toList();
 }
 bool _isEmptyDefault(DeckTreeNode n) => n.deckId.toInt() == 1 && n.totalIncludingChildren == 0 && n.children.isEmpty;
-
-/// Names of auto-created ancestors for a new deck set: "A::B::C" created when only "A" existed -> {"A::B"} (and "A" when it was new too).
-Set<String> autoCreatedParents(Set<String> before, Iterable<String> after) {
-  final out = <String>{};
-  for (final n in after) {
-    if (before.contains(n)) continue;
-    final parts = n.split('::');
-    for (var i = 1; i < parts.length; i++) { final anc = parts.take(i).join('::'); if (!before.contains(anc)) out.add(anc); }
-  }
-  return out;
-}
