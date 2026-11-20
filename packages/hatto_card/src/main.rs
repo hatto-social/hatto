@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `hatto-card` — build and check a provisional deck file.
+//! `hatto-card` — build, extend, and check a provisional deck file.
 //!
 //! Collections are temporary directories created by the tool. The process
 //! never opens a user collection.
@@ -11,7 +11,10 @@ use std::env;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use hatto_card::{export_path, failure_json, validate_path, write_skeleton, ToolFailure};
+use hatto_card::{
+    add_note_path, export_path, failure_json, validate_path, write_skeleton, AddNoteGuid,
+    AddNoteRequest, ToolFailure,
+};
 use serde_json::Value;
 
 fn main() -> ExitCode {
@@ -42,7 +45,7 @@ fn main() -> ExitCode {
             } else {
                 eprintln!("hatto-card: {message}");
                 eprintln!(
-                    "usage: hatto-card [--json] new [--output FILE] | validate --deck FILE | export --deck FILE --output FILE"
+                    "usage: hatto-card [--json] new [--output FILE] | validate --deck FILE | export --deck FILE --output FILE | add-note --deck FILE --notetype NAME --field TEXT [--field TEXT ...] [--tag TEXT ...] [--output FILE] [--op-id UUID] [--k N] | [--job-id UUID --source-guid TEXT]"
                 );
             }
             ExitCode::from(2)
@@ -100,9 +103,92 @@ fn dispatch(words: &[String]) -> Result<Value, CliError> {
             )
             .map_err(Failed)
         }
+        "add-note" => add_note(&pairs),
         "" => Err(Usage("missing command".into())),
         other => Err(Usage(format!("unknown command {other}"))),
     }
+}
+
+fn add_note(pairs: &[(&str, &str)]) -> Result<Value, CliError> {
+    only(
+        pairs,
+        &[
+            "--deck",
+            "--output",
+            "--notetype",
+            "--field",
+            "--tag",
+            "--op-id",
+            "--k",
+            "--job-id",
+            "--source-guid",
+        ],
+    )?;
+    let deck = required(pairs, "--deck")?;
+    let notetype = required(pairs, "--notetype")?;
+    let fields = repeated(pairs, "--field");
+    if fields.is_empty() {
+        return Err(Usage("missing --field".into()));
+    }
+    let output = optional(pairs, "--output")?;
+    let request = AddNoteRequest {
+        notetype: notetype.to_string(),
+        fields: fields.into_iter().map(str::to_string).collect(),
+        tags: repeated(pairs, "--tag")
+            .into_iter()
+            .map(str::to_string)
+            .collect(),
+        guid: guid_mode(pairs)?,
+    };
+    add_note_path(
+        PathBuf::from(deck).as_path(),
+        output.map(PathBuf::from).as_deref(),
+        &request,
+    )
+    .map_err(Failed)
+}
+
+/// Local is the default. `--job-id` and `--source-guid` select an import and
+/// cannot be combined with `--op-id` or `--k`.
+fn guid_mode(pairs: &[(&str, &str)]) -> Result<AddNoteGuid, CliError> {
+    let op_id = optional(pairs, "--op-id")?;
+    let k_text = optional(pairs, "--k")?;
+    let job_id = optional(pairs, "--job-id")?;
+    let source_guid = optional(pairs, "--source-guid")?;
+    let local = op_id.is_some() || k_text.is_some();
+    let imported = job_id.is_some() || source_guid.is_some();
+    if local && imported {
+        return Err(Usage(
+            "--job-id and --source-guid cannot be combined with --op-id or --k".into(),
+        ));
+    }
+    if imported {
+        let job_id = job_id.ok_or_else(|| Usage("missing --job-id".into()))?;
+        let source_guid = source_guid.ok_or_else(|| Usage("missing --source-guid".into()))?;
+        return Ok(AddNoteGuid::Imported {
+            job_id: job_id.to_string(),
+            source_guid: source_guid.to_string(),
+        });
+    }
+    let k = match k_text {
+        Some(text) => Some(
+            text.parse::<u32>()
+                .map_err(|_| Usage(format!("--k is not a u32: {text}")))?,
+        ),
+        None => None,
+    };
+    Ok(AddNoteGuid::Local {
+        op_id: op_id.map(str::to_string),
+        k,
+    })
+}
+
+fn repeated<'a>(pairs: &[(&'a str, &'a str)], name: &str) -> Vec<&'a str> {
+    pairs
+        .iter()
+        .filter(|(key, _)| *key == name)
+        .map(|(_, value)| *value)
+        .collect()
 }
 
 fn pairs(words: &[String]) -> Result<Vec<(&str, &str)>, CliError> {
