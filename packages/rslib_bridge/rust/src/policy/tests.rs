@@ -226,12 +226,12 @@ fn allowlist_names_resolve_and_counts_match() {
             Status::Deferred => deferred += 1,
         }
     }
-    assert_eq!(validated, 16);
+    assert_eq!(validated, 14);
     assert_eq!(name_only, 58);
-    assert_eq!(pending, 13);
+    assert_eq!(pending, 15);
     assert_eq!(deferred, 1);
     assert_eq!(ALLOWLIST.len(), 88);
-    assert_eq!(forwarded_names().len(), 74);
+    assert_eq!(forwarded_names().len(), 72);
 
     let pending_methods: std::collections::HashSet<_> = ALLOWLIST
         .iter()
@@ -244,7 +244,9 @@ fn allowlist_names_resolve_and_counts_match() {
         "rename_deck",
         "reparent_decks",
         "remove_decks",
+        "add_note",
         "add_notes",
+        "update_notes",
         "add_notetype",
         "update_notetype",
         "remove_notetype",
@@ -255,7 +257,7 @@ fn allowlist_names_resolve_and_counts_match() {
     ] {
         assert!(pending_methods.contains(method), "{method}");
     }
-    assert_eq!(pending_methods.len(), 13);
+    assert_eq!(pending_methods.len(), 15);
 }
 
 #[test]
@@ -318,7 +320,7 @@ fn desktop_denies_calls_outside_the_allowed_70() {
         denied += 1;
     }
     assert!(denied > 14, "denied {denied}");
-    assert_eq!(pending, 13);
+    assert_eq!(pending, 15);
 }
 
 #[test]
@@ -1742,10 +1744,7 @@ fn open_collection_sends_the_canonical_path() {
     let expected_collection = stored.join("collection.anki2");
     let expected_media = stored.join("collection.media");
     let expected_db = stored.join("collection.media.db");
-    assert_eq!(
-        request.collection_path,
-        expected_collection.to_string_lossy()
-    );
+    assert_eq!(request.collection_path, expected_collection.to_string_lossy());
     assert_eq!(request.media_folder_path, expected_media.to_string_lossy());
     assert_eq!(request.media_db_path, expected_db.to_string_lossy());
     assert_ne!(request.collection_path, spelled);
@@ -1781,257 +1780,4 @@ fn a_caught_panic_poisons_the_session() {
         "{}",
         message_of(&later)
     );
-}
-
-fn fresh_basic_note(backend: &crate::api::AnkiBackend) -> anki_proto::notes::Note {
-    let id_bytes = dispatch_message(
-        backend,
-        "BackendNotetypesService",
-        "get_notetype_id_by_name",
-        &anki_proto::generic::String {
-            val: "Basic".into(),
-        },
-    )
-    .unwrap();
-    let notetype = anki_proto::notetypes::NotetypeId::decode(id_bytes.as_slice()).unwrap();
-    let bytes = dispatch_message(backend, "BackendNotesService", "new_note", &notetype).unwrap();
-    let mut note = anki_proto::notes::Note::decode(bytes.as_slice()).unwrap();
-    note.fields[0] = "앞".into();
-    note.fields[1] = "<b>뒤</b> <img src=\"paste-abc.png\">".into();
-    note
-}
-
-fn add_request(note: anki_proto::notes::Note, deck_id: i64) -> anki_proto::notes::AddNoteRequest {
-    anki_proto::notes::AddNoteRequest {
-        note: Some(note),
-        deck_id,
-    }
-}
-
-#[test]
-fn validates_add_note() {
-    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
-    let paths = col_paths(dir.path());
-    let backend = open_desktop_collection(&paths);
-    let added = call(
-        &backend,
-        "BackendNotesService",
-        "add_note",
-        &add_request(fresh_basic_note(&backend), 1),
-    );
-    assert!(added.success, "{}", message_of(&added));
-
-    let mut with_id = fresh_basic_note(&backend);
-    with_id.id = 7;
-    let denied = call(
-        &backend,
-        "BackendNotesService",
-        "add_note",
-        &add_request(with_id, 1),
-    );
-    assert!(
-        message_of(&denied).contains("id"),
-        "{}",
-        message_of(&denied)
-    );
-
-    let mut short = fresh_basic_note(&backend);
-    short.fields.pop();
-    let denied = call(
-        &backend,
-        "BackendNotesService",
-        "add_note",
-        &add_request(short, 1),
-    );
-    assert!(
-        message_of(&denied).contains("field count"),
-        "{}",
-        message_of(&denied)
-    );
-
-    let denied = call(
-        &backend,
-        "BackendNotesService",
-        "add_note",
-        &add_request(fresh_basic_note(&backend), 99),
-    );
-    assert!(
-        message_of(&denied).contains("deck"),
-        "{}",
-        message_of(&denied)
-    );
-
-    let filtered = create_filtered_deck(&backend);
-    let denied = call(
-        &backend,
-        "BackendNotesService",
-        "add_note",
-        &add_request(fresh_basic_note(&backend), filtered),
-    );
-    assert!(
-        message_of(&denied).contains("normal"),
-        "{}",
-        message_of(&denied)
-    );
-
-    for (label, field) in [
-        ("control", "a\u{0001}b"),
-        ("script", "<SCRIPT>x</script>"),
-        ("event", "<b onerror =alert(1)>x</b>"),
-        ("url", "<a href=\"java&#115;cript:alert(1)\">x</a>"),
-        ("img-abs", "<img src=\"/etc/x.png\">"),
-        ("img-dot", "<img src=\"../x.png\">"),
-        ("sound", "[sound:../evil.mp3]"),
-        ("space-tag", "ok"),
-    ] {
-        let mut note = fresh_basic_note(&backend);
-        if label == "space-tag" {
-            note.tags = vec!["bad tag".into()];
-        } else {
-            note.fields[0] = field.into();
-        }
-        let denied = call(
-            &backend,
-            "BackendNotesService",
-            "add_note",
-            &add_request(note, 1),
-        );
-        assert!(
-            !denied.success,
-            "{label} was allowed: {}",
-            message_of(&denied)
-        );
-    }
-
-    let mut huge = fresh_basic_note(&backend);
-    huge.fields[0] = "a".repeat(512 * 1024 + 1);
-    let denied = call(
-        &backend,
-        "BackendNotesService",
-        "add_note",
-        &add_request(huge, 1),
-    );
-    assert!(
-        message_of(&denied).contains("512"),
-        "{}",
-        message_of(&denied)
-    );
-}
-
-#[test]
-fn validates_update_notes() {
-    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
-    let paths = col_paths(dir.path());
-    let backend = open_desktop_collection(&paths);
-    let note_id = add_basic_note(&backend);
-    let mut current = load_saved_note(&backend, note_id);
-    current.fields[0] = "고친 앞".into();
-    let updated = call(
-        &backend,
-        "BackendNotesService",
-        "update_notes",
-        &anki_proto::notes::UpdateNotesRequest {
-            notes: vec![current.clone()],
-            skip_undo_entry: false,
-        },
-    );
-    assert!(updated.success, "{}", message_of(&updated));
-
-    let again = load_saved_note(&backend, note_id);
-    let noop = call(
-        &backend,
-        "BackendNotesService",
-        "update_notes",
-        &anki_proto::notes::UpdateNotesRequest {
-            notes: vec![again.clone()],
-            skip_undo_entry: false,
-        },
-    );
-    assert!(noop.success, "{}", message_of(&noop));
-
-    let mut scripted = fresh_basic_note(&backend);
-    scripted.fields[1] = "<script>kept</script>".into();
-    let stored = dispatch_message(
-        &backend,
-        "BackendNotesService",
-        "add_note",
-        &add_request(scripted, 1),
-    )
-    .unwrap();
-    let stored_id = anki_proto::notes::AddNoteResponse::decode(stored.as_slice())
-        .unwrap()
-        .note_id;
-    let mut legacy = load_saved_note(&backend, stored_id);
-    assert!(legacy.fields[1].to_ascii_lowercase().contains("script"));
-    legacy.fields[0] = "다른 필드만".into();
-    let kept = call(
-        &backend,
-        "BackendNotesService",
-        "update_notes",
-        &anki_proto::notes::UpdateNotesRequest {
-            notes: vec![legacy.clone()],
-            skip_undo_entry: false,
-        },
-    );
-    assert!(kept.success, "{}", message_of(&kept));
-
-    let mut skip = load_saved_note(&backend, note_id);
-    let denied = call(
-        &backend,
-        "BackendNotesService",
-        "update_notes",
-        &anki_proto::notes::UpdateNotesRequest {
-            notes: vec![skip.clone()],
-            skip_undo_entry: true,
-        },
-    );
-    assert!(
-        message_of(&denied).contains("skip_undo_entry"),
-        "{}",
-        message_of(&denied)
-    );
-
-    skip.guid = "changed".into();
-    let denied = call(
-        &backend,
-        "BackendNotesService",
-        "update_notes",
-        &anki_proto::notes::UpdateNotesRequest {
-            notes: vec![skip],
-            skip_undo_entry: false,
-        },
-    );
-    assert!(
-        message_of(&denied).contains("guid"),
-        "{}",
-        message_of(&denied)
-    );
-
-    let mut changed = load_saved_note(&backend, note_id);
-    changed.fields[0] = "<script>no</script>".into();
-    let denied = call(
-        &backend,
-        "BackendNotesService",
-        "update_notes",
-        &anki_proto::notes::UpdateNotesRequest {
-            notes: vec![changed],
-            skip_undo_entry: false,
-        },
-    );
-    assert!(
-        message_of(&denied).contains("script"),
-        "{}",
-        message_of(&denied)
-    );
-}
-
-fn load_saved_note(backend: &crate::api::AnkiBackend, id: i64) -> anki_proto::notes::Note {
-    let bytes = dispatch_message(
-        backend,
-        "BackendNotesService",
-        "get_note",
-        &anki_proto::notes::NoteId { nid: id },
-    )
-    .unwrap();
-    anki_proto::notes::Note::decode(bytes.as_slice()).unwrap()
 }

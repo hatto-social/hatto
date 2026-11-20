@@ -13,7 +13,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use prost::Message;
 
 use super::desktop::{require_inside_data_dir, PresentedStates};
-use super::field_guard::{check_deck_name, check_field, check_tags};
 use super::{
     ANSWER_TAKEN_MAX_MILLIS, CARDS, COLLECTION, CONFIG, DECKS, FETCH_LIMIT_MAX, GRAPHS_DAYS_MAX,
     IMPORT_EXPORT, NOTES, NOTETYPES, SCHEDULER, SEARCH, STATS,
@@ -40,8 +39,6 @@ pub(crate) fn prepare(
         (NOTETYPES, "get_cloze_field_ords") => validate_cloze_field_ords(backend, input),
         (DECKS, "add_deck") => validate_add_deck(backend, input),
         (NOTES, "remove_notes") => validate_remove_notes(backend, input),
-        (NOTES, "add_note") => validate_add_note(backend, input),
-        (NOTES, "update_notes") => validate_update_notes(backend, input),
         (SEARCH, "search_notes" | "search_cards") => validate_search(backend, input),
         _ => Ok(input.to_vec()),
     }
@@ -241,7 +238,9 @@ fn require_built_search(backend: &AnkiBackend, search: &str) -> Result<(), Strin
 
 fn validate_add_deck(_backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String> {
     let deck = decode::<anki_proto::decks::Deck>(input)?;
-    check_deck_name(&deck.name)?;
+    if deck.name.is_empty() || deck.name.split("::").any(|part| part.is_empty()) {
+        return Err("deck name is empty or has an empty segment".into());
+    }
     if deck.kind.is_none() || matches!(deck.kind, Some(anki_proto::decks::deck::Kind::Filtered(_)))
     {
         return Err("deck must be a normal deck".into());
@@ -249,97 +248,6 @@ fn validate_add_deck(_backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, St
     // rslib creates missing parents for "A::B". Requiring the parent first
     // would reject that request. The name is still checked for empty parts.
     Ok(input.to_vec())
-}
-
-fn validate_add_note(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String> {
-    let request = decode::<anki_proto::notes::AddNoteRequest>(input)?;
-    let Some(note) = request.note.as_ref() else {
-        return Err("note is required".into());
-    };
-    if note.id != 0 {
-        return Err("note id must be 0".into());
-    }
-    let notetype = load_notetype(backend, note.notetype_id)?;
-    if note.fields.len() != notetype.fields.len() {
-        return Err("field count does not match the notetype".into());
-    }
-    require_normal_deck(backend, request.deck_id)?;
-    for field in &note.fields {
-        check_field(field)?;
-    }
-    check_tags(&note.tags)?;
-    Ok(input.to_vec())
-}
-
-fn validate_update_notes(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String> {
-    let request = decode::<anki_proto::notes::UpdateNotesRequest>(input)?;
-    if request.skip_undo_entry {
-        return Err("skip_undo_entry must be false".into());
-    }
-    if request.notes.len() != 1 {
-        return Err("update_notes accepts exactly one note".into());
-    }
-    let note = &request.notes[0];
-    let current = load_note(backend, note.id)?;
-    if note.guid != current.guid {
-        return Err("guid must not change".into());
-    }
-    if note.notetype_id != current.notetype_id {
-        return Err("notetype must not change".into());
-    }
-    if note.fields.len() != current.fields.len() {
-        return Err("field count must not change".into());
-    }
-    check_tags(&note.tags)?;
-    for (next, previous) in note.fields.iter().zip(current.fields.iter()) {
-        if next != previous {
-            check_field(next)?;
-        }
-    }
-    Ok(input.to_vec())
-}
-
-fn load_notetype(
-    backend: &AnkiBackend,
-    id: i64,
-) -> Result<anki_proto::notetypes::Notetype, String> {
-    let bytes = dispatch_message(
-        backend,
-        NOTETYPES,
-        "get_notetype",
-        &anki_proto::notetypes::NotetypeId { ntid: id },
-    )
-    .map_err(|_| format!("notetype {id} does not exist"))?;
-    decode(&bytes)
-}
-
-fn load_note(backend: &AnkiBackend, id: i64) -> Result<anki_proto::notes::Note, String> {
-    let bytes = dispatch_message(
-        backend,
-        NOTES,
-        "get_note",
-        &anki_proto::notes::NoteId { nid: id },
-    )
-    .map_err(|_| format!("note {id} does not exist"))?;
-    decode(&bytes)
-}
-
-fn require_normal_deck(backend: &AnkiBackend, id: i64) -> Result<(), String> {
-    if id == 0 {
-        return Err("deck does not exist".into());
-    }
-    let bytes = dispatch_message(
-        backend,
-        DECKS,
-        "get_deck",
-        &anki_proto::decks::DeckId { did: id },
-    )
-    .map_err(|_| format!("deck {id} does not exist"))?;
-    let deck = decode::<anki_proto::decks::Deck>(&bytes)?;
-    if matches!(deck.kind, Some(anki_proto::decks::deck::Kind::Filtered(_))) {
-        return Err("deck must be a normal deck".into());
-    }
-    Ok(())
 }
 
 fn validate_remove_notes(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String> {
@@ -361,6 +269,7 @@ fn validate_remove_notes(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>,
     }
     Ok(input.to_vec())
 }
+
 
 fn validate_bury(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String> {
     let request = decode::<anki_proto::scheduler::BuryOrSuspendCardsRequest>(input)?;
