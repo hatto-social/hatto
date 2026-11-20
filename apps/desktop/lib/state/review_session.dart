@@ -24,8 +24,8 @@ class ReviewSession {
   final _clock = Stopwatch();
   CongratsInfoResponse? congrats;
   RenderedCard? rendered;
-  bool get canUndo => undoLabel != null && undoLabel!.isNotEmpty;
-  bool get canRedo => redoLabel != null && redoLabel!.isNotEmpty;
+  bool get canUndo => isAnswerOp(undoLabel);
+  bool get canRedo => isAnswerOp(redoLabel);
   int get cardId => current?.card.id.toInt() ?? 0;
   int get noteId => current?.card.noteId.toInt() ?? 0;
   QueuedCards_Queue get queue => current?.queue ?? QueuedCards_Queue.NEW;
@@ -58,16 +58,19 @@ class ReviewSession {
     await loadNext();
   }
 
-  /// rslib undo (of the last undoable op, normally the last answer), then re-fetch the queue (the card comes back at the front).
+  /// Undo only when the top of the stack is an answer. A rename or other
+  /// op stays put, and [answered] moves only for that answer.
   Future<void> undo() async {
-    if (!canUndo) return;
+    final status = await api.undoStatus();
+    if (!isAnswerOp(status.undo)) return;
     await api.undo();
     if (answered > 0) answered--;
     await loadNext();
   }
 
   Future<void> redo() async {
-    if (!canRedo) return;
+    final status = await api.undoStatus();
+    if (!isAnswerOp(status.redo)) return;
     await api.redo();
     answered++;
     await loadNext();
@@ -76,3 +79,6 @@ class ReviewSession {
   Future<void> suspendCurrent() async { await api.suspendCards([cardId]); await loadNext(); }
   // Bury is denied by the call policy (2026-11-19); the reviewer shows it greyed out.
 }
+
+/// Undo labels for Op::AnswerCard. The desktop languages are Korean, then English.
+bool isAnswerOp(String? label) => label == '카드 학습' || label == 'Answer Card';

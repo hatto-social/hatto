@@ -191,6 +191,34 @@ void main() {
     expect(find.text('이번 세션에서 1장 답했어요.'), findsOneWidget);
   });
 
+  testWidgets('undo leaves a non-answer on the stack and keeps the answered count', (t) async {
+    await boot(t, () async { await api.renameDeck(1, '이름바꿈'); }, seeded: [('q1', 'a1')]);
+    await tapKey(t, 'deck-이름바꿈');
+    await tapKey(t, 'study-now');
+    await tapKey(t, 'rv-more');
+    expect(find.text('실행 취소 (할 것 없음)'), findsOneWidget);
+    await tapKey(t, 'window-close');
+    await t.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await t.sendKeyDownEvent(LogicalKeyboardKey.keyZ);
+    await settle(t);
+    await t.sendKeyUpEvent(LogicalKeyboardKey.keyZ);
+    await t.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    expect(find.byKey(const ValueKey('show-answer')), findsOneWidget);
+    expect(app.session!.answered, 0);
+    await tapKey(t, 'show-answer');
+    await tapKey(t, 'ans-easy');
+    expect(find.text('이번 세션에서 1장 답했어요.'), findsOneWidget);
+    await tapKey(t, 'congrats-undo');
+    expect(app.session!.answered, 0);
+    expect(find.byKey(const ValueKey('show-answer')), findsOneWidget);
+    await tapKey(t, 'rv-more');
+    expect(find.text('실행 취소 (할 것 없음)'), findsOneWidget);
+    await tapKey(t, 'window-close');
+    await tapKey(t, 'nav-decks');
+    expect(find.byKey(const ValueKey('deck-이름바꿈')), findsOneWidget);
+    expect(find.byKey(const ValueKey('deck-Default')), findsNothing);
+  });
+
   testWidgets('reviewer: first-review hint uses the real button labels; disappears after the first answer; bury greyed in More menu; suspend works', (t) async {
     await boot(t, () async {}, seeded: [('q1', 'a1'), ('q2', 'a2'), ('q3', 'a3')]);
     await tapKey(t, 'deck-Default'); await tapKey(t, 'study-now');
