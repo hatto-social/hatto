@@ -10,7 +10,6 @@ import '../state/app_controller.dart';
 import 'browse_screen.dart';
 import 'common.dart';
 import 'deck_screens.dart';
-import 'note_windows.dart';
 import 'reviewer_screen.dart';
 import 'stats_screen.dart';
 
@@ -27,14 +26,6 @@ class _MainShellState extends State<MainShell> {
   @override void dispose() { app.removeListener(_on); _toastTimer?.cancel(); super.dispose(); }
   void _on() { if (!mounted) return; if (app.message != null) { _toastTimer?.cancel(); _toastTimer = Timer(const Duration(seconds: 5), () { app.clearToast(); if (mounted) setState(() {}); }); } setState(() {}); }
 
-  Future<void> _add() async {
-    await showWindow<void>(context, builder: (c) => AddNoteWindow(app: app, colors: widget.colors, demoImage: widget.demoImage));
-    await app.refreshDecks();
-  }
-  Future<void> _edit(int noteId) async {
-    await showWindow<void>(context, builder: (c) => EditNoteWindow(app: app, colors: widget.colors, noteId: noteId));
-    if (app.session != null) { await app.session!.loadNext(); app.touch(); }
-  }
   Future<void> _import() async {
     app.toast('가져오기는 이 버전에 없습니다.');
   }
@@ -45,7 +36,7 @@ class _MainShellState extends State<MainShell> {
     final body = switch (s) {
       Screen.decks => DeckBrowserScreen(app: app, onImport: _import),
       Screen.overview => OverviewScreen(app: app),
-      Screen.review => ReviewerScreen(app: app, onEdit: _edit),
+      Screen.review => ReviewerScreen(app: app),
       Screen.browse => BrowseScreen(app: app),
       Screen.stats => StatsScreen(app: app),
     };
@@ -56,7 +47,7 @@ class _MainShellState extends State<MainShell> {
         Center(child: Container(key: const ValueKey('toolbar'), height: 33, padding: const EdgeInsets.symmetric(horizontal: 6),
           decoration: BoxDecoration(color: k.dark ? const Color(0xff363636) : const Color(0xfffafafa), borderRadius: const BorderRadius.vertical(bottom: Radius.circular(14)), boxShadow: k.dark ? const [] : kShadowSoft),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            link('덱', 'nav-decks', s == Screen.decks || s == Screen.overview, () => app.go(Screen.decks)), link('추가', 'nav-add', false, _add),
+            link('덱', 'nav-decks', s == Screen.decks || s == Screen.overview, () => app.go(Screen.decks)), link('추가', 'nav-add', false, null),
             link('찾아보기', 'nav-browse', s == Screen.browse, () => app.go(Screen.browse)), link('통계', 'nav-stats', s == Screen.stats, () => app.go(Screen.stats)), link('동기화', 'nav-sync', false, null)]))),
         Expanded(child: body),
       ]),

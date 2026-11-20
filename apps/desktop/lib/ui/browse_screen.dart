@@ -4,11 +4,9 @@
 
 // Browse: rslib search syntax -> cards table (cells computed by rslib's browser_table), sidebar of decks/states, editor pane, suspend/bury/delete/set due.
 // Layout after reference/ref_browse.png (sidebar | table | editor).
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../editor/anki_ui.dart';
-import '../editor/note_editor.dart';
 import '../engine/anki_api.dart';
 import '../state/app_controller.dart';
 import '../state/browse_actions.dart';
@@ -32,15 +30,12 @@ class _BrowseScreenState extends State<BrowseScreen> {
   final qFocus = FocusNode();
   List<int> ids = []; final rows = <int, BrowserRow>{}; final sel = <int>{}; int? anchor; String? error; String info = '';
   List<DeckNameId> decks = []; int sortCol = 0; bool sortRev = false;
-  final edKey = GlobalKey<NoteEditorState>();
-  Note? note; List<String> names = []; int? noteCard; Timer? _deb; bool dirty = false;
 
   @override void initState() { super.initState(); _init(); }
   Future<void> _init() async { decks = await api.deckNames(); await _search(); }
-  @override void dispose() { _deb?.cancel(); q.dispose(); qFocus.dispose(); super.dispose(); }
+  @override void dispose() { q.dispose(); qFocus.dispose(); super.dispose(); }
 
   Future<void> _search() async {
-    await _saveNote();
     try {
       final ids2 = await api.searchCards(q.text.trim(), column: kBrowserColumns[sortCol], reverse: sortRev);
       final shown = ids2.take(400).toList();
@@ -49,36 +44,18 @@ class _BrowseScreenState extends State<BrowseScreen> {
       ids = shown; error = null; info = '${ids2.length}장 중 ${shown.length}장 표시';
       sel.removeWhere((e) => !rows.containsKey(e));
     } on BackendException catch (e) { error = e.error.message; ids = []; }
-    await _loadNote();
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _loadNote() async {
-    if (sel.length == 1) {
-      final cid = sel.first; if (cid == noteCard && note != null) return;
-      final c = await api.getCard(cid); final n = await api.getNote(c.noteId.toInt()); names = await api.fieldNames(n.notetypeId.toInt());
-      note = n; noteCard = cid; dirty = false;
-    } else { note = null; noteCard = null; }
-  }
-  Future<void> _saveNote() async {
-    _deb?.cancel(); final st = edKey.currentState; final n = note;
-    if (!dirty || st == null || n == null) return;
-    n.fields..clear()..addAll(st.saveAll()); n.tags..clear()..addAll(st.currentTags);
-    await api.updateNote(n); dirty = false;
-    final cid = noteCard; if (cid != null) { rows[cid] = await api.browserRow(cid); }
     if (mounted) setState(() {});
   }
 
   Future<void> _select(int id) async {
     final ctrl = HardwareKeyboard.instance.isControlPressed, shift = HardwareKeyboard.instance.isShiftPressed;
-    await _saveNote();
     if (shift && anchor != null) { final a = ids.indexOf(anchor!), b = ids.indexOf(id); sel..clear()..addAll(ids.sublist(a < b ? a : b, (a < b ? b : a) + 1)); }
     else if (ctrl) { sel.contains(id) ? sel.remove(id) : sel.add(id); anchor = id; }
     else { sel..clear()..add(id); anchor = id; }
-    note = null; noteCard = null; await _loadNote(); if (mounted) setState(() {});
+    if (mounted) setState(() {});
   }
 
-  Future<void> _act(Future<void> Function() f) async { await _saveNote(); await f(); await widget.app.refreshDecks(); final keep = Set.of(sel); await _search(); sel..clear()..addAll(keep.where(rows.containsKey)); await _loadNote(); if (mounted) setState(() {}); }
+  Future<void> _act(Future<void> Function() f) async { await f(); await widget.app.refreshDecks(); final keep = Set.of(sel); await _search(); sel..clear()..addAll(keep.where(rows.containsKey)); if (mounted) setState(() {}); }
 
 
   @override
@@ -135,11 +112,7 @@ class _BrowseScreenState extends State<BrowseScreen> {
   static String _clean(String s) => s.replaceAll(RegExp(r'<[^>]*>'), ' ').replaceAll('&nbsp;', ' ').trim();
 
   Widget _pane(AnkiColors k) {
-    final n = note;
-    if (n == null) return Center(child: Text(sel.isEmpty ? '카드를 선택하면 오른쪽에서 노트를 편집할 수 있어요' : '여러 장이 선택됐어요 (${sel.length})', key: const ValueKey('browse-pane-empty'), style: ankiText(k, color: k.fgSubtle)));
-    return KeyedSubtree(key: ValueKey('pane-$noteCard'), child: NoteEditor(key: edKey, colors: k, mediaDir: api.mediaDir, showChrome: false, autofocus: false, tags: n.tags.toList(), editableTags: true,
-      fields: [for (var i = 0; i < names.length; i++) NoteFieldSpec(names[i], n.fields[i])],
-      onChanged: () { dirty = true; _deb?.cancel(); _deb = Timer(const Duration(milliseconds: 700), _saveNote); }));
+    return Center(child: Text('노트 편집은 이 버전에 없습니다.', key: const ValueKey('browse-pane-empty'), style: ankiText(k, color: k.fgSubtle)));
   }
 }
 

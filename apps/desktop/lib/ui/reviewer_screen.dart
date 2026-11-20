@@ -15,8 +15,8 @@ import 'common.dart';
 import 'copy.dart';
 
 class ReviewerScreen extends StatefulWidget {
-  const ReviewerScreen({super.key, required this.app, required this.onEdit});
-  final AppController app; final Future<void> Function(int noteId) onEdit;
+  const ReviewerScreen({super.key, required this.app});
+  final AppController app;
   @override State<ReviewerScreen> createState() => _ReviewerScreenState();
 }
 
@@ -57,7 +57,7 @@ class _ReviewerScreenState extends State<ReviewerScreen> {
       if (!isQ && s.answered == 0 && widget.app.fsrsOn) _hint(k),
       Container(height: 68, decoration: BoxDecoration(color: k.canvas, border: Border(top: BorderSide(color: k.border))), padding: const EdgeInsets.symmetric(horizontal: 10),
         child: Stack(alignment: Alignment.center, children: [
-          Align(alignment: Alignment.centerLeft, child: PillButton('편집', key: const ValueKey('rv-edit'), width: 80, onTap: () => widget.onEdit(s.noteId))),
+          const Align(alignment: Alignment.centerLeft, child: SizedBox(width: 80)),
           Align(alignment: Alignment.center, child: isQ ? _showAnswerBar(k) : _answerBar(k)),
           Align(alignment: Alignment.centerRight, child: PillButton('더 보기 ▾', key: const ValueKey('rv-more'), width: 80, onTap: () => _more(context, k))),
         ])),
