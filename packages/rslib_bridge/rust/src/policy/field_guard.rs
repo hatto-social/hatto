@@ -6,6 +6,12 @@
 //!
 //! This is not a sanitizer and not a proof that the field is safe. A field
 //! that fails any rule is denied. A field that passes is still untrusted.
+//!
+//! Product decision (2026-11-20), recorded before this branch is contracted:
+//! saving a field must preserve HTML byte-for-byte. `<script>` and `<iframe>`
+//! must not be stripped or rejected on save. The reviewer renderer is what
+//! must refuse to execute them. Do not ship this reject list as the save rule
+//! until that decision replaces F3.
 
 const FIELD_MAX_BYTES: usize = 512 * 1024;
 

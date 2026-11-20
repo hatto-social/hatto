@@ -5,6 +5,11 @@
 // STAND-IN sanitizer. GAP: the Hatto repo has no Dart sanitizer yet (scope doc E9(다) specifies one for paste;
 // anki rslib only has dead-code `ammonia::clean`). This stand-in is NOT a security boundary; it exists so the
 // source-edit save path and the HTML paste path have a hook with the contract's shape:
+//
+// Product decision (2026-11-20): saving a field must preserve HTML byte-for-byte.
+// `<script>` and `<iframe>` must NOT be stripped on save. The renderer is what
+// must refuse to execute them. Do not treat this stand-in, or the Rust
+// field_guard reject list, as the save rule until that decision is applied.
 //   - returns the input UNCHANGED (byte-exact) when nothing needs removing,
 //   - otherwise removes unsafe nodes/attrs and reports how many things were removed (never silent).
 import 'package:html/dom.dart' as dom;
