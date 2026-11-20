@@ -32,7 +32,7 @@ working `librslib_bridge.so` and an Android APK.
 
 | Tool | Version |
 | --- | --- |
-| Rust | 1.97.1 (`rust-toolchain.toml`, same as Anki 26.09.3). Targets: `x86_64-unknown-linux-gnu`, `aarch64-linux-android`, `armv7-linux-androideabi`, `x86_64-linux-android`, `aarch64-apple-darwin`. |
+| Rust | 1.97.1 (`rust-toolchain.toml`, same as Anki 26.09.3). Targets: `x86_64-unknown-linux-gnu`, `aarch64-linux-android`, `armv7-linux-androideabi`, `x86_64-linux-android`, `aarch64-apple-darwin`, `x86_64-apple-darwin`. |
 | protoc | 31.1, on `PATH` as `protoc`. `.cargo/config.toml` sets `PROTOC=protoc`. |
 | Flutter | 3.47.9 (Dart 3.13.7). |
 | Android SDK | `platforms;android-36`, `build-tools;36.0.0`. |
