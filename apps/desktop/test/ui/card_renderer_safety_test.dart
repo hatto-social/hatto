@@ -296,6 +296,29 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  test('four unmatched closers nest four elements deep', () {
+    expect(cardHtmlTagDepth('<div></b>' * 4), 4);
+  });
+
+  test('oversized tag lists are rejected before a parse', () {
+    cardHtmlParseCount = 0;
+    final nested = '<div>' * 50000;
+    final flat = '<b>x</b>' * 100000;
+    final watch = Stopwatch()..start();
+    expect(cardHtmlNeedsPlainFallback(nested), isTrue);
+    expect(cardHtmlNeedsPlainFallback(flat), isTrue);
+    expect(watch.elapsed, lessThan(const Duration(milliseconds: 500)));
+    expect(cardHtmlParseCount, 0);
+  });
+
+  test('the fallback decision is cached for one HTML string', () {
+    final html = '<b>x</b>';
+    cardHtmlParseCount = 0;
+    expect(cardHtmlNeedsPlainFallback(html), isFalse);
+    expect(cardHtmlNeedsPlainFallback(html), isFalse);
+    expect(cardHtmlParseCount, 1);
+  });
+
   testWidgets('R11 unmatched closers still count as nested elements', (tester) async {
     final html = '<div></b>' * (kCardHtmlMaxDepth + 8);
     expect(cardHtmlTagDepth(html), greaterThan(kCardHtmlMaxDepth));

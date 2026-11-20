@@ -115,26 +115,64 @@ File? _openInsideMedia(String mediaDir, String path) {
   return File(resolved);
 }
 
+/// How many times the depth check parsed HTML. A repeated call with the same
+/// string does not increment this.
+int cardHtmlParseCount = 0;
+
+String? _fallbackHtml;
+bool _fallbackValue = false;
+
 /// Depth of the parsed tree. An unmatched closer such as `</b>` does not
 /// reduce the depth of an open `<div>`, which is what the HTML parser does.
+/// The walk is iterative and returns as soon as the depth passes the cap.
 int cardHtmlTagDepth(String html) {
-  return _elementDepth(html_parser.parseFragment(html));
-}
+  cardHtmlParseCount++;
+  final root = html_parser.parseFragment(html);
+  final stack = <(dom.Node, int)>[];
+  void pushChildren(dom.Node parent, int parentDepth) {
+    final children = parent.nodes;
+    for (var i = children.length - 1; i >= 0; i--) {
+      final child = children[i];
+      final depth = child is dom.Element ? parentDepth + 1 : parentDepth;
+      stack.add((child, depth));
+    }
+  }
 
-int _elementDepth(dom.Node node) {
+  pushChildren(root, 0);
   var maxDepth = 0;
-  for (final child in node.nodes) {
-    final nested = _elementDepth(child);
-    final here = child is dom.Element ? nested + 1 : nested;
-    if (here > maxDepth) maxDepth = here;
+  while (stack.isNotEmpty) {
+    final (node, depth) = stack.removeLast();
+    if (depth > maxDepth) maxDepth = depth;
+    if (maxDepth > kCardHtmlMaxDepth) return maxDepth;
+    pushChildren(node, depth);
   }
   return maxDepth;
 }
 
+bool _tooManyTags(String html) {
+  var count = 0;
+  for (var i = 0; i < html.length; i++) {
+    if (html.codeUnitAt(i) != 0x3c) continue;
+    count++;
+    if (count > kCardHtmlMaxTags) return true;
+  }
+  return false;
+}
+
+bool _fallbackUncached(String html) {
+  if (html.length > kCardHtmlMaxBytes || _tooManyTags(html)) return true;
+  return cardHtmlTagDepth(html) > kCardHtmlMaxDepth;
+}
+
+/// True when [html] must be shown as plain text. The tag-count cap runs before
+/// any parse. The decision for one string is remembered so a rebuild does not
+/// parse it again.
 bool cardHtmlNeedsPlainFallback(String html) {
-  return html.length > kCardHtmlMaxBytes ||
-      cardHtmlTagDepth(html) > kCardHtmlMaxDepth ||
-      '<'.allMatches(html).length > kCardHtmlMaxTags;
+  if (html == _fallbackHtml) return _fallbackValue;
+  final value = _fallbackUncached(html);
+  _fallbackHtml = html;
+  _fallbackValue = value;
+  return value;
 }
 
 class CssRules {
