@@ -1764,10 +1764,19 @@ fn open_collection_sends_the_canonical_path() {
         &open_request(&paths),
     );
     assert!(opened.success, "{}", message_of(&opened));
-    assert_eq!(
-        paths.collection.canonicalize().unwrap(),
-        stored.join("collection.anki2")
-    );
+    let sent = crate::api::LAST_OPEN_COLLECTION_INPUT
+        .lock()
+        .unwrap()
+        .clone()
+        .expect("open_collection was not dispatched");
+    let request = anki_proto::collection::OpenCollectionRequest::decode(sent.as_slice()).unwrap();
+    let expected_collection = stored.join("collection.anki2");
+    let expected_media = stored.join("collection.media");
+    let expected_db = stored.join("collection.media.db");
+    assert_eq!(request.collection_path, expected_collection.to_string_lossy());
+    assert_eq!(request.media_folder_path, expected_media.to_string_lossy());
+    assert_eq!(request.media_db_path, expected_db.to_string_lossy());
+    assert_ne!(request.collection_path, spelled);
 }
 
 #[test]

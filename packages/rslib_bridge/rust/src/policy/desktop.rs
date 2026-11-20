@@ -323,9 +323,13 @@ fn resolve_existing_prefix(path: &Path) -> Result<PathBuf, String> {
         let Some(name) = cursor.file_name() else {
             return Err(format!("path has no existing ancestor: {}", path.display()));
         };
-        let name = name.to_os_string();
+        let name = PathBuf::from(name);
         cursor.pop();
-        missing = PathBuf::from(name).join(missing);
+        missing = if missing.as_os_str().is_empty() {
+            name
+        } else {
+            name.join(missing)
+        };
         if cursor.as_os_str().is_empty() {
             return Err(format!("path has no existing ancestor: {}", path.display()));
         }
@@ -333,5 +337,9 @@ fn resolve_existing_prefix(path: &Path) -> Result<PathBuf, String> {
     let canonical = cursor
         .canonicalize()
         .map_err(|err| format!("{}: {err}", cursor.display()))?;
-    Ok(canonical.join(missing))
+    if missing.as_os_str().is_empty() {
+        Ok(canonical)
+    } else {
+        Ok(canonical.join(missing))
+    }
 }
