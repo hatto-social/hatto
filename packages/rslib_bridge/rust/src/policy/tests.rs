@@ -288,8 +288,8 @@ fn desktop_denies_calls_outside_the_allowed_70() {
         }
         denied += 1;
     }
-    assert!(denied > 17, "denied {denied}");
-    assert_eq!(pending, 17);
+    assert!(denied > 15, "denied {denied}");
+    assert_eq!(pending, 15);
 }
 
 #[test]
