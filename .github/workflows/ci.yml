@@ -254,6 +254,10 @@ jobs:
         working-directory: apps/desktop
         run: flutter test --exclude-tags golden
 
+      - name: Open the collection and the side database in one process
+        working-directory: apps/desktop
+        run: flutter test test/side_db_smoke_test.dart
+
       - name: Build the macOS app without signing
         working-directory: apps/desktop
         run: flutter build macos --release
