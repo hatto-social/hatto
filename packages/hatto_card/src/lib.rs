@@ -7,6 +7,7 @@
 
 mod collection;
 mod deck;
+mod seed;
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -130,7 +131,8 @@ pub fn add_note_path(
     let text = fs::read_to_string(deck_path)
         .map_err(|err| ToolFailure::message(format!("read {}: {err}", deck_path.display())))?;
     let deck = parse_deck(&text).map_err(|problem| ToolFailure::problems(vec![problem]))?;
-    if deck.notetype_name() != request.notetype {
+    if seed::canonical_notetype(deck.notetype_name()) != seed::canonical_notetype(&request.notetype)
+    {
         return Err(ToolFailure::message(format!(
             "notetype is {}; add-note got {}",
             deck.notetype_name(),
@@ -154,6 +156,11 @@ pub fn export_path(deck_path: &Path, out_path: &Path) -> Result<Value, ToolFailu
     let media_dir = require_media(deck_path, &deck)?;
     let tmp = tempfile::TempDir::new().map_err(|err| ToolFailure::message(err.to_string()))?;
     let session = Session::open(tmp.path()).map_err(ToolFailure::message)?;
+    if deck.notetype_legacy.is_none() {
+        session
+            .load_seed(seed::SEED)
+            .map_err(ToolFailure::message)?;
+    }
     let notetype = resolve_notetype(&session, &deck)?;
     let deck_id = session
         .add_deck(&deck.deck_name)
@@ -286,7 +293,7 @@ fn resolve_notetype(session: &Session, deck: &DeckFile) -> Result<i64, ToolFailu
             .map_err(ToolFailure::message);
     }
     session
-        .notetype_id(deck.notetype_name())
+        .notetype_id(seed::canonical_notetype(deck.notetype_name()))
         .map_err(ToolFailure::message)
 }
 
