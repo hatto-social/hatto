@@ -34,6 +34,8 @@ const desktopServices = <String, String>{
   'get_notetype_names': 'BackendNotetypesService',
   'get_field_names': 'BackendNotetypesService',
   'new_note': 'BackendNotesService',
+  'add_note': 'BackendNotesService',
+  'update_notes': 'BackendNotesService',
   'get_note': 'BackendNotesService',
   'defaults_for_adding': 'BackendNotesService',
   'remove_notes': 'BackendNotesService',

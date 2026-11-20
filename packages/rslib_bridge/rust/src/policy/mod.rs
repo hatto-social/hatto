@@ -11,6 +11,7 @@
 //! `SetActiveBrowserColumns` stays deferred and is not part of the profile.
 
 mod desktop;
+mod field_guard;
 mod validators;
 
 pub(crate) use desktop::enforce;
@@ -126,9 +127,9 @@ pub static ALLOWLIST: &[AllowEntry] = &[
     row!(NOTES, "note_fields_check", Read, NameOnly, NONE, NAME_ONLY_TEST),
     row!(NOTES, "cards_of_note", Read, NameOnly, NONE, NAME_ONLY_TEST),
     row!(NOTES, "get_single_notetype_of_notes", Read, NameOnly, NONE, NAME_ONLY_TEST),
-    row!(NOTES, "add_note", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
+    row!(NOTES, "add_note", Write, Validated, "one new note; notetype and normal deck exist; fields pass the reject list; tags are bounded", "validates_add_note"),
     row!(NOTES, "add_notes", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
-    row!(NOTES, "update_notes", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
+    row!(NOTES, "update_notes", Write, Validated, "exactly one existing note; guid and notetype unchanged; skip_undo_entry is false; changed fields pass the reject list", "validates_update_notes"),
     row!(NOTES, "remove_notes", Write, Validated, "note_ids is a non-empty list of notes that exist; card_ids is empty", "validates_remove_notes"),
     // Notetypes (11)
     row!(NOTETYPES, "get_notetype", Read, NameOnly, NONE, NAME_ONLY_TEST),
