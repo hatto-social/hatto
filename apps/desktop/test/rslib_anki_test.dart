@@ -7,6 +7,7 @@ import 'dart:io';
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hatto_desktop/effect/engine_host.dart';
+import 'package:hatto_desktop/src/gen/anki/cards.pb.dart';
 import 'package:hatto_desktop/src/gen/anki/collection.pb.dart';
 import 'package:hatto_desktop/src/gen/anki/generic.pb.dart' as g;
 import 'package:hatto_desktop/src/gen/anki/notes.pb.dart';
@@ -46,9 +47,14 @@ void main() {
     final ids = await api.searchNoteIds();
     final notes = [for (final id in ids) await api.getNote(id)];
     final guids = notes.map((note) => note.guid).toSet();
-    // rslib 26.09.3 does not return a note that has no cards from an empty search.
+    // BuildSearchString("") is deck:*, which joins through cards.
     expect(guids, isNot(contains(cardlessGuid)));
     expect(notes, isNotEmpty);
+    final starred = await host.flow!.searchNotes('note:*');
+    final starredGuids = <String>{
+      for (final id in starred) (await api.getNote(id)).guid,
+    };
+    expect(starredGuids, contains(cardlessGuid));
     final decks = await api.deckTree();
     expect(decks.map((deck) => deck.name), contains('Default'));
     final live = notes.single;
@@ -56,6 +62,102 @@ void main() {
     expect(cards, isNotEmpty);
     final card = await api.getCard(cards.first.id);
     expect(card.deckId, isNonZero);
+  });
+
+  test('T-R2 add and update leave the note with a card', () async {
+    final root = Directory('/tmp').createTempSync('hatto-tr2');
+    addTearDown(() {
+      if (root.existsSync()) {
+        root.deleteSync(recursive: true);
+      }
+    });
+    final tmp = Directory(p.join(root.path, 'tmp'))..createSync();
+    prepareRuntime(tmpDir: tmp.path);
+    final dataDir = Directory(p.join(root.path, 'collection'))..createSync();
+    final media = Directory(p.join(dataDir.path, 'collection.media'))
+      ..createSync();
+    final backend = await openBackend(initMsg: encodeBackendInit());
+    Future<List<int>> invoke(
+      String service,
+      String method,
+      GeneratedMessage req,
+    ) async {
+      final index = serviceMethodIndex(service: service, method: method);
+      if (index == null) {
+        throw StateError('no index for $service.$method');
+      }
+      final response = await command(
+        backend: backend,
+        service: index.service,
+        method: index.method,
+        input: req.writeToBuffer(),
+      );
+      if (!response.success) {
+        throw StateError('$service.$method failed');
+      }
+      return response.payload;
+    }
+
+    await invoke(
+      'BackendCollectionService',
+      'open_collection',
+      OpenCollectionRequest(
+        collectionPath: p.join(dataDir.path, 'collection.anki2'),
+        mediaFolderPath: media.path,
+        mediaDbPath: p.join(dataDir.path, 'collection.media.db'),
+      ),
+    );
+    final notetype = NotetypeId.fromBuffer(
+      await invoke(
+        'BackendNotetypesService',
+        'get_notetype_id_by_name',
+        g.String(val: 'Basic'),
+      ),
+    );
+    final fresh = Note.fromBuffer(
+      await invoke('BackendNotesService', 'new_note', notetype),
+    );
+    fresh.fields
+      ..clear()
+      ..addAll(['front', 'back']);
+    final added = AddNoteResponse.fromBuffer(
+      await invoke(
+        'BackendNotesService',
+        'add_note',
+        AddNoteRequest(note: fresh, deckId: Int64(1)),
+      ),
+    );
+    Future<int> cardCount() async {
+      final cards = CardIds.fromBuffer(
+        await invoke(
+          'BackendNotesService',
+          'cards_of_note',
+          NoteId(nid: added.noteId),
+        ),
+      );
+      return cards.cids.length;
+    }
+
+    expect(await cardCount(), greaterThan(0));
+    final stored = Note.fromBuffer(
+      await invoke(
+        'BackendNotesService',
+        'get_note',
+        NoteId(nid: added.noteId),
+      ),
+    );
+    stored.fields[0] = 'changed';
+    await invoke(
+      'BackendNotesService',
+      'update_notes',
+      UpdateNotesRequest(notes: [stored], skipUndoEntry: false),
+    );
+    expect(await cardCount(), greaterThan(0));
+    await invoke(
+      'BackendCollectionService',
+      'close_collection',
+      CloseCollectionRequest(),
+    );
   });
 }
 
