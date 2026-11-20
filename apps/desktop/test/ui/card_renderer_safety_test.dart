@@ -312,6 +312,40 @@ void main() {
     expect(cardHtmlParseCount, 0);
   });
 
+  bool loneHighSurrogate(String value) {
+    if (value.isEmpty) return false;
+    final unit = value.codeUnitAt(value.length - 1);
+    return unit >= 0xD800 && unit <= 0xDBFF;
+  }
+
+  String splitAt(int cut) {
+    final high = String.fromCharCode(0xD800);
+    final low = String.fromCharCode(0xDC00);
+    return 'a' * (cut - 1) + high + low;
+  }
+
+  test('the 4000-unit fallback cut drops a split surrogate', () {
+    final text = cardHtmlFallbackText(splitAt(kCardHtmlPlainPrefix));
+    expect(loneHighSurrogate(text), isFalse);
+    expect(text.length, kCardHtmlPlainPrefix - 1);
+  });
+
+  test('the 200-unit display cut drops a split surrogate', () {
+    final text = cardHtmlLimit(splitAt(200), 200);
+    expect(loneHighSurrogate(text), isFalse);
+    expect(text.length, 199);
+  });
+
+  testWidgets('a shown fallback does not end on a high surrogate', (tester) async {
+    final high = String.fromCharCode(0xD800);
+    final low = String.fromCharCode(0xDC00);
+    final html = '<' * 199 + high + low + '<' * 1900;
+    await show(tester, html, media.path);
+    final shown = tester.widget<Text>(find.byKey(const ValueKey('card-html-fallback'))).data!;
+    expect(loneHighSurrogate(shown), isFalse);
+    expect(shown.length, 199);
+  });
+
   test('the fallback decision is cached for one HTML string', () {
     final html = '<b>x</b>';
     resetCardHtmlFallbackCache();

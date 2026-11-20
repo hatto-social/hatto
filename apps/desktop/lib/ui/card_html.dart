@@ -187,11 +187,21 @@ void resetCardHtmlFallbackCache() {
   cardHtmlParseCount = 0;
 }
 
+/// The first [max] code units of [value]. A cut that would keep only the high
+/// half of a surrogate pair drops that unit too.
+String cardHtmlLimit(String value, int max) {
+  if (value.length <= max) return value;
+  var end = max;
+  final unit = value.codeUnitAt(end - 1);
+  if (unit >= 0xD800 && unit <= 0xDBFF) end--;
+  return value.substring(0, end);
+}
+
 /// Plain text for an over-cap field. Only the first [kCardHtmlPlainPrefix]
 /// code units are scanned, and a tag cannot contain another `<`, so a long
 /// run of `<` does not rescan the rest of the string.
 String cardHtmlFallbackText(String html) {
-  final slice = html.length > kCardHtmlPlainPrefix ? html.substring(0, kCardHtmlPlainPrefix) : html;
+  final slice = cardHtmlLimit(html, kCardHtmlPlainPrefix);
   return slice.replaceAll(RegExp(r'<[^<>]*>'), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
 }
 
@@ -314,7 +324,7 @@ class CardView extends StatelessWidget {
     final alignName = switch (align) { TextAlign.left => 'left', TextAlign.right => 'right', _ => 'center' };
     if (cardHtmlNeedsPlainFallback(html)) {
       final text = cardHtmlFallbackText(html);
-      final shown = text.length > 200 ? text.substring(0, 200) : text;
+      final shown = cardHtmlLimit(text, 200);
       return ColoredBox(color: bg, child: Text(shown, key: const ValueKey('card-html-fallback'), style: style));
     }
     final body = HtmlWidget('<div style="text-align:$alignName">${preprocess(html)}</div>', key: ValueKey(html), textStyle: style,

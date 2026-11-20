@@ -19,7 +19,7 @@ const _colLabels = {'noteFld': '정렬 필드', 'template': '카드', 'deck': '�
 /// One browse cell, as plain text. Only a prefix is scanned, and a tag cannot
 /// contain another `<`, so a long run of `<` or `&lt;` does not rescan the cell.
 String browseCellText(String s) {
-  final slice = s.length > kCardHtmlPlainPrefix ? s.substring(0, kCardHtmlPlainPrefix) : s;
+  final slice = cardHtmlLimit(s, kCardHtmlPlainPrefix);
   return slice.replaceAll(RegExp(r'<[^<>]*>'), ' ').replaceAll('&nbsp;', ' ').trim();
 }
 const _colWidths = {'noteFld': 170.0, 'template': 56.0, 'deck': 100.0, 'cardDue': 92.0, 'cardIvl': 62.0, 'noteTags': 100.0};
