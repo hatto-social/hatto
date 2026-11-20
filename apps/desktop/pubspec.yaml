@@ -19,7 +19,9 @@ dependencies:
     sdk: flutter
   hatto_legal: any
   hatto_store: any
+  html: ^0.15.6
   path: ^1.9.1
+  path_drawing: ^1.0.1
   path_provider: ^2.1.5
   rslib_bridge: any
 

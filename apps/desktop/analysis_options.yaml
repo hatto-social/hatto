@@ -9,6 +9,7 @@ analyzer:
     - build/**
     - linux/**
     - macos/**
+    - test/editor/**
 
 linter:
   rules:
