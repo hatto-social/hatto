@@ -87,21 +87,15 @@ Future<void> boot(WidgetTester t, Future<void> Function() seed, {List<(String, S
   addTearDown(() async { try { await api.closeCollection(); } catch (_) {} eng.close(); try { await tmp.delete(recursive: true); } catch (_) {} });
 }
 
-// Nested decks stay skipped: AddDeck is closed, so seedDefaultNotes cannot
-// create 한국어::기초. Browse stays skipped: SetActiveBrowserColumns is
-// deferred and the table reports "Active browser columns not set." SM-2
-// stays skipped: the bridge turns FSRS on and the open flag cannot select
-// SM-2. The math golden stays skipped in math_test because pixel output
-// moves with the font rasterizer.
+// Browse stays skipped: SetActiveBrowserColumns is deferred and the table
+// reports "Active browser columns not set." The math golden stays skipped
+// in math_test because pixel output moves with the font rasterizer.
 void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
     await initRslibBridge();
     await loadTestFonts();
   });
-
-  // AddDeck stays closed, so a parent/child deck cannot be seeded.
-  testWidgets('deck list: empty Default hidden, auto-created parent expanded with child visible', skip: true, (t) async {});
 
   testWidgets('add, delete, and image entry points stay closed', (t) async {
     await boot(t, () async {});
@@ -165,9 +159,6 @@ void main() {
     expect(widgetOf<PillButton>(t, 'fsrs-optimize').onTap, isNull); expect(find.text('FSRS 최적화'), findsOneWidget);
     for (final bad in ['정확도', '보장', '더 많이 배']) { expect(kFsrsGuidance1.contains(bad) || kFsrsGuidance2.contains(bad), isFalse, reason: 'no accuracy / guarantee claims'); }
   });
-
-  // The bridge always enables FSRS. There is no way to open an SM-2 collection.
-  testWidgets('stats on an SM-2 collection: no FSRS copy, optimize still visible+disabled', skip: true, (t) async {});
 
   testWidgets('reviewer: answering the seeded card reaches congrats, and undo brings it back', (t) async {
     await boot(t, () async {}, seeded: [('q1', 'a1')]);
