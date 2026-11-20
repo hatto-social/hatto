@@ -111,6 +111,7 @@ class Engine {
     return parse(response.payload);
   }
 
+  /// Marks the engine closed. Native resources stay allocated.
   void close() {
     _open = false;
   }
