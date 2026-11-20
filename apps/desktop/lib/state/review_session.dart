@@ -19,11 +19,13 @@ class ReviewSession {
   List<String> avQuestion = [], avAnswer = [];
   List<String> buttonLabels = const ['', '', '', ''];
   String? undoLabel; // non-null => rslib has something to undo
+  String? redoLabel;
   int answered = 0;
   final _clock = Stopwatch();
   CongratsInfoResponse? congrats;
   RenderedCard? rendered;
   bool get canUndo => undoLabel != null && undoLabel!.isNotEmpty;
+  bool get canRedo => redoLabel != null && redoLabel!.isNotEmpty;
   int get cardId => current?.card.id.toInt() ?? 0;
   int get noteId => current?.card.noteId.toInt() ?? 0;
   QueuedCards_Queue get queue => current?.queue ?? QueuedCards_Queue.NEW;
@@ -31,7 +33,9 @@ class ReviewSession {
   Future<void> loadNext() async {
     final q = await api.queuedCards(limit: 1);
     newCount = q.newCount; learnCount = q.learningCount; reviewCount = q.reviewCount;
-    undoLabel = (await api.undoStatus()).undo;
+    final status = await api.undoStatus();
+    undoLabel = status.undo;
+    redoLabel = status.redo;
     if (q.cards.isEmpty) {
       current = null; phase = ReviewPhase.finished; congrats = await api.congratsInfo(); return;
     }
@@ -59,6 +63,13 @@ class ReviewSession {
     if (!canUndo) return;
     await api.undo();
     if (answered > 0) answered--;
+    await loadNext();
+  }
+
+  Future<void> redo() async {
+    if (!canRedo) return;
+    await api.redo();
+    answered++;
     await loadNext();
   }
 

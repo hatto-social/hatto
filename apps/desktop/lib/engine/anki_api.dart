@@ -158,6 +158,7 @@ class FlowApi {
   Future<ExtractAvTagsResponse> extractAvTags(String text, bool question) => engine.call(Rpcs.extractAvTags, ExtractAvTagsRequest(text: text, questionSide: question), ExtractAvTagsResponse.fromBuffer);
   Future<UndoStatus> undoStatus() => engine.call(Rpcs.getUndoStatus, g.Empty(), UndoStatus.fromBuffer);
   Future<UndoStatus> undo() async { await engine.call(Rpcs.undo, g.Empty(), OpChangesAfterUndo.fromBuffer); return undoStatus(); }
+  Future<UndoStatus> redo() async { await engine.call(Rpcs.redo, g.Empty(), OpChangesAfterUndo.fromBuffer); return undoStatus(); }
   Future<CongratsInfoResponse> congratsInfo() => engine.call(Rpcs.congratsInfo, g.Empty(), CongratsInfoResponse.fromBuffer);
   Future<String> studiedToday() async => (await engine.call(Rpcs.studiedToday, g.Empty(), g.String.fromBuffer)).val;
 

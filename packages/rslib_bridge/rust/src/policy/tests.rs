@@ -228,12 +228,12 @@ fn allowlist_names_resolve_and_counts_match() {
             Status::Deferred => deferred += 1,
         }
     }
-    assert_eq!(validated, 15);
+    assert_eq!(validated, 14);
     assert_eq!(name_only, 57);
-    assert_eq!(pending, 15);
+    assert_eq!(pending, 16);
     assert_eq!(deferred, 1);
     assert_eq!(ALLOWLIST.len(), 88);
-    assert_eq!(forwarded_names().len(), 72);
+    assert_eq!(forwarded_names().len(), 71);
 
     let pending_methods: std::collections::HashSet<_> = ALLOWLIST
         .iter()
@@ -256,10 +256,11 @@ fn allowlist_names_resolve_and_counts_match() {
         "add_image_occlusion_notetype",
         "update_image_occlusion_note",
         "get_image_occlusion_note",
+        "export_anki_package",
     ] {
         assert!(pending_methods.contains(method), "{method}");
     }
-    assert_eq!(pending_methods.len(), 15);
+    assert_eq!(pending_methods.len(), 16);
 }
 
 #[test]
@@ -322,7 +323,7 @@ fn desktop_denies_calls_outside_the_allowed_70() {
         denied += 1;
     }
     assert!(denied > 14, "denied {denied}");
-    assert_eq!(pending, 15);
+    assert_eq!(pending, 16);
 }
 
 #[test]
@@ -638,121 +639,6 @@ fn validates_get_config_bool() {
     assert!(allowed.success, "{}", message_of(&allowed));
 }
 
-#[test]
-fn validates_export_anki_package() {
-    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
-    let paths = col_paths(dir.path());
-    let backend = open_desktop_collection(&paths);
-    let mut request = export_request(&paths);
-    request.options.as_mut().unwrap().with_scheduling = true;
-    let denied = call(
-        &backend,
-        "BackendImportExportService",
-        "export_anki_package",
-        &request,
-    );
-    assert!(!denied.success);
-    assert!(
-        message_of(&denied).contains("with_scheduling"),
-        "{}",
-        message_of(&denied)
-    );
-
-    let mut request = export_request(&paths);
-    request.options.as_mut().unwrap().with_deck_configs = true;
-    let denied = call(
-        &backend,
-        "BackendImportExportService",
-        "export_anki_package",
-        &request,
-    );
-    assert!(!denied.success);
-    assert!(
-        message_of(&denied).contains("with_deck_configs"),
-        "{}",
-        message_of(&denied)
-    );
-
-    let mut whole = export_request(&paths);
-    whole.limit = Some(anki_proto::import_export::ExportLimit {
-        limit: Some(
-            anki_proto::import_export::export_limit::Limit::WholeCollection(
-                anki_proto::generic::Empty {},
-            ),
-        ),
-    });
-    let denied = call(
-        &backend,
-        "BackendImportExportService",
-        "export_anki_package",
-        &whole,
-    );
-    assert!(
-        message_of(&denied).contains("note id list"),
-        "{}",
-        message_of(&denied)
-    );
-
-    let mut cards = export_request(&paths);
-    cards.limit = Some(anki_proto::import_export::ExportLimit {
-        limit: Some(anki_proto::import_export::export_limit::Limit::CardIds(
-            anki_proto::cards::CardIds { cids: vec![1] },
-        )),
-    });
-    let denied = call(
-        &backend,
-        "BackendImportExportService",
-        "export_anki_package",
-        &cards,
-    );
-    assert!(
-        message_of(&denied).contains("note id list"),
-        "{}",
-        message_of(&denied)
-    );
-
-    let mut empty_notes = export_request(&paths);
-    empty_notes.limit = Some(anki_proto::import_export::ExportLimit {
-        limit: Some(anki_proto::import_export::export_limit::Limit::NoteIds(
-            anki_proto::notes::NoteIds { note_ids: vec![] },
-        )),
-    });
-    let denied = call(
-        &backend,
-        "BackendImportExportService",
-        "export_anki_package",
-        &empty_notes,
-    );
-    assert!(
-        message_of(&denied).contains("note id list"),
-        "{}",
-        message_of(&denied)
-    );
-
-    let exported = call(
-        &backend,
-        "BackendImportExportService",
-        "export_anki_package",
-        &export_request(&paths),
-    );
-    assert!(exported.success, "{}", message_of(&exported));
-    assert!(paths.root.join("out.apkg").is_file());
-}
-
-fn export_request(paths: &ColPaths) -> anki_proto::import_export::ExportAnkiPackageRequest {
-    anki_proto::import_export::ExportAnkiPackageRequest {
-        out_path: paths.root.join("out.apkg").to_string_lossy().into_owned(),
-        options: Some(anki_proto::import_export::ExportAnkiPackageOptions {
-            with_scheduling: false,
-            with_deck_configs: false,
-            with_media: true,
-            legacy: false,
-        }),
-        limit: Some(anki_proto::import_export::ExportLimit {
-            limit: Some(anki_proto::import_export::export_limit::Limit::DeckId(1)),
-        }),
-    }
-}
 
 #[test]
 fn validates_get_queued_cards() {

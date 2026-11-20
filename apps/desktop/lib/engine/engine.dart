@@ -55,7 +55,6 @@ const desktopServices = <String, String>{
   'studied_today': 'BackendSchedulerService',
   'render_existing_card': 'BackendCardRenderingService',
   'extract_av_tags': 'BackendCardRenderingService',
-  'export_anki_package': 'BackendImportExportService',
   'graphs': 'BackendStatsService',
 };
 

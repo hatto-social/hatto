@@ -7,6 +7,7 @@
 import 'dart:io';
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hatto_desktop/editor/anki_ui.dart';
@@ -189,6 +190,15 @@ void main() {
     expect(find.byKey(const ValueKey('congrats')), findsOneWidget);
     await tapKey(t, 'congrats-undo');
     expect(find.byKey(const ValueKey('show-answer')), findsOneWidget);
+    await t.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await t.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await t.sendKeyDownEvent(LogicalKeyboardKey.keyZ);
+    await settle(t);
+    await t.sendKeyUpEvent(LogicalKeyboardKey.keyZ);
+    await t.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await t.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    expect(find.byKey(const ValueKey('congrats')), findsOneWidget);
+    expect(find.text('이번 세션에서 1장 답했어요.'), findsOneWidget);
   });
 
   testWidgets('reviewer: first-review hint uses the real button labels; disappears after the first answer; bury greyed in More menu; suspend works', skip: true, (t) async {
