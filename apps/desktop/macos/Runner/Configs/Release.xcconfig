@@ -5,3 +5,8 @@
 CODE_SIGNING_ALLOWED = NO
 CODE_SIGNING_REQUIRED = NO
 CODE_SIGN_IDENTITY = -
+
+// Apple Silicon only. A universal Release binary would make
+// `flutter build macos --release` compile x86_64-apple-darwin as well.
+ARCHS = arm64
+EXCLUDED_ARCHS = x86_64

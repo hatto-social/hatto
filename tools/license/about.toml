@@ -38,6 +38,8 @@ targets = [
 # reads the file (0.9.3 rejects unknown keys) and writes a second document
 # with these triples. The Android `targets` list above is unchanged, so
 # apps/mobile/assets/licenses/rust-crates.json stays the Android graph.
+# The macOS app ships Apple Silicon only, so the desktop graph has no
+# x86_64-apple-darwin slice.
 desktop_targets = [
     "x86_64-unknown-linux-gnu",
     "aarch64-apple-darwin",

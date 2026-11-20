@@ -1,1 +1,6 @@
 include: package:lints/recommended.yaml
+
+analyzer:
+  exclude:
+    - apps/desktop/lib/src/gen/**
+    - apps/desktop/test/editor/**

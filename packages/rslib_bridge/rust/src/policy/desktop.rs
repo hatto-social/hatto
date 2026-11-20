@@ -36,6 +36,9 @@ pub(crate) struct DesktopSession {
     /// Set after `OpenCollection` and its FSRS init both succeed. Cleared
     /// after a successful `CloseCollection`.
     pub collection_open: bool,
+    /// Set when rslib panics. Later calls are rejected until the process
+    /// builds a new backend. The collection mutex may already be poisoned.
+    pub poisoned: bool,
     pub presented: HashMap<i64, PresentedStates>,
     pub search_strings: HashSet<String>,
 }
@@ -45,6 +48,7 @@ impl DesktopSession {
         Self {
             data_dir,
             collection_open: false,
+            poisoned: false,
             presented: HashMap::new(),
             search_strings: HashSet::new(),
         }
@@ -65,6 +69,9 @@ pub(crate) fn enforce(
             "denied: request is {} bytes (exceeds 4 MiB)",
             input.len()
         ));
+    }
+    if backend.lock_session().poisoned {
+        return backend_error("denied: backend poisoned, restart");
     }
     let Some((service, method)) = index::reverse(service_index, method_index) else {
         return backend_error(format!(
@@ -130,6 +137,9 @@ fn observe(backend: &AnkiBackend, service: &str, method: &str, input: &[u8], out
             if let Ok(answer) = anki_proto::scheduler::CardAnswer::decode(input) {
                 session.presented.remove(&answer.card_id);
             }
+        }
+        (super::COLLECTION, "undo" | "redo") => {
+            session.presented.clear();
         }
         (super::COLLECTION, "close_collection") => {
             session.presented.clear();
@@ -208,7 +218,7 @@ pub fn prepare_data_dir(raw: &str) -> Result<PathBuf, String> {
 /// `data_dir` is stored canonicalized. A path may still use a symlink that is
 /// a strict ancestor of that directory (`/var` → `/private/var` on macOS).
 /// A symlink that is not on the way to `data_dir` stays outside.
-pub fn require_inside_data_dir(path: &str, data_dir: &Path) -> Result<(), String> {
+pub fn require_inside_data_dir(path: &str, data_dir: &Path) -> Result<PathBuf, String> {
     let raw = Path::new(path);
     if !raw.is_absolute() {
         return Err(format!("path is not absolute: {path}"));
@@ -217,21 +227,20 @@ pub fn require_inside_data_dir(path: &str, data_dir: &Path) -> Result<(), String
         return Err(format!("path contains '..': {path}"));
     }
     let normalized = lexical_normalize(raw);
+    // `data_dir` is the canonical path stored when the backend opened.
+    // It is not canonicalized again, so a later rename of that directory
+    // does not move the check.
     let base = lexical_normalize(data_dir);
-    let base_canon = data_dir
-        .canonicalize()
-        .map_err(|err| format!("data_dir: {err}"))?;
-    let lexical_ok = is_strict_child(&normalized, &base)
-        || is_strict_child(&normalized, &base_canon)
-        || rewritten_ancestor_is_child(&normalized, &base_canon);
+    let lexical_ok =
+        is_strict_child(&normalized, &base) || rewritten_ancestor_is_child(&normalized, &base);
     if !lexical_ok {
         return Err(format!("path is outside data_dir: {path}"));
     }
     let resolved = resolve_existing_prefix(&normalized)?;
-    if !is_strict_child(&resolved, &base_canon) {
+    if !is_strict_child(&resolved, &base) {
         return Err(format!("path escapes data_dir: {path}"));
     }
-    Ok(())
+    Ok(resolved)
 }
 
 /// True when `path` is a child of `data_dir` after following symlinks that
@@ -256,7 +265,7 @@ fn rewrite_ancestor_symlinks(path: &Path, data_dir: &Path) -> Option<PathBuf> {
                     continue;
                 }
                 let next = resolved.join(name);
-                if !next.exists() {
+                if metadata_exists(&next).is_none() {
                     return None;
                 }
                 let canon = next.canonicalize().ok()?;
@@ -275,6 +284,12 @@ fn rewrite_ancestor_symlinks(path: &Path, data_dir: &Path) -> Option<PathBuf> {
         }
     }
     Some(resolved)
+}
+
+/// `Path::exists` follows symlinks, so a dangling link looks missing.
+/// `symlink_metadata` reports the link itself.
+fn metadata_exists(path: &Path) -> Option<std::fs::Metadata> {
+    std::fs::symlink_metadata(path).ok()
 }
 
 fn is_symlink(path: &Path) -> bool {
@@ -307,13 +322,17 @@ fn is_strict_child(path: &Path, root: &Path) -> bool {
 fn resolve_existing_prefix(path: &Path) -> Result<PathBuf, String> {
     let mut cursor = path.to_path_buf();
     let mut missing = PathBuf::new();
-    while !cursor.exists() {
+    while metadata_exists(&cursor).is_none() {
         let Some(name) = cursor.file_name() else {
             return Err(format!("path has no existing ancestor: {}", path.display()));
         };
-        let name = name.to_os_string();
+        let name = PathBuf::from(name);
         cursor.pop();
-        missing = PathBuf::from(name).join(missing);
+        missing = if missing.as_os_str().is_empty() {
+            name
+        } else {
+            name.join(missing)
+        };
         if cursor.as_os_str().is_empty() {
             return Err(format!("path has no existing ancestor: {}", path.display()));
         }
@@ -321,5 +340,9 @@ fn resolve_existing_prefix(path: &Path) -> Result<PathBuf, String> {
     let canonical = cursor
         .canonicalize()
         .map_err(|err| format!("{}: {err}", cursor.display()))?;
-    Ok(canonical.join(missing))
+    if missing.as_os_str().is_empty() {
+        Ok(canonical)
+    } else {
+        Ok(canonical.join(missing))
+    }
 }

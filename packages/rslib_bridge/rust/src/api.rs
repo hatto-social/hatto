@@ -138,12 +138,21 @@ pub fn command(backend: &AnkiBackend, service: u32, method: u32, input: Vec<u8>)
     crate::policy::enforce(backend, service, method, input)
 }
 
+#[cfg(test)]
+pub(crate) static LAST_OPEN_COLLECTION_INPUT: std::sync::Mutex<Option<Vec<u8>>> =
+    std::sync::Mutex::new(None);
+
 pub(crate) fn dispatch(
     backend: &AnkiBackend,
     service: u32,
     method: u32,
     input: &[u8],
 ) -> ProtoResponse {
+    #[cfg(test)]
+    if crate::index::reverse(service, method).is_some_and(|(_, method)| method == "open_collection")
+    {
+        *LAST_OPEN_COLLECTION_INPUT.lock().unwrap() = Some(input.to_vec());
+    }
     // rslib can panic on a missing notetype (`GetClozeFieldOrds`). Catch that
     // here so the panic becomes a BackendError instead of killing the process.
     // A panic while rslib holds its collection mutex can still poison that
@@ -160,7 +169,10 @@ pub(crate) fn dispatch(
             success: false,
             payload,
         },
-        Err(_) => backend_error("rslib panicked"),
+        Err(_) => {
+            backend.lock_session().poisoned = true;
+            backend_error("rslib panicked")
+        }
     }
 }
 

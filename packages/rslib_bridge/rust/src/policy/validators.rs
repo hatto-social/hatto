@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Request checks for the ten desktop calls this PR implements.
+//! Request checks for the desktop calls this PR implements.
 //!
 //! A failure is returned to `command` and is not sent to rslib. Checks that
 //! need another collection read use [crate::api::dispatch_message], which
@@ -15,7 +15,7 @@ use prost::Message;
 use super::desktop::{require_inside_data_dir, PresentedStates};
 use super::{
     ANSWER_TAKEN_MAX_MILLIS, CARDS, COLLECTION, CONFIG, DECKS, FETCH_LIMIT_MAX, GRAPHS_DAYS_MAX,
-    IMPORT_EXPORT, NOTETYPES, SCHEDULER, STATS,
+    IMPORT_EXPORT, NOTETYPES, SCHEDULER, SEARCH, STATS,
 };
 use crate::api::{dispatch_message, AnkiBackend};
 
@@ -28,6 +28,7 @@ pub(crate) fn prepare(
     match (service, method) {
         (COLLECTION, "open_collection") => validate_open(backend, input),
         (COLLECTION, "close_collection") => validate_close(input),
+        (COLLECTION, "undo" | "redo") => validate_undo(input),
         (CONFIG, "get_config_bool") => validate_get_config_bool(input),
         (IMPORT_EXPORT, "export_anki_package") => validate_export(input),
         (SCHEDULER, "get_queued_cards") => validate_queued(input),
@@ -37,19 +38,30 @@ pub(crate) fn prepare(
         (SCHEDULER, "bury_or_suspend_cards") => validate_bury(backend, input),
         (SCHEDULER, "restore_buried_and_suspended_cards") => validate_restore(backend, input),
         (NOTETYPES, "get_cloze_field_ords") => validate_cloze_field_ords(backend, input),
+        (DECKS, "rename_deck") => validate_rename_deck(backend, input),
+        (SEARCH, "search_notes" | "search_cards") => validate_search(backend, input),
         _ => Ok(input.to_vec()),
     }
 }
 
 fn validate_open(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String> {
-    let request = decode::<anki_proto::collection::OpenCollectionRequest>(input)?;
+    let mut request = decode::<anki_proto::collection::OpenCollectionRequest>(input)?;
     let data_dir = data_dir(backend)?;
-    for (label, path) in [
-        ("collection_path", request.collection_path.as_str()),
-        ("media_folder_path", request.media_folder_path.as_str()),
-        ("media_db_path", request.media_db_path.as_str()),
-    ] {
-        require_inside_data_dir(path, &data_dir).map_err(|err| format!("{label}: {err}"))?;
+    let collection = require_inside_data_dir(&request.collection_path, &data_dir)
+        .map_err(|err| format!("collection_path: {err}"))?;
+    let media = require_inside_data_dir(&request.media_folder_path, &data_dir)
+        .map_err(|err| format!("media_folder_path: {err}"))?;
+    let media_db = require_inside_data_dir(&request.media_db_path, &data_dir)
+        .map_err(|err| format!("media_db_path: {err}"))?;
+    request.collection_path = collection.to_string_lossy().into_owned();
+    request.media_folder_path = media.to_string_lossy().into_owned();
+    request.media_db_path = media_db.to_string_lossy().into_owned();
+    Ok(request.encode_to_vec())
+}
+
+fn validate_undo(input: &[u8]) -> Result<Vec<u8>, String> {
+    if !input.is_empty() {
+        return Err("undo request must be empty".into());
     }
     Ok(input.to_vec())
 }
@@ -213,14 +225,105 @@ fn validate_graphs(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, Strin
     if request.days > GRAPHS_DAYS_MAX {
         return Err(format!("days {} is above {GRAPHS_DAYS_MAX}", request.days));
     }
-    let known = {
-        let session = backend.lock_session();
-        session.search_strings.contains(&request.search)
+    require_built_search(backend, &request.search)?;
+    Ok(input.to_vec())
+}
+
+/// Browser columns rslib maps to SQL itself. `SortOrder.custom` is appended
+/// after `ORDER BY` verbatim, so it stays rejected.
+const SEARCH_SORT_COLUMNS: &[&str] = &[
+    "answer",
+    "cardMod",
+    "template",
+    "deck",
+    "cardDue",
+    "cardEase",
+    "cardLapses",
+    "cardIvl",
+    "noteCrt",
+    "noteMod",
+    "note",
+    "originalPosition",
+    "question",
+    "cardReps",
+    "noteFld",
+    "noteTags",
+    "stability",
+    "difficulty",
+    "retrievability",
+];
+
+fn validate_search(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String> {
+    let request = decode::<anki_proto::search::SearchRequest>(input)?;
+    require_built_search(backend, &request.search)?;
+    check_search_order(request.order.as_ref())?;
+    Ok(input.to_vec())
+}
+
+fn check_search_order(order: Option<&anki_proto::search::SortOrder>) -> Result<(), String> {
+    let Some(order) = order else {
+        return Ok(());
     };
+    match order.value.as_ref() {
+        None | Some(anki_proto::search::sort_order::Value::None(_)) => Ok(()),
+        Some(anki_proto::search::sort_order::Value::Custom(_)) => {
+            Err("custom sort order is not allowed".into())
+        }
+        Some(anki_proto::search::sort_order::Value::Builtin(builtin)) => {
+            if SEARCH_SORT_COLUMNS.contains(&builtin.column.as_str()) {
+                Ok(())
+            } else {
+                Err(format!(
+                    "sort column '{}' is not allowlisted",
+                    builtin.column
+                ))
+            }
+        }
+    }
+}
+
+fn require_built_search(backend: &AnkiBackend, search: &str) -> Result<(), String> {
+    let known = backend.lock_session().search_strings.contains(search);
     if !known {
         return Err("search was not returned by a search builder in this session".into());
     }
+    Ok(())
+}
+
+fn validate_rename_deck(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String> {
+    let request = decode::<anki_proto::decks::RenameDeckRequest>(input)?;
+    if request.deck_id == 0 {
+        return Err("deck does not exist".into());
+    }
+    dispatch_message(
+        backend,
+        DECKS,
+        "get_deck",
+        &anki_proto::decks::DeckId {
+            did: request.deck_id,
+        },
+    )
+    .map_err(|_| format!("deck {} does not exist", request.deck_id))?;
+    check_deck_name(&request.new_name)?;
     Ok(input.to_vec())
+}
+
+fn check_deck_name(name: &str) -> Result<(), String> {
+    if name.trim().is_empty() || name.split("::").any(|part| part.is_empty()) {
+        return Err("deck name is empty or has an empty segment".into());
+    }
+    if name.len() > 255 {
+        return Err("deck name is longer than 255 bytes".into());
+    }
+    if name.chars().any(|c| {
+        matches!(
+            c as u32,
+            0x00..=0x08 | 0x0B | 0x0C | 0x0E..=0x1F | 0x7F
+        )
+    }) {
+        return Err("deck name contains a control character".into());
+    }
+    Ok(())
 }
 
 fn validate_bury(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String> {

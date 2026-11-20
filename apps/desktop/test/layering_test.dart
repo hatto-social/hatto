@@ -53,12 +53,19 @@ void main() {
   });
 
   test('desktop code does not open the mobile-unrestricted backend', () {
+    final opener = RegExp(r'\bopenBackend\b');
+    final construct = RegExp(r'\bAnkiApi\s*\(');
     for (final file in sources) {
       final text = file.readAsStringSync();
       expect(
-        text.contains('openBackend('),
+        opener.hasMatch(text),
         isFalse,
-        reason: '${file.path} calls openBackend',
+        reason: '${file.path} names openBackend',
+      );
+      expect(
+        construct.hasMatch(text),
+        isFalse,
+        reason: '${file.path} constructs AnkiApi',
       );
     }
   });
@@ -71,6 +78,44 @@ void main() {
       expect(pubspec, isNot(contains('url_launcher')));
     },
   );
+
+  test('the desktop app does not take a webview, url_launcher, or HttpClient', () {
+    const packages = [
+      'webview_flutter',
+      'flutter_inappwebview',
+      'webview_windows',
+      'url_launcher',
+    ];
+    final pubspec = File('pubspec.yaml').readAsStringSync();
+    for (final name in packages) {
+      expect(pubspec, isNot(contains('$name:')), reason: name);
+    }
+    expect(pubspec, isNot(contains('flutter_widget_from_html:')));
+    final httpClient = RegExp(r'\bHttpClient\b');
+    final processRun = RegExp(r'\bProcess\.run\b');
+    for (final file in sources) {
+      final path = file.path.replaceAll('\\', '/');
+      final text = file.readAsStringSync();
+      expect(httpClient.hasMatch(text), isFalse, reason: '$path names HttpClient');
+      expect(_imports(text, 'package:http'), isFalse, reason: path);
+      expect(_imports(text, 'package:url_launcher'), isFalse, reason: path);
+      for (final name in packages) {
+        expect(_imports(text, 'package:$name'), isFalse, reason: '$path imports $name');
+      }
+      expect(
+        _imports(text, 'package:flutter_widget_from_html/'),
+        isFalse,
+        reason: path,
+      );
+      if (processRun.hasMatch(text)) {
+        expect(path, endsWith('lib/effect/open_url.dart'));
+      }
+    }
+    expect(
+      File('lib/effect/open_url.dart').readAsStringSync(),
+      contains('Process.run'),
+    );
+  });
 }
 
 bool noteHtmlDeclaresALibrary(String source) {

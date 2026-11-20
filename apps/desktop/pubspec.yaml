@@ -4,8 +4,8 @@
 
 name: hatto_desktop
 description: >-
-  Hatto desktop shell for macOS and Linux. This build opens a collection
-  and shows the license screen. The study flow is a later change.
+  Hatto desktop app for macOS and Linux. Opens a collection through the
+  desktop bridge profile and shows the study flow.
 publish_to: none
 version: 0.1.0+1
 resolution: workspace
@@ -21,6 +21,13 @@ dependencies:
   path: ^1.9.1
   path_provider: ^2.1.5
   rslib_bridge: any
+  fixnum: ^1.1.1
+  protobuf: ^6.0.0
+  html: ^0.15.6
+  path_drawing: ^1.0.1
+  flutter_widget_from_html_core: ^0.17.0
+  audioplayers: ^6.4.0
+  flutter_math_fork: 0.7.4
 
 dev_dependencies:
   flutter_test:
