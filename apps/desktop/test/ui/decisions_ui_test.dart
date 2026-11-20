@@ -5,12 +5,19 @@
 // Widget tests (real rslib through FFI inside runAsync) for the 2026-11-19 decisions: deck list, greyed controls, suspend, delete copy,
 // FSRS guidance, preview math, reviewer sound.
 import 'dart:io';
+import 'package:fixnum/fixnum.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hatto_desktop/editor/anki_ui.dart';
 import 'package:hatto_desktop/engine/anki_api.dart';
 import 'package:hatto_desktop/engine/engine.dart';
+import 'package:hatto_desktop/src/gen/anki/collection.pb.dart';
+import 'package:hatto_desktop/src/gen/anki/generic.pb.dart' as g;
+import 'package:hatto_desktop/src/gen/anki/notes.pb.dart';
+import 'package:hatto_desktop/src/gen/anki/notetypes.pb.dart';
+import 'package:path/path.dart' as p;
+import 'package:protobuf/protobuf.dart';
 import 'package:rslib_bridge/rslib_bridge.dart';
 import 'package:hatto_desktop/services/audio_service.dart';
 import 'package:hatto_desktop/state/app_controller.dart';
@@ -33,11 +40,47 @@ Future<void> settle(WidgetTester t, {int rounds = 40}) async {
 Future<void> tapKey(WidgetTester t, String key, {int rounds = 40}) async { await t.tap(find.byKey(ValueKey(key))); await settle(t, rounds: rounds); }
 T widgetOf<T extends Widget>(WidgetTester t, String key) => t.widget<T>(find.byKey(ValueKey(key)));
 
-Future<void> boot(WidgetTester t, Future<void> Function() seed, {bool fsrs = true}) async {
+/// Writes notes with the unrestricted backend, then the test opens that
+/// collection on the desktop profile. AddNote stays closed there.
+Future<void> seedDefaultNotes(Directory dir, List<(String, String)> notes) async {
+  final media = Directory(p.join(dir.path, 'collection.media'))..createSync(recursive: true);
+  final backend = await openBackend(initMsg: encodeBackendInit());
+  Future<List<int>> invoke(String service, String method, GeneratedMessage req) async {
+    final index = serviceMethodIndex(service: service, method: method);
+    if (index == null) throw StateError('no index for $service.$method');
+    final response = await command(
+      backend: backend,
+      service: index.service,
+      method: index.method,
+      input: req.writeToBuffer(),
+    );
+    if (!response.success) {
+      throw StateError('$service.$method failed while seeding');
+    }
+    return response.payload;
+  }
+  await invoke('BackendCollectionService', 'open_collection', OpenCollectionRequest(
+    collectionPath: p.join(dir.path, 'collection.anki2'),
+    mediaFolderPath: media.path,
+    mediaDbPath: p.join(dir.path, 'collection.media.db'),
+  ));
+  final notetype = NotetypeId.fromBuffer(await invoke(
+    'BackendNotetypesService', 'get_notetype_id_by_name', g.String(val: 'Basic'),
+  ));
+  for (final (front, back) in notes) {
+    final note = Note.fromBuffer(await invoke('BackendNotesService', 'new_note', notetype));
+    note.fields..clear()..addAll([front, back]);
+    await invoke('BackendNotesService', 'add_note', AddNoteRequest(note: note, deckId: Int64(1)));
+  }
+  await invoke('BackendCollectionService', 'close_collection', CloseCollectionRequest());
+}
+
+Future<void> boot(WidgetTester t, Future<void> Function() seed, {bool fsrs = true, List<(String, String)> seeded = const []}) async {
   t.view.physicalSize = const Size(1200, 720); t.view.devicePixelRatio = 1;
   addTearDown(() { t.view.resetPhysicalSize(); t.view.resetDevicePixelRatio(); });
   await t.runAsync(() async {
     tmp = await Directory.systemTemp.createTemp('hf_ui_');
+    if (seeded.isNotEmpty) await seedDefaultNotes(tmp, seeded);
     eng = await Engine.open(langs: ['ko', 'en'], dataDir: tmp.path); api = FlowApi(eng); await api.openCollection(tmp.path, fsrsDefault: fsrs);
     fake = FakeAudioService(); app = AppController(api, audio: fake);
     await seed(); await app.refreshDecks();
@@ -133,6 +176,19 @@ void main() {
     expect(find.text('스케줄러: SM-2 (기본)'), findsOneWidget);
     expect(find.byKey(const ValueKey('st-fsrs-1')), findsNothing);
     expect(widgetOf<PillButton>(t, 'fsrs-optimize').onTap, isNull);
+  });
+
+  testWidgets('reviewer: answering the seeded card reaches congrats, and undo brings it back', (t) async {
+    await boot(t, () async {}, seeded: [('q1', 'a1')]);
+    await tapKey(t, 'deck-Default');
+    await tapKey(t, 'study-now');
+    expect(find.byKey(const ValueKey('show-answer')), findsOneWidget);
+    await tapKey(t, 'show-answer');
+    expect(find.byKey(const ValueKey('fsrs-hint')), findsOneWidget);
+    await tapKey(t, 'ans-easy');
+    expect(find.byKey(const ValueKey('congrats')), findsOneWidget);
+    await tapKey(t, 'congrats-undo');
+    expect(find.byKey(const ValueKey('show-answer')), findsOneWidget);
   });
 
   testWidgets('reviewer: first-review hint uses the real button labels; disappears after the first answer; bury greyed in More menu; suspend works', skip: true, (t) async {
