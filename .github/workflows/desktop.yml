@@ -80,8 +80,11 @@ jobs:
       - name: Test the bridge
         run: cargo test -p rslib_bridge -- --test-threads=1
 
+  # macos-14 is mapped to the runner image macos-14-arm64-us-default, which
+  # this organization does not offer (the job is cancelled before any step).
+  # macos-15 is the current GitHub-hosted Apple Silicon image.
   macos:
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 120
     steps:
       - name: Checkout

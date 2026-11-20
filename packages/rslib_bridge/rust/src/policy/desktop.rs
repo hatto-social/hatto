@@ -33,6 +33,9 @@ pub(crate) struct PresentedStates {
 #[derive(Debug, Default)]
 pub(crate) struct DesktopSession {
     pub data_dir: Option<PathBuf>,
+    /// Set after `OpenCollection` and its FSRS init both succeed. Cleared
+    /// after a successful `CloseCollection`.
+    pub collection_open: bool,
     pub presented: HashMap<i64, PresentedStates>,
     pub search_strings: HashSet<String>,
 }
@@ -41,11 +44,15 @@ impl DesktopSession {
     pub(crate) fn new(data_dir: Option<PathBuf>) -> Self {
         Self {
             data_dir,
+            collection_open: false,
             presented: HashMap::new(),
             search_strings: HashSet::new(),
         }
     }
 }
+
+/// Requests larger than this are rejected before they reach rslib.
+pub(crate) const MAX_REQUEST_BYTES: usize = 4 * 1024 * 1024;
 
 pub(crate) fn enforce(
     backend: &AnkiBackend,
@@ -53,6 +60,12 @@ pub(crate) fn enforce(
     method_index: u32,
     input: Vec<u8>,
 ) -> ProtoResponse {
+    if input.len() > MAX_REQUEST_BYTES {
+        return backend_error(format!(
+            "denied: request is {} bytes (exceeds 4 MiB)",
+            input.len()
+        ));
+    }
     let Some((service, method)) = index::reverse(service_index, method_index) else {
         return backend_error(format!(
             "denied: index {service_index}/{method_index} (not on allowlist)"
@@ -65,6 +78,11 @@ pub(crate) fn enforce(
             _ => "not on allowlist",
         };
         return backend_error(format!("denied: {full} ({why})"));
+    }
+    let opens_or_closes = service == super::COLLECTION
+        && (method == "open_collection" || method == "close_collection");
+    if !opens_or_closes && !backend.lock_session().collection_open {
+        return backend_error(format!("denied: {full} (collection is not open)"));
     }
 
     let bytes = match validators::prepare(backend, service, method, &input) {
@@ -81,13 +99,19 @@ pub(crate) fn enforce(
             Ok(open) => {
                 if let Err(err) = fsrs_init::maybe_initialize(backend, &open) {
                     let _ = fsrs_init::close_collection(backend);
+                    backend.lock_session().collection_open = false;
                     return backend_error(format!("fsrs init failed: {err}"));
                 }
+                backend.lock_session().collection_open = true;
             }
             Err(err) => {
+                backend.lock_session().collection_open = false;
                 return backend_error(format!("fsrs init failed: open request: {err}"));
             }
         }
+    }
+    if service == super::COLLECTION && method == "close_collection" {
+        backend.lock_session().collection_open = false;
     }
     response
 }

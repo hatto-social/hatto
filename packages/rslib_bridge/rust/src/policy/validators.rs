@@ -15,7 +15,7 @@ use prost::Message;
 use super::desktop::{require_inside_data_dir, PresentedStates};
 use super::{
     ANSWER_TAKEN_MAX_MILLIS, CARDS, COLLECTION, CONFIG, DECKS, FETCH_LIMIT_MAX, GRAPHS_DAYS_MAX,
-    IMPORT_EXPORT, SCHEDULER, STATS,
+    IMPORT_EXPORT, NOTETYPES, SCHEDULER, STATS,
 };
 use crate::api::{dispatch_message, AnkiBackend};
 
@@ -36,6 +36,7 @@ pub(crate) fn prepare(
         (STATS, "graphs") => validate_graphs(backend, input),
         (SCHEDULER, "bury_or_suspend_cards") => validate_bury(backend, input),
         (SCHEDULER, "restore_buried_and_suspended_cards") => validate_restore(backend, input),
+        (NOTETYPES, "get_cloze_field_ords") => validate_cloze_field_ords(backend, input),
         _ => Ok(input.to_vec()),
     }
 }
@@ -90,6 +91,25 @@ fn validate_export(input: &[u8]) -> Result<Vec<u8>, String> {
     if options.legacy {
         return Err("legacy must be false".into());
     }
+    match request.limit.and_then(|limit| limit.limit) {
+        Some(anki_proto::import_export::export_limit::Limit::DeckId(_)) => {}
+        Some(anki_proto::import_export::export_limit::Limit::NoteIds(ids))
+            if !ids.note_ids.is_empty() => {}
+        Some(anki_proto::import_export::export_limit::Limit::WholeCollection(_)) => {
+            return Err("limit must be a single deck or a note id list".into());
+        }
+        Some(anki_proto::import_export::export_limit::Limit::CardIds(_)) => {
+            return Err("limit must be a single deck or a note id list".into());
+        }
+        _ => return Err("limit must be a single deck or a note id list".into()),
+    }
+    Ok(input.to_vec())
+}
+
+fn validate_cloze_field_ords(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String> {
+    let notetype = decode::<anki_proto::notetypes::NotetypeId>(input)?;
+    dispatch_message(backend, NOTETYPES, "get_notetype", &notetype)
+        .map_err(|_| format!("notetype {} does not exist", notetype.ntid))?;
     Ok(input.to_vec())
 }
 

@@ -144,15 +144,23 @@ pub(crate) fn dispatch(
     method: u32,
     input: &[u8],
 ) -> ProtoResponse {
-    match backend.inner.run_service_method(service, method, input) {
-        Ok(payload) => ProtoResponse {
+    // rslib can panic on a missing notetype (`GetClozeFieldOrds`). Catch that
+    // here so the panic becomes a BackendError instead of killing the process.
+    // A panic while rslib holds its collection mutex can still poison that
+    // mutex; callers that can check the input first should do so.
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        backend.inner.run_service_method(service, method, input)
+    }));
+    match result {
+        Ok(Ok(payload)) => ProtoResponse {
             success: true,
             payload,
         },
-        Err(payload) => ProtoResponse {
+        Ok(Err(payload)) => ProtoResponse {
             success: false,
             payload,
         },
+        Err(_) => backend_error("rslib panicked"),
     }
 }
 

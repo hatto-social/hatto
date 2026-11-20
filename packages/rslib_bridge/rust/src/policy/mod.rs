@@ -112,7 +112,7 @@ pub static ALLOWLIST: &[AllowEntry] = &[
     row!(DECKS, "get_deck_names", Read, NameOnly, NONE, NAME_ONLY_TEST),
     row!(DECKS, "get_deck_and_child_names", Read, NameOnly, NONE, NAME_ONLY_TEST),
     row!(DECKS, "deck_tree", Read, NameOnly, NONE, NAME_ONLY_TEST),
-    row!(DECKS, "add_deck", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
+    row!(DECKS, "add_deck", Write, Pending, "검증은 백엔드 조회로 가능. 거부는 deck_map 기록 때문", PENDING_TEST),
     row!(DECKS, "rename_deck", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
     row!(DECKS, "reparent_decks", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
     row!(DECKS, "remove_decks", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
@@ -130,7 +130,7 @@ pub static ALLOWLIST: &[AllowEntry] = &[
     row!(NOTES, "add_note", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
     row!(NOTES, "add_notes", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
     row!(NOTES, "update_notes", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
-    row!(NOTES, "remove_notes", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
+    row!(NOTES, "remove_notes", Write, Pending, "검증은 상태 없이 가능. 이식 PR에서 함께 연다", PENDING_TEST),
     // Notetypes (11)
     row!(NOTETYPES, "get_notetype", Read, NameOnly, NONE, NAME_ONLY_TEST),
     row!(NOTETYPES, "get_notetype_names", Read, NameOnly, NONE, NAME_ONLY_TEST),
@@ -141,7 +141,7 @@ pub static ALLOWLIST: &[AllowEntry] = &[
     row!(NOTETYPES, "get_change_notetype_info", Read, NameOnly, NONE, NAME_ONLY_TEST),
     row!(NOTETYPES, "add_notetype", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
     row!(NOTETYPES, "update_notetype", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
-    row!(NOTETYPES, "remove_notetype", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
+    row!(NOTETYPES, "remove_notetype", Write, Pending, "검증은 상태 없이 가능. 이식 PR에서 함께 연다", PENDING_TEST),
     row!(NOTETYPES, "change_notetype", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
     // Cards (1)
     row!(CARDS, "get_card", Read, NameOnly, NONE, NAME_ONLY_TEST),
@@ -157,8 +157,8 @@ pub static ALLOWLIST: &[AllowEntry] = &[
     row!(RENDERING, "encode_iri_paths", Read, NameOnly, NONE, NAME_ONLY_TEST),
     row!(RENDERING, "decode_iri_paths", Read, NameOnly, NONE, NAME_ONLY_TEST),
     // Search (7) and the deferred column call
-    row!(SEARCH, "search_notes", Read, NameOnly, NONE, NAME_ONLY_TEST),
-    row!(SEARCH, "search_cards", Read, NameOnly, NONE, NAME_ONLY_TEST),
+    row!(SEARCH, "search_notes", Read, NameOnly, "이름은 허용. 계약은 BuildSearchString 결과만이며 이 PR에서는 미구현", NAME_ONLY_TEST),
+    row!(SEARCH, "search_cards", Read, NameOnly, "이름은 허용. 계약은 BuildSearchString 결과만이며 이 PR에서는 미구현", NAME_ONLY_TEST),
     row!(SEARCH, "browser_row_for_id", Read, NameOnly, NONE, NAME_ONLY_TEST),
     row!(SEARCH, "all_browser_columns", Read, NameOnly, NONE, NAME_ONLY_TEST),
     row!(SEARCH, "build_search_string", Read, NameOnly, NONE, NAME_ONLY_TEST),
@@ -176,9 +176,9 @@ pub static ALLOWLIST: &[AllowEntry] = &[
     row!(OCCLUSION, "get_image_occlusion_fields", Read, NameOnly, NONE, NAME_ONLY_TEST),
     row!(OCCLUSION, "add_image_occlusion_notetype", Write, NameOnly, NONE, NAME_ONLY_TEST),
     row!(OCCLUSION, "update_image_occlusion_note", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
-    row!(OCCLUSION, "get_image_occlusion_note", Read, Pending, UNIMPLEMENTED, PENDING_TEST),
+    row!(OCCLUSION, "get_image_occlusion_note", Read, Pending, "GetNote 조회가 필요. note_map이 아님", PENDING_TEST),
     // Import / export (1)
-    row!(IMPORT_EXPORT, "export_anki_package", Write, Validated, "with_scheduling=false, with_deck_configs=false, with_media=true, legacy=false", "validates_export_anki_package"),
+    row!(IMPORT_EXPORT, "export_anki_package", Write, Validated, "with_scheduling=false, with_deck_configs=false, with_media=true, legacy=false; limit is one deck or a note id list", "validates_export_anki_package"),
     // Study scheduler (9) plus bury and restore
     row!(SCHEDULER, "get_queued_cards", Read, Validated, "fetch_limit <= 50", "validates_get_queued_cards"),
     row!(SCHEDULER, "answer_card", Write, Validated, "new_state bytes match the offered rating; custom_data empty; milliseconds_taken <= 60000; wrapper sets answered_at_millis", "validates_answer_card"),
@@ -192,7 +192,7 @@ pub static ALLOWLIST: &[AllowEntry] = &[
     row!(SCHEDULER, "bury_or_suspend_cards", Write, Validated, "mode is SUSPEND, card_ids is non-empty, note_ids is empty, every card exists", "validates_bury_or_suspend_cards"),
     row!(SCHEDULER, "restore_buried_and_suspended_cards", Write, Validated, "every listed card exists and has queue -1", "validates_restore_buried_and_suspended_cards"),
     // Stats (4)
-    row!(STATS, "graphs", Read, Validated, "search was returned by BuildSearchString, JoinSearchNodes, or ReplaceSearchNode this session; days <= 3650 and 0 means all history", "validates_graphs"),
+    row!(STATS, "graphs", Read, Validated, "search was returned by BuildSearchString, JoinSearchNodes, or ReplaceSearchNode this session; days <= 3650. days=0 reads the whole revlog, so 3650 is not a cost cap", "validates_graphs"),
     row!(STATS, "get_graph_preferences", Read, NameOnly, NONE, NAME_ONLY_TEST),
     row!(STATS, "card_stats", Read, NameOnly, NONE, NAME_ONLY_TEST),
     row!(STATS, "get_review_logs", Read, NameOnly, NONE, NAME_ONLY_TEST),

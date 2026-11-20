@@ -20,6 +20,7 @@
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use prost::Message;
 
@@ -27,6 +28,16 @@ use crate::api::{dispatch_message, AnkiBackend};
 
 const DEFAULT_DECK_ID: i64 = 1;
 const DESIRED_RETENTION: f32 = 0.90;
+
+/// When set, the next `UpdateDeckConfigs` from init sends an invalid FSRS
+/// parameter list so the call fails. Tests use this to prove the marker is
+/// written only after that call succeeds.
+static FAIL_NEXT_FSRS_UPDATE: AtomicBool = AtomicBool::new(false);
+
+#[cfg(test)]
+pub(crate) fn fail_next_fsrs_update() {
+    FAIL_NEXT_FSRS_UPDATE.store(true, Ordering::SeqCst);
+}
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum FsrsInitOutcome {
@@ -57,6 +68,9 @@ pub(crate) fn maybe_initialize(
 
     let configs = deck_configs(backend)?;
     if configs.fsrs {
+        // FSRS is already on. Write the marker so a later turn-off plus an
+        // empty revlog cannot run init again.
+        write_marker_atomic(&marker)?;
         return Ok(FsrsInitOutcome::AlreadyEnabled);
     }
     let revlog_rows = revlog_count(backend)?;
@@ -120,6 +134,10 @@ fn enable_fsrs(
     inner.fsrs_params_4.clear();
     inner.fsrs_params_5.clear();
     inner.fsrs_params_6.clear();
+    if FAIL_NEXT_FSRS_UPDATE.swap(false, Ordering::SeqCst) {
+        // One float is not a valid FSRS-6 parameter list. rslib rejects it.
+        inner.fsrs_params_6 = vec![1.0];
+    }
 
     let request = anki_proto::deck_config::UpdateDeckConfigsRequest {
         target_deck_id: DEFAULT_DECK_ID,

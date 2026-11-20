@@ -377,13 +377,12 @@ fn mobile_unrestricted_forwards_calls_that_desktop_denies() {
 #[test]
 fn name_only_calls_are_not_denied_by_the_desktop_profile() {
     let dir = tempfile::TempDir::new_in("/tmp").unwrap();
-    std::fs::create_dir_all(dir.path()).unwrap();
+    let paths = col_paths(dir.path());
+    let backend = open_desktop_collection(&paths);
     // Empty protobuf is not a valid request for every name-only call. rslib
-    // returns an error for most of them. `get_cloze_field_ords` panics on a
-    // missing notetype instead of returning a BackendError. A panic is still
-    // past the desktop gate, so it counts as forwarded. The backend is
-    // replaced afterwards because a panic can poison rslib's mutex.
-    let mut backend = desktop_backend(dir.path());
+    // returns an error for most of them. `get_cloze_field_ords` is checked
+    // for a real notetype first, and `dispatch` turns any remaining panic
+    // into an error, so none of these calls should unwind.
     for row in ALLOWLIST
         .iter()
         .filter(|row| row.status == Status::NameOnly)
@@ -396,22 +395,18 @@ fn name_only_calls_are_not_denied_by_the_desktop_profile() {
                 &anki_proto::generic::Empty {},
             )
         }));
-        match response {
-            Ok(response) => {
-                if !response.success {
-                    let message = message_of(&response);
-                    assert!(
-                        !message.contains("(not on allowlist)")
-                            && !message.contains("(validator not implemented)"),
-                        "{}.{}: {message}",
-                        row.service,
-                        row.method
-                    );
-                }
-            }
-            Err(_) => {
-                backend = desktop_backend(dir.path());
-            }
+        let response = response
+            .unwrap_or_else(|_| panic!("{}.{} panicked past the bridge", row.service, row.method));
+        if !response.success {
+            let message = message_of(&response);
+            assert!(
+                !message.contains("(not on allowlist)")
+                    && !message.contains("(validator not implemented)")
+                    && !message.contains("collection is not open"),
+                "{}.{}: {message}",
+                row.service,
+                row.method
+            );
         }
     }
 }
@@ -595,6 +590,44 @@ fn validates_export_anki_package() {
         message_of(&denied)
     );
 
+    let mut whole = export_request(&paths);
+    whole.limit = Some(anki_proto::import_export::ExportLimit {
+        limit: Some(
+            anki_proto::import_export::export_limit::Limit::WholeCollection(
+                anki_proto::generic::Empty {},
+            ),
+        ),
+    });
+    let denied = call(
+        &backend,
+        "BackendImportExportService",
+        "export_anki_package",
+        &whole,
+    );
+    assert!(
+        message_of(&denied).contains("note id list"),
+        "{}",
+        message_of(&denied)
+    );
+
+    let mut cards = export_request(&paths);
+    cards.limit = Some(anki_proto::import_export::ExportLimit {
+        limit: Some(anki_proto::import_export::export_limit::Limit::CardIds(
+            anki_proto::cards::CardIds { cids: vec![1] },
+        )),
+    });
+    let denied = call(
+        &backend,
+        "BackendImportExportService",
+        "export_anki_package",
+        &cards,
+    );
+    assert!(
+        message_of(&denied).contains("note id list"),
+        "{}",
+        message_of(&denied)
+    );
+
     let exported = call(
         &backend,
         "BackendImportExportService",
@@ -615,11 +648,7 @@ fn export_request(paths: &ColPaths) -> anki_proto::import_export::ExportAnkiPack
             legacy: false,
         }),
         limit: Some(anki_proto::import_export::ExportLimit {
-            limit: Some(
-                anki_proto::import_export::export_limit::Limit::WholeCollection(
-                    anki_proto::generic::Empty {},
-                ),
-            ),
+            limit: Some(anki_proto::import_export::export_limit::Limit::DeckId(1)),
         }),
     }
 }
@@ -1196,4 +1225,181 @@ fn app_update_deck_configs_is_denied() {
         "{}",
         message_of(&denied)
     );
+}
+
+#[test]
+fn desktop_rejects_requests_over_4_mib_and_calls_before_open() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let paths = col_paths(dir.path());
+    let backend = desktop_backend(&paths.root);
+    let (service, method) = index::lookup("BackendDecksService", "get_deck_names").unwrap();
+    let huge = command(&backend, service, method, vec![0; 4 * 1024 * 1024 + 1]);
+    assert!(
+        message_of(&huge).contains("exceeds 4 MiB"),
+        "{}",
+        message_of(&huge)
+    );
+
+    let closed = call(
+        &backend,
+        "BackendDecksService",
+        "get_deck_names",
+        &anki_proto::generic::Empty {},
+    );
+    assert!(
+        message_of(&closed).contains("collection is not open"),
+        "{}",
+        message_of(&closed)
+    );
+    let close_while_closed = call(
+        &backend,
+        "BackendCollectionService",
+        "close_collection",
+        &anki_proto::collection::CloseCollectionRequest {
+            downgrade_to_schema11: false,
+        },
+    );
+    if !close_while_closed.success {
+        assert!(
+            !message_of(&close_while_closed).contains("denied:"),
+            "{}",
+            message_of(&close_while_closed)
+        );
+    }
+
+    let opened = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &open_request(&paths),
+    );
+    assert!(opened.success, "{}", message_of(&opened));
+    let names = call(
+        &backend,
+        "BackendDecksService",
+        "get_deck_names",
+        &anki_proto::decks::GetDeckNamesRequest {
+            skip_empty_default: false,
+            include_filtered: true,
+        },
+    );
+    assert!(names.success, "{}", message_of(&names));
+}
+
+#[test]
+fn get_cloze_field_ords_rejects_a_missing_notetype_without_panicking() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let paths = col_paths(dir.path());
+    let backend = open_desktop_collection(&paths);
+    let response = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        call(
+            &backend,
+            "BackendNotetypesService",
+            "get_cloze_field_ords",
+            &anki_proto::notetypes::NotetypeId { ntid: 0 },
+        )
+    }));
+    let response = response.expect("panic escaped the bridge");
+    assert!(!response.success);
+    assert!(
+        message_of(&response).contains("does not exist"),
+        "{}",
+        message_of(&response)
+    );
+}
+
+#[test]
+fn answer_card_compares_new_state_before_filling_the_clock() {
+    let source = include_str!("validators.rs");
+    let check = source
+        .find("new_state.encode_to_vec() != expected")
+        .expect("byte compare");
+    let fill = source
+        .find("fill_answered_at_millis(&mut answer")
+        .expect("clock fill");
+    assert!(
+        check < fill,
+        "new_state is compared before answered_at_millis is overwritten"
+    );
+
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let paths = col_paths(dir.path());
+    let backend = open_desktop_collection(&paths);
+    let card_id = add_basic_card(&backend);
+    let offered = scheduling_states(&backend, card_id);
+    let good = offered.good.clone().unwrap();
+    let year_ago = 1_600_000_000_000;
+    let tweaked = one_byte_different_state(&good);
+    let denied = call(
+        &backend,
+        "BackendSchedulerService",
+        "answer_card",
+        &answer(card_id, offered.current.clone(), tweaked, 1_000, year_ago),
+    );
+    assert!(
+        message_of(&denied).contains("does not match"),
+        "{}",
+        message_of(&denied)
+    );
+
+    let before = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64;
+    let answered = call(
+        &backend,
+        "BackendSchedulerService",
+        "answer_card",
+        &answer(card_id, offered.current, good, 1_000, year_ago),
+    );
+    assert!(answered.success, "{}", message_of(&answered));
+    let revlog_id = latest_revlog_id(&backend);
+    assert!(
+        revlog_id >= before.saturating_sub(2_000),
+        "revlog id {revlog_id} kept the client clock {year_ago}"
+    );
+}
+
+#[test]
+fn fsrs_init_writes_no_marker_when_update_deck_configs_fails() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let paths = col_paths(dir.path());
+    let backend = desktop_backend(&paths.root);
+    let open = open_request(&paths);
+    // Open through the raw channel so init has not run yet.
+    dispatch_message(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &open,
+    )
+    .unwrap();
+    fsrs_init::fail_next_fsrs_update();
+    let err = fsrs_init::maybe_initialize(&backend, &open).unwrap_err();
+    assert!(
+        !marker_path(&paths.collection).exists(),
+        "marker written after a failed update: {err}"
+    );
+    assert!(!fsrs_enabled(&backend), "{err}");
+}
+
+#[test]
+fn fsrs_init_writes_a_marker_when_fsrs_is_already_on() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let paths = col_paths(dir.path());
+    let backend = open_desktop_collection(&paths);
+    let marker = marker_path(&paths.collection);
+    assert!(marker.is_file());
+    assert!(fsrs_enabled(&backend));
+    std::fs::remove_file(&marker).unwrap();
+    let open = open_request(&paths);
+    assert_eq!(
+        fsrs_init::maybe_initialize(&backend, &open).unwrap(),
+        FsrsInitOutcome::AlreadyEnabled
+    );
+    assert!(
+        marker.is_file(),
+        "already-on collection did not get a marker"
+    );
+    assert!(fsrs_enabled(&backend));
 }

@@ -52,6 +52,17 @@ void main() {
     }
   });
 
+  test('desktop code does not open the mobile-unrestricted backend', () {
+    for (final file in sources) {
+      final text = file.readAsStringSync();
+      expect(
+        text.contains('openBackend('),
+        isFalse,
+        reason: '${file.path} calls openBackend',
+      );
+    }
+  });
+
   test(
     'the desktop package does not depend on hatto_store or url_launcher',
     () {
