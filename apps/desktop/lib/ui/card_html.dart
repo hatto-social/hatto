@@ -16,7 +16,8 @@ import 'math_html.dart';
 /// Decode cap for a media image. A large source is resized while decoding.
 const kCardImageCacheWidth = 1280;
 
-/// Fields larger than this, or nested or tagged past the caps below, are shown
+/// Cap on [String.length]. That count is UTF-16 code units, not UTF-8 bytes.
+/// A field past this length, or nested or tagged past the caps below, is shown
 /// as plain text so layout cannot recurse without a bound.
 const kCardHtmlMaxBytes = 1 << 20;
 const kCardHtmlMaxDepth = 64;
