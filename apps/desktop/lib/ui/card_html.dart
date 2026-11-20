@@ -228,6 +228,7 @@ String _withoutCssComments(String css, CssScan? scan) {
     scan?.steps++;
     if (i + 1 < n && css.codeUnitAt(i) == 0x2f && css.codeUnitAt(i + 1) == 0x2a) {
       final end = css.indexOf('*/', i + 2);
+      // An unclosed /* swallows the rest of the sheet. A browser does the same.
       if (end < 0) {
         scan?.steps += n - (i + 2);
         break;

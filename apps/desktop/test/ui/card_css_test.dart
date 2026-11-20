@@ -13,6 +13,12 @@ void main() {
     expect(rules.forSelector('.inner')['color'], 'blue');
   });
 
+  test('an unclosed comment swallows the rest of the sheet', () {
+    final rules = CssRules.parse('.before { color: red } /* .after { color: blue }');
+    expect(rules.forSelector('.before')['color'], 'red');
+    expect(rules.forSelector('.after'), isEmpty);
+  });
+
   test('a rule after an at-media block is kept', () {
     final rules = CssRules.parse('@media (screen) { .card { color: red } } .after { color: blue }');
     expect(rules.forSelector('.card')['color'], 'red');
