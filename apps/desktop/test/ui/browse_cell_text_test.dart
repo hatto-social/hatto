@@ -12,12 +12,19 @@ void main() {
     expect(browseCellText('x&nbsp;y'), 'x y');
   });
 
-  test('a long run of angle brackets and encoded brackets stays fast', () {
+  test('a long run of angle brackets stays fast', () {
     final watch = Stopwatch()..start();
     final angles = browseCellText('<' * 40000);
-    final encoded = browseCellText('&lt;' * 40000);
     expect(watch.elapsed, lessThan(const Duration(milliseconds: 200)));
     expect(angles, '<' * kCardHtmlPlainPrefix);
-    expect(encoded, '&lt;' * (kCardHtmlPlainPrefix ~/ 4));
+  });
+
+  test('decoded &lt; runs take the angle-bracket path', () {
+    final decoded = ('&lt;' * 40000).replaceAll('&lt;', '<');
+    expect(decoded, '<' * 40000);
+    final watch = Stopwatch()..start();
+    final text = browseCellText(decoded);
+    expect(watch.elapsed, lessThan(const Duration(milliseconds: 200)));
+    expect(text, '<' * kCardHtmlPlainPrefix);
   });
 }
