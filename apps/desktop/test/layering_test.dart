@@ -63,14 +63,40 @@ void main() {
     }
   });
 
-  test(
-    'the desktop package does not depend on hatto_store or url_launcher',
-    () {
-      final pubspec = File('pubspec.yaml').readAsStringSync();
-      expect(pubspec, isNot(contains('hatto_store')));
-      expect(pubspec, isNot(contains('url_launcher')));
-    },
-  );
+  test('side database writes stay in write_gateway.dart', () {
+    final pubspec = File('pubspec.yaml').readAsStringSync();
+    expect(pubspec, contains('hatto_store'));
+    expect(pubspec, isNot(contains('url_launcher')));
+    const needles = [
+      'WriteWrapper',
+      'beginIntent',
+      'completeIntent',
+      'abandonIntent',
+      'putDeck(',
+      'importNote(',
+      'putRevlogOrigin(',
+      'markDeckDeleted(',
+      'rewriteDeckGuid(',
+      'setDeckServerUnsynced(',
+      'deleteRevlogOrigin(',
+      'replaceNote(',
+      'reconcileCollection(',
+    ];
+    for (final file in sources) {
+      final path = file.path.replaceAll('\\', '/');
+      if (path.endsWith('/store/write_gateway.dart')) {
+        continue;
+      }
+      final text = file.readAsStringSync();
+      for (final needle in needles) {
+        expect(
+          text.contains(needle),
+          isFalse,
+          reason: '$path contains $needle',
+        );
+      }
+    }
+  });
 }
 
 bool noteHtmlDeclaresALibrary(String source) {

@@ -33,7 +33,7 @@ workspace: &workspace
 legal: &legal
   - 'packages/hatto_legal/**'
 
-# Mobile depends on hatto_store. Desktop does not.
+# Both apps depend on hatto_store.
 store: &store
   - 'packages/hatto_store/**'
 
@@ -41,6 +41,7 @@ desktop: &desktop
   - *engine
   - *workspace
   - *legal
+  - *store
   - 'apps/desktop/**'
 
 mobile: &mobile
