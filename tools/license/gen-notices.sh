@@ -79,10 +79,42 @@ cargo deny --locked \
   check licenses
 
 echo "cargo-about generate"
+python3 - "$WORK" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+work = Path(sys.argv[1])
+text = Path("tools/license/about.toml").read_text(encoding="utf-8")
+match = re.search(
+    r"(?m)^desktop_targets\s*=\s*\[(.*?)\]\s*\n",
+    text,
+    re.S,
+)
+if not match:
+    raise SystemExit("tools/license/about.toml is missing desktop_targets")
+desktop_body = match.group(1)
+android = text[: match.start()] + text[match.end() :]
+desktop = re.sub(
+    r"(?m)^targets\s*=\s*\[.*?\]\s*\n",
+    "targets = [" + desktop_body + "]\n",
+    android,
+    count=1,
+    flags=re.S,
+)
+if "x86_64-unknown-linux-gnu" not in desktop or "aarch64-linux-android" in desktop.split("targets =", 1)[1].split("]", 1)[0]:
+    raise SystemExit("desktop about.toml targets were not rewritten")
+(work / "about-android.toml").write_text(android, encoding="utf-8")
+(work / "about-desktop.toml").write_text(desktop, encoding="utf-8")
+PY
 cargo about generate --fail --locked --format json \
   --manifest-path packages/rslib_bridge/rust/Cargo.toml \
-  --config tools/license/about.toml \
+  --config "$WORK/about-android.toml" \
   -o "$WORK/about.json"
+cargo about generate --fail --locked --format json \
+  --manifest-path packages/rslib_bridge/rust/Cargo.toml \
+  --config "$WORK/about-desktop.toml" \
+  -o "$WORK/about-desktop.json"
 
 echo "gradle licenseReleaseReport"
 (
@@ -107,4 +139,5 @@ fi
 
 python3 tools/license/render_notices.py \
   "$ROOT" "$WORK/about.json" "$ANDROID_JSON" "$FLUTTER_ROOT/LICENSE" \
-  "$MATERIAL_LICENSE"
+  "$MATERIAL_LICENSE" "$WORK/about-desktop.json" \
+  "$ROOT/apps/desktop/test/fonts/OFL.txt"

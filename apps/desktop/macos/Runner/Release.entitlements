@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  v0는 서명·공증 범위 밖이고 파일 선택·드롭에 샌드박스가 필요 없다.
+	  샌드박스는 Mac App Store 요건이고 공증은 Hardened Runtime이 필요하다.
+	  출시 PR에서 검증한다.
+	-->
+	<key>com.apple.security.app-sandbox</key>
+	<false/>
+</dict>
+</plist>

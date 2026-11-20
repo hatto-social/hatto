@@ -1,6 +1,6 @@
 name: hatto
 publish_to: none
-description: Hatto Social v0 workspace (Android app, rslib bridge, side DB).
+description: Hatto Social v0 workspace (Android app, desktop shell, rslib bridge, side DB).
 
 environment:
   sdk: ^3.13.7
@@ -10,6 +10,7 @@ dev_dependencies:
 
 workspace:
   - apps/mobile
+  - apps/desktop
   - packages/rslib_bridge
   - packages/hatto_store
   - packages/hatto_legal

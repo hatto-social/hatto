@@ -40,7 +40,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1276539588;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 2030265303;
 
 // Section: executor
 
@@ -230,6 +230,40 @@ fn wire__crate__api__open_backend_impl(
             move |context| {
                 transform_result_sse::<_, String>((move || {
                     let output_ok = crate::api::open_backend(api_init_msg)?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__open_desktop_backend_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "open_desktop_backend",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_init_msg = <Vec<u8>>::sse_decode(&mut deserializer);
+            let api_data_dir = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::api::open_desktop_backend(api_init_msg, api_data_dir)?;
                     std::result::Result::Ok(output_ok)
                 })())
             }
@@ -510,8 +544,9 @@ fn pde_ffi_dispatcher_primary_impl(
             wire__crate__api__inspect_exported_deck_configs_impl(port, ptr, rust_vec_len, data_len)
         }
         5 => wire__crate__api__open_backend_impl(port, ptr, rust_vec_len, data_len),
-        6 => wire__crate__api__prepare_runtime_impl(port, ptr, rust_vec_len, data_len),
-        8 => wire__crate__api__smoke_open_collection_impl(port, ptr, rust_vec_len, data_len),
+        6 => wire__crate__api__open_desktop_backend_impl(port, ptr, rust_vec_len, data_len),
+        7 => wire__crate__api__prepare_runtime_impl(port, ptr, rust_vec_len, data_len),
+        9 => wire__crate__api__smoke_open_collection_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -525,7 +560,7 @@ fn pde_ffi_dispatcher_sync_impl(
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
         1 => wire__crate__api__anki_version_impl(ptr, rust_vec_len, data_len),
-        7 => wire__crate__api__service_method_index_impl(ptr, rust_vec_len, data_len),
+        8 => wire__crate__api__service_method_index_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }

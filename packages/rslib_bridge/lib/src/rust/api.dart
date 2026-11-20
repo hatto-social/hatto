@@ -7,8 +7,10 @@ import 'frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `call`, `decode_backend_error`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `fmt`
+// These functions are ignored because they are not marked as `pub`: `backend_error`, `call`, `decode_backend_error`, `dispatch_message`, `dispatch`, `is_unrestricted`, `lock_session`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `BridgeProfile`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `fmt`, `fmt`
+// These functions are ignored (category: IgnoreBecauseExplicitAttribute): `open_backend_with_profile`
 
 /// Point rslib's temp files at an app-writable directory.
 ///
@@ -19,10 +21,29 @@ Future<void> prepareRuntime({required String tmpDir}) =>
     RustLib.instance.api.crateApiPrepareRuntime(tmpDir: tmpDir);
 
 /// `init_msg` is an encoded `anki.backend.BackendInit`. v0 passes `server = false`.
+///
+/// This stays unrestricted: it opens a [BridgeProfile::MobileUnrestricted]
+/// backend. Existing mobile and `hatto_store` callers keep that behavior.
 Future<AnkiBackend> openBackend({required List<int> initMsg}) =>
     RustLib.instance.api.crateApiOpenBackend(initMsg: initMsg);
 
+/// Open a desktop-profile backend.
+///
+/// `data_dir` is the collection directory. This calls
+/// [open_backend_with_profile] with [BridgeProfile::Desktop].
+Future<AnkiBackend> openDesktopBackend({
+  required List<int> initMsg,
+  required String dataDir,
+}) => RustLib.instance.api.crateApiOpenDesktopBackend(
+  initMsg: initMsg,
+  dataDir: dataDir,
+);
+
 /// One protobuf backend call. `service` and `method` come from [service_method_index].
+///
+/// An unrestricted backend forwards the bytes. A desktop backend denies the
+/// call, without sending it to rslib, when the name is not allowed or its
+/// validator is not implemented.
 Future<ProtoResponse> command({
   required AnkiBackend backend,
   required int service,

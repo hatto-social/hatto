@@ -34,10 +34,28 @@ path = [
   "apps/mobile/assets/licenses/rust-crates.json",
   "apps/mobile/assets/licenses/android-deps.json",
   "apps/mobile/assets/licenses/material-icons.json",
+  "apps/desktop/assets/licenses/rust-crates.json",
+  "apps/desktop/assets/licenses/material-icons.json",
+  "apps/desktop/assets/licenses/flutter-sdk.json",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = "2026 Hatto Social contributors"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+# Golden fonts. The OFL text is the upstream notice, not a grant of this file
+# to us alone.
+[[annotations]]
+path = [
+  "apps/desktop/test/fonts/NotoSans-Regular.ttf",
+  "apps/desktop/test/fonts/NotoSansKR-Regular.otf",
+  "apps/desktop/test/fonts/OFL.txt",
+]
+precedence = "override"
+SPDX-FileCopyrightText = [
+  "2018 The Noto Project Authors",
+  "2014-2021 Adobe",
+]
+SPDX-License-Identifier = "OFL-1.1"
 
 # These files quote other people's copyright lines (the DCO, the Anki port
 # header). `closest` would treat the quotations as the copyright of the file.

@@ -1,0 +1,1199 @@
+// SPDX-FileCopyrightText: 2026 Hatto Social contributors
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+use std::path::{Path, PathBuf};
+use std::time::SystemTime;
+
+use prost::Message;
+
+use super::{
+    access_label, allowlist_markdown, camel_method, entry, forwarded_names, service_short_name,
+    status_label, Access, Status, ALLOWLIST, ANSWER_TAKEN_MAX_MILLIS, GRAPHS_DAYS_MAX,
+};
+use crate::api::{
+    command, decode_backend_error, dispatch_message, open_backend, open_backend_with_profile,
+    BridgeProfile, ProtoResponse,
+};
+use crate::fsrs_init::{self, marker_path, FsrsInitOutcome};
+use crate::index;
+
+struct ColPaths {
+    root: PathBuf,
+    collection: PathBuf,
+    media: PathBuf,
+    media_db: PathBuf,
+}
+
+fn col_paths(root: &Path) -> ColPaths {
+    std::fs::create_dir_all(root.join("collection.media")).unwrap();
+    std::fs::create_dir_all(root.join("tmp")).unwrap();
+    crate::api::prepare_runtime(root.join("tmp").to_string_lossy().into_owned());
+    ColPaths {
+        root: root.to_path_buf(),
+        collection: root.join("collection.anki2"),
+        media: root.join("collection.media"),
+        media_db: root.join("collection.media.db"),
+    }
+}
+
+fn init_bytes() -> Vec<u8> {
+    anki_proto::backend::BackendInit {
+        preferred_langs: vec!["en".into()],
+        locale_folder_path: String::new(),
+        server: false,
+    }
+    .encode_to_vec()
+}
+
+fn desktop_backend(root: &Path) -> crate::api::AnkiBackend {
+    open_backend_with_profile(
+        init_bytes(),
+        BridgeProfile::Desktop {
+            data_dir: root.to_string_lossy().into_owned(),
+        },
+    )
+    .expect("desktop backend")
+}
+
+fn open_request(paths: &ColPaths) -> anki_proto::collection::OpenCollectionRequest {
+    anki_proto::collection::OpenCollectionRequest {
+        collection_path: paths.collection.to_string_lossy().into_owned(),
+        media_folder_path: paths.media.to_string_lossy().into_owned(),
+        media_db_path: paths.media_db.to_string_lossy().into_owned(),
+    }
+}
+
+fn call(
+    backend: &crate::api::AnkiBackend,
+    service: &str,
+    method: &str,
+    message: &impl Message,
+) -> ProtoResponse {
+    let (service_index, method_index) = index::lookup(service, method).expect("index");
+    command(
+        backend,
+        service_index,
+        method_index,
+        message.encode_to_vec(),
+    )
+}
+
+fn message_of(response: &ProtoResponse) -> String {
+    decode_backend_error(&response.payload)
+}
+
+fn open_desktop_collection(paths: &ColPaths) -> crate::api::AnkiBackend {
+    let backend = desktop_backend(&paths.root);
+    let response = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &open_request(paths),
+    );
+    assert!(response.success, "{}", message_of(&response));
+    backend
+}
+
+fn add_basic_card(backend: &crate::api::AnkiBackend) -> i64 {
+    let id_bytes = dispatch_message(
+        backend,
+        "BackendNotetypesService",
+        "get_notetype_id_by_name",
+        &anki_proto::generic::String {
+            val: "Basic".into(),
+        },
+    )
+    .expect("basic notetype");
+    let notetype = anki_proto::notetypes::NotetypeId::decode(id_bytes.as_slice()).unwrap();
+    let note_bytes =
+        dispatch_message(backend, "BackendNotesService", "new_note", &notetype).expect("new note");
+    let mut note = anki_proto::notes::Note::decode(note_bytes.as_slice()).unwrap();
+    assert!(
+        note.fields.len() >= 2,
+        "basic note fields: {:?}",
+        note.fields
+    );
+    note.fields[0] = "front".into();
+    note.fields[1] = "back".into();
+    let added = dispatch_message(
+        backend,
+        "BackendNotesService",
+        "add_note",
+        &anki_proto::notes::AddNoteRequest {
+            note: Some(note),
+            deck_id: 1,
+        },
+    )
+    .expect("add note");
+    let response = anki_proto::notes::AddNoteResponse::decode(added.as_slice()).unwrap();
+    let cards = dispatch_message(
+        backend,
+        "BackendNotesService",
+        "cards_of_note",
+        &anki_proto::notes::NoteId {
+            nid: response.note_id,
+        },
+    )
+    .expect("cards of note");
+    let ids = anki_proto::cards::CardIds::decode(cards.as_slice()).unwrap();
+    *ids.cids.first().expect("new note has a card")
+}
+
+fn fsrs_enabled(backend: &crate::api::AnkiBackend) -> bool {
+    let bytes = dispatch_message(
+        backend,
+        "BackendDeckConfigService",
+        "get_deck_configs_for_update",
+        &anki_proto::decks::DeckId { did: 1 },
+    )
+    .expect("deck configs");
+    anki_proto::deck_config::DeckConfigsForUpdate::decode(bytes.as_slice())
+        .unwrap()
+        .fsrs
+}
+
+fn undo_is_empty(backend: &crate::api::AnkiBackend) {
+    let response = call(
+        backend,
+        "BackendCollectionService",
+        "get_undo_status",
+        &anki_proto::generic::Empty {},
+    );
+    assert!(response.success, "{}", message_of(&response));
+    let status = anki_proto::collection::UndoStatus::decode(response.payload.as_slice()).unwrap();
+    assert!(
+        status.undo.is_empty() && status.redo.is_empty(),
+        "{status:?}"
+    );
+}
+
+#[test]
+fn allowlist_names_resolve_and_counts_match() {
+    let mut seen = std::collections::HashSet::new();
+    let mut validated = 0;
+    let mut name_only = 0;
+    let mut pending = 0;
+    let mut deferred = 0;
+    for row in ALLOWLIST {
+        assert!(
+            seen.insert((row.service, row.method)),
+            "duplicate {}.{}",
+            row.service,
+            row.method
+        );
+        assert!(
+            index::lookup(row.service, row.method).is_some(),
+            "{}.{} is not in this rslib build",
+            row.service,
+            row.method
+        );
+        match row.status {
+            Status::Validated => validated += 1,
+            Status::NameOnly => name_only += 1,
+            Status::Pending => pending += 1,
+            Status::Deferred => deferred += 1,
+        }
+    }
+    assert_eq!(validated, 10);
+    assert_eq!(name_only, 60);
+    assert_eq!(pending, 17);
+    assert_eq!(deferred, 1);
+    assert_eq!(ALLOWLIST.len(), 88);
+    assert_eq!(forwarded_names().len(), 70);
+
+    let pending_methods: std::collections::HashSet<_> = ALLOWLIST
+        .iter()
+        .filter(|row| row.status == Status::Pending)
+        .map(|row| row.method)
+        .collect();
+    for method in [
+        "undo",
+        "redo",
+        "add_deck",
+        "rename_deck",
+        "reparent_decks",
+        "remove_decks",
+        "add_note",
+        "add_notes",
+        "update_notes",
+        "remove_notes",
+        "add_notetype",
+        "update_notetype",
+        "remove_notetype",
+        "change_notetype",
+        "add_media_file",
+        "update_image_occlusion_note",
+        "get_image_occlusion_note",
+    ] {
+        assert!(pending_methods.contains(method), "{method}");
+    }
+    assert_eq!(pending_methods.len(), 17);
+}
+
+#[test]
+fn print_allowlist_table() {
+    let table = allowlist_markdown();
+    println!("{table}");
+    assert_eq!(
+        table.lines().filter(|line| line.starts_with("| ")).count(),
+        89
+    );
+    assert!(table.contains("| Collection | OpenCollection |"));
+    assert!(table.contains("검증 미구현, 이 PR에서는 거부"));
+    assert!(table.contains("| Search | SetActiveBrowserColumns |"));
+    assert!(table.contains("이월"));
+    assert_eq!(status_label(Status::Validated), "허용(검증 있음)");
+    assert_eq!(status_label(Status::NameOnly), "허용(이름만)");
+    assert_eq!(access_label(Access::Read), "읽기");
+    assert_eq!(camel_method("get_config_bool"), "GetConfigBool");
+    assert_eq!(
+        service_short_name("BackendImageOcclusionService"),
+        "ImageOcclusion"
+    );
+    assert!(entry("BackendSearchService", "set_active_browser_columns").is_some());
+}
+
+#[test]
+fn desktop_denies_calls_outside_the_allowed_70() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let backend = desktop_backend(dir.path());
+    let allowed = forwarded_names();
+    let mut denied = 0;
+    let mut pending = 0;
+    for entry in index::iter_methods() {
+        if allowed.contains(&(entry.service, entry.method)) {
+            continue;
+        }
+        let response = command(
+            &backend,
+            entry.service_index,
+            entry.method_index,
+            Vec::new(),
+        );
+        assert!(
+            !response.success,
+            "{}.{} was forwarded",
+            entry.service, entry.method
+        );
+        let message = message_of(&response);
+        assert!(
+            message.contains(&format!("denied: {}.{}", entry.service, entry.method)),
+            "{message}"
+        );
+        let row = super::entry(entry.service, entry.method);
+        if row.is_some_and(|row| row.status == Status::Pending) {
+            assert!(message.contains("(validator not implemented)"), "{message}");
+            pending += 1;
+        } else {
+            assert!(message.contains("(not on allowlist)"), "{message}");
+        }
+        denied += 1;
+    }
+    assert!(denied > 17, "denied {denied}");
+    assert_eq!(pending, 17);
+}
+
+#[test]
+fn pending_validators_are_denied() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let backend = desktop_backend(dir.path());
+    for row in ALLOWLIST.iter().filter(|row| row.status == Status::Pending) {
+        let response = call(
+            &backend,
+            row.service,
+            row.method,
+            &anki_proto::generic::Empty {},
+        );
+        assert!(!response.success, "{}.{}", row.service, row.method);
+        let message = message_of(&response);
+        assert!(
+            message.contains("(validator not implemented)"),
+            "{}.{}: {message}",
+            row.service,
+            row.method
+        );
+    }
+}
+
+#[test]
+fn denied_calls_stay_denied() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let backend = desktop_backend(dir.path());
+    let cases = [
+        ("BackendSchedulerService", "unbury_deck"),
+        ("BackendSchedulerService", "set_due_date"),
+        ("BackendDeckConfigService", "update_deck_configs"),
+        ("BackendImportExportService", "import_anki_package"),
+        ("BackendMediaService", "add_media_from_url"),
+        ("BackendMediaService", "add_media_from_path"),
+        ("BackendSearchService", "set_active_browser_columns"),
+        ("BackendCollectionService", "check_database"),
+        ("BackendAnkidroidService", "run_db_command"),
+    ];
+    for (service, method) in cases {
+        let response = call(&backend, service, method, &anki_proto::generic::Empty {});
+        assert!(!response.success, "{service}.{method}");
+        let message = message_of(&response);
+        assert!(
+            message.contains(&format!("denied: {service}.{method} (not on allowlist)")),
+            "{message}"
+        );
+    }
+}
+
+#[test]
+fn set_active_browser_columns_is_outside_the_profile() {
+    let row = entry("BackendSearchService", "set_active_browser_columns").unwrap();
+    assert_eq!(row.status, Status::Deferred);
+    assert!(!super::is_forwarded(row.service, row.method));
+}
+
+#[test]
+fn mobile_unrestricted_forwards_calls_that_desktop_denies() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    std::fs::create_dir_all(dir.path()).unwrap();
+    let backend = open_backend(init_bytes()).unwrap();
+    let explicit =
+        open_backend_with_profile(init_bytes(), BridgeProfile::MobileUnrestricted).unwrap();
+    for backend in [&backend, &explicit] {
+        let response = call(
+            backend,
+            "BackendDeckConfigService",
+            "update_deck_configs",
+            &anki_proto::generic::Empty {},
+        );
+        if !response.success {
+            let message = message_of(&response);
+            assert!(!message.contains("(not on allowlist)"), "{message}");
+            assert!(
+                !message.contains("(validator not implemented)"),
+                "{message}"
+            );
+        }
+    }
+}
+
+#[test]
+fn name_only_calls_are_not_denied_by_the_desktop_profile() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    std::fs::create_dir_all(dir.path()).unwrap();
+    // Empty protobuf is not a valid request for every name-only call. rslib
+    // returns an error for most of them. `get_cloze_field_ords` panics on a
+    // missing notetype instead of returning a BackendError. A panic is still
+    // past the desktop gate, so it counts as forwarded. The backend is
+    // replaced afterwards because a panic can poison rslib's mutex.
+    let mut backend = desktop_backend(dir.path());
+    for row in ALLOWLIST
+        .iter()
+        .filter(|row| row.status == Status::NameOnly)
+    {
+        let response = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            call(
+                &backend,
+                row.service,
+                row.method,
+                &anki_proto::generic::Empty {},
+            )
+        }));
+        match response {
+            Ok(response) => {
+                if !response.success {
+                    let message = message_of(&response);
+                    assert!(
+                        !message.contains("(not on allowlist)")
+                            && !message.contains("(validator not implemented)"),
+                        "{}.{}: {message}",
+                        row.service,
+                        row.method
+                    );
+                }
+            }
+            Err(_) => {
+                backend = desktop_backend(dir.path());
+            }
+        }
+    }
+}
+
+#[test]
+fn validates_open_collection() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let paths = col_paths(dir.path());
+    let backend = desktop_backend(&paths.root);
+
+    let mut outside = open_request(&paths);
+    outside.collection_path = "/tmp/not-the-data-dir/collection.anki2".into();
+    let denied = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &outside,
+    );
+    assert!(!denied.success, "outside path");
+    assert!(
+        message_of(&denied).contains("outside data_dir"),
+        "{}",
+        message_of(&denied)
+    );
+
+    let mut parent = open_request(&paths);
+    parent.media_folder_path = paths
+        .root
+        .join("..")
+        .join("elsewhere")
+        .to_string_lossy()
+        .into_owned();
+    let denied = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &parent,
+    );
+    assert!(!denied.success, "parent segment");
+    assert!(
+        message_of(&denied).contains(".."),
+        "{}",
+        message_of(&denied)
+    );
+
+    let mut relative = open_request(&paths);
+    relative.media_db_path = "collection.media.db".into();
+    let denied = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &relative,
+    );
+    assert!(!denied.success, "relative path");
+    assert!(
+        message_of(&denied).contains("not absolute"),
+        "{}",
+        message_of(&denied)
+    );
+
+    let outside_dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let link = paths.root.join("escape");
+    std::os::unix::fs::symlink(outside_dir.path(), &link).unwrap();
+    let mut via_link = open_request(&paths);
+    via_link.collection_path = link.join("collection.anki2").to_string_lossy().into_owned();
+    let denied = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &via_link,
+    );
+    assert!(!denied.success, "symlink escape");
+    assert!(
+        message_of(&denied).contains("escapes data_dir"),
+        "{}",
+        message_of(&denied)
+    );
+
+    let opened = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &open_request(&paths),
+    );
+    assert!(opened.success, "{}", message_of(&opened));
+    assert!(marker_path(&paths.collection).is_file());
+}
+
+#[test]
+fn validates_close_collection() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let paths = col_paths(dir.path());
+    let backend = open_desktop_collection(&paths);
+    let denied = call(
+        &backend,
+        "BackendCollectionService",
+        "close_collection",
+        &anki_proto::collection::CloseCollectionRequest {
+            downgrade_to_schema11: true,
+        },
+    );
+    assert!(!denied.success);
+    assert!(
+        message_of(&denied).contains("downgrade_to_schema11"),
+        "{}",
+        message_of(&denied)
+    );
+    let closed = call(
+        &backend,
+        "BackendCollectionService",
+        "close_collection",
+        &anki_proto::collection::CloseCollectionRequest {
+            downgrade_to_schema11: false,
+        },
+    );
+    assert!(closed.success, "{}", message_of(&closed));
+}
+
+#[test]
+fn validates_get_config_bool() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let paths = col_paths(dir.path());
+    let backend = open_desktop_collection(&paths);
+    let denied = call(
+        &backend,
+        "BackendConfigService",
+        "get_config_bool",
+        &anki_proto::config::GetConfigBoolRequest {
+            key: anki_proto::config::config_key::Bool::Sched2021 as i32,
+        },
+    );
+    assert!(!denied.success);
+    assert!(
+        message_of(&denied).contains("NormalizeNoteText"),
+        "{}",
+        message_of(&denied)
+    );
+    let allowed = call(
+        &backend,
+        "BackendConfigService",
+        "get_config_bool",
+        &anki_proto::config::GetConfigBoolRequest {
+            key: anki_proto::config::config_key::Bool::NormalizeNoteText as i32,
+        },
+    );
+    assert!(allowed.success, "{}", message_of(&allowed));
+}
+
+#[test]
+fn validates_export_anki_package() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let paths = col_paths(dir.path());
+    let backend = open_desktop_collection(&paths);
+    let mut request = export_request(&paths);
+    request.options.as_mut().unwrap().with_scheduling = true;
+    let denied = call(
+        &backend,
+        "BackendImportExportService",
+        "export_anki_package",
+        &request,
+    );
+    assert!(!denied.success);
+    assert!(
+        message_of(&denied).contains("with_scheduling"),
+        "{}",
+        message_of(&denied)
+    );
+
+    let mut request = export_request(&paths);
+    request.options.as_mut().unwrap().with_deck_configs = true;
+    let denied = call(
+        &backend,
+        "BackendImportExportService",
+        "export_anki_package",
+        &request,
+    );
+    assert!(!denied.success);
+    assert!(
+        message_of(&denied).contains("with_deck_configs"),
+        "{}",
+        message_of(&denied)
+    );
+
+    let exported = call(
+        &backend,
+        "BackendImportExportService",
+        "export_anki_package",
+        &export_request(&paths),
+    );
+    assert!(exported.success, "{}", message_of(&exported));
+    assert!(paths.root.join("out.apkg").is_file());
+}
+
+fn export_request(paths: &ColPaths) -> anki_proto::import_export::ExportAnkiPackageRequest {
+    anki_proto::import_export::ExportAnkiPackageRequest {
+        out_path: paths.root.join("out.apkg").to_string_lossy().into_owned(),
+        options: Some(anki_proto::import_export::ExportAnkiPackageOptions {
+            with_scheduling: false,
+            with_deck_configs: false,
+            with_media: true,
+            legacy: false,
+        }),
+        limit: Some(anki_proto::import_export::ExportLimit {
+            limit: Some(
+                anki_proto::import_export::export_limit::Limit::WholeCollection(
+                    anki_proto::generic::Empty {},
+                ),
+            ),
+        }),
+    }
+}
+
+#[test]
+fn validates_get_queued_cards() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let paths = col_paths(dir.path());
+    let backend = open_desktop_collection(&paths);
+    let denied = call(
+        &backend,
+        "BackendSchedulerService",
+        "get_queued_cards",
+        &anki_proto::scheduler::GetQueuedCardsRequest {
+            fetch_limit: 51,
+            intraday_learning_only: false,
+        },
+    );
+    assert!(!denied.success);
+    assert!(
+        message_of(&denied).contains("fetch_limit"),
+        "{}",
+        message_of(&denied)
+    );
+    let allowed = call(
+        &backend,
+        "BackendSchedulerService",
+        "get_queued_cards",
+        &anki_proto::scheduler::GetQueuedCardsRequest {
+            fetch_limit: 50,
+            intraday_learning_only: false,
+        },
+    );
+    assert!(allowed.success, "{}", message_of(&allowed));
+}
+
+#[test]
+fn validates_answer_card() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let paths = col_paths(dir.path());
+    let backend = open_desktop_collection(&paths);
+    let card_id = add_basic_card(&backend);
+    let offered = scheduling_states(&backend, card_id);
+    let good = offered.good.clone().unwrap();
+    let current = offered.current.clone();
+
+    let tweaked = one_byte_different_state(&good);
+    let denied = call(
+        &backend,
+        "BackendSchedulerService",
+        "answer_card",
+        &answer(card_id, current.clone(), tweaked, 1_000, 0),
+    );
+    assert!(!denied.success);
+    assert!(
+        message_of(&denied).contains("does not match"),
+        "{}",
+        message_of(&denied)
+    );
+
+    let mut custom = good.clone();
+    custom.custom_data = Some("x".into());
+    let denied = call(
+        &backend,
+        "BackendSchedulerService",
+        "answer_card",
+        &answer(card_id, current.clone(), custom, 1_000, 0),
+    );
+    assert!(
+        message_of(&denied).contains("custom_data"),
+        "{}",
+        message_of(&denied)
+    );
+
+    let denied = call(
+        &backend,
+        "BackendSchedulerService",
+        "answer_card",
+        &answer(
+            card_id,
+            current.clone(),
+            good.clone(),
+            ANSWER_TAKEN_MAX_MILLIS + 1,
+            0,
+        ),
+    );
+    assert!(
+        message_of(&denied).contains("milliseconds_taken"),
+        "{}",
+        message_of(&denied)
+    );
+
+    let denied = call(
+        &backend,
+        "BackendSchedulerService",
+        "answer_card",
+        &answer(999_999, current.clone(), good.clone(), 1_000, 0),
+    );
+    assert!(
+        message_of(&denied).contains("was not offered"),
+        "{}",
+        message_of(&denied)
+    );
+
+    let mut filled = answer(card_id, current.clone(), good.clone(), 1_000, 0);
+    assert_eq!(filled.answered_at_millis, 0);
+    super::validators::fill_answered_at_millis(&mut filled, 1_700_000_000_000);
+    assert_eq!(filled.answered_at_millis, 1_700_000_000_000);
+
+    let before = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64;
+    let answered = call(
+        &backend,
+        "BackendSchedulerService",
+        "answer_card",
+        &answer(card_id, current, good, 1_000, 0),
+    );
+    assert!(answered.success, "{}", message_of(&answered));
+    let revlog_id = latest_revlog_id(&backend);
+    let after = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64;
+    assert!(
+        revlog_id >= before.saturating_sub(2_000) && revlog_id <= after.saturating_add(2_000),
+        "wrapper clock {revlog_id} not in {before}..={after}"
+    );
+}
+
+fn scheduling_states(
+    backend: &crate::api::AnkiBackend,
+    card_id: i64,
+) -> anki_proto::scheduler::SchedulingStates {
+    let response = call(
+        backend,
+        "BackendSchedulerService",
+        "get_scheduling_states",
+        &anki_proto::cards::CardId { cid: card_id },
+    );
+    assert!(response.success, "{}", message_of(&response));
+    anki_proto::scheduler::SchedulingStates::decode(response.payload.as_slice()).unwrap()
+}
+
+fn answer(
+    card_id: i64,
+    current: Option<anki_proto::scheduler::SchedulingState>,
+    new_state: anki_proto::scheduler::SchedulingState,
+    milliseconds_taken: u32,
+    answered_at_millis: i64,
+) -> anki_proto::scheduler::CardAnswer {
+    anki_proto::scheduler::CardAnswer {
+        card_id,
+        current_state: current,
+        new_state: Some(new_state),
+        rating: anki_proto::scheduler::card_answer::Rating::Good as i32,
+        answered_at_millis,
+        milliseconds_taken,
+    }
+}
+
+fn one_byte_different_state(
+    state: &anki_proto::scheduler::SchedulingState,
+) -> anki_proto::scheduler::SchedulingState {
+    let original = state.encode_to_vec();
+    let mut bytes = original.clone();
+    for index in (0..bytes.len()).rev() {
+        let saved = bytes[index];
+        for delta in [1_u8, 2, 255] {
+            bytes[index] = saved.wrapping_add(delta);
+            if let Ok(parsed) = anki_proto::scheduler::SchedulingState::decode(bytes.as_slice()) {
+                if parsed.encode_to_vec() != original {
+                    return parsed;
+                }
+            }
+        }
+        bytes[index] = saved;
+    }
+    panic!("no one-byte mutation decoded to a different state");
+}
+
+fn latest_revlog_id(backend: &crate::api::AnkiBackend) -> i64 {
+    let query = serde_json::json!({
+        "kind": "query",
+        "sql": "select id from revlog order by id desc limit 1",
+        "args": [],
+        "first_row_only": true,
+    });
+    let bytes = dispatch_message(
+        backend,
+        "BackendAnkidroidService",
+        "run_db_command",
+        &anki_proto::generic::Json {
+            json: serde_json::to_vec(&query).unwrap(),
+        },
+    )
+    .unwrap();
+    let decoded = anki_proto::generic::Json::decode(bytes.as_slice()).unwrap();
+    let value: serde_json::Value = serde_json::from_slice(&decoded.json).unwrap();
+    value[0][0].as_i64().unwrap()
+}
+
+#[test]
+fn validates_set_current_deck() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let paths = col_paths(dir.path());
+    let backend = open_desktop_collection(&paths);
+    let missing = call(
+        &backend,
+        "BackendDecksService",
+        "set_current_deck",
+        &anki_proto::decks::DeckId { did: 999_999 },
+    );
+    assert!(!missing.success);
+    assert!(
+        message_of(&missing).contains("does not exist"),
+        "{}",
+        message_of(&missing)
+    );
+
+    let _card_id = add_basic_card(&backend);
+    let filtered_id = create_filtered_deck(&backend);
+    let filtered = call(
+        &backend,
+        "BackendDecksService",
+        "set_current_deck",
+        &anki_proto::decks::DeckId { did: filtered_id },
+    );
+    assert!(!filtered.success);
+    assert!(
+        message_of(&filtered).contains("not a normal deck"),
+        "{}",
+        message_of(&filtered)
+    );
+
+    let normal = call(
+        &backend,
+        "BackendDecksService",
+        "set_current_deck",
+        &anki_proto::decks::DeckId { did: 1 },
+    );
+    assert!(normal.success, "{}", message_of(&normal));
+}
+
+fn create_filtered_deck(backend: &crate::api::AnkiBackend) -> i64 {
+    let bytes = dispatch_message(
+        backend,
+        "BackendDecksService",
+        "get_or_create_filtered_deck",
+        &anki_proto::decks::DeckId { did: 0 },
+    )
+    .unwrap();
+    let mut template = anki_proto::decks::FilteredDeckForUpdate::decode(bytes.as_slice()).unwrap();
+    template.name = "Filtered".into();
+    template.allow_empty = true;
+    if let Some(config) = template.config.as_mut() {
+        config.search_terms = vec![anki_proto::decks::deck::filtered::SearchTerm {
+            search: "deck:Default".into(),
+            limit: 10,
+            order: 1,
+        }];
+    }
+    let saved = dispatch_message(
+        backend,
+        "BackendDecksService",
+        "add_or_update_filtered_deck",
+        &template,
+    )
+    .unwrap();
+    anki_proto::collection::OpChangesWithId::decode(saved.as_slice())
+        .unwrap()
+        .id
+}
+
+#[test]
+fn validates_graphs() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let paths = col_paths(dir.path());
+    let backend = open_desktop_collection(&paths);
+    let built = call(
+        &backend,
+        "BackendSearchService",
+        "build_search_string",
+        &anki_proto::search::SearchNode {
+            filter: Some(anki_proto::search::search_node::Filter::Deck(
+                "Default".into(),
+            )),
+        },
+    );
+    assert!(built.success, "{}", message_of(&built));
+    let search = anki_proto::generic::String::decode(built.payload.as_slice())
+        .unwrap()
+        .val;
+
+    let unknown = call(
+        &backend,
+        "BackendStatsService",
+        "graphs",
+        &anki_proto::stats::GraphsRequest {
+            search: "deck:Nope".into(),
+            days: 1,
+        },
+    );
+    assert!(!unknown.success);
+    assert!(
+        message_of(&unknown).contains("search"),
+        "{}",
+        message_of(&unknown)
+    );
+
+    let too_many_days = call(
+        &backend,
+        "BackendStatsService",
+        "graphs",
+        &anki_proto::stats::GraphsRequest {
+            search: search.clone(),
+            days: GRAPHS_DAYS_MAX + 1,
+        },
+    );
+    assert!(!too_many_days.success);
+    assert!(
+        message_of(&too_many_days).contains("days"),
+        "{}",
+        message_of(&too_many_days)
+    );
+
+    let allowed = call(
+        &backend,
+        "BackendStatsService",
+        "graphs",
+        &anki_proto::stats::GraphsRequest { search, days: 0 },
+    );
+    assert!(allowed.success, "{}", message_of(&allowed));
+}
+
+#[test]
+fn validates_bury_or_suspend_cards() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let paths = col_paths(dir.path());
+    let backend = open_desktop_collection(&paths);
+    let card_id = add_basic_card(&backend);
+    let suspend = anki_proto::scheduler::bury_or_suspend_cards_request::Mode::Suspend as i32;
+    let bury = anki_proto::scheduler::bury_or_suspend_cards_request::Mode::BuryUser as i32;
+
+    let denied = call(
+        &backend,
+        "BackendSchedulerService",
+        "bury_or_suspend_cards",
+        &bury_request(vec![card_id], vec![], bury),
+    );
+    assert!(
+        message_of(&denied).contains("SUSPEND"),
+        "{}",
+        message_of(&denied)
+    );
+
+    let denied = call(
+        &backend,
+        "BackendSchedulerService",
+        "bury_or_suspend_cards",
+        &bury_request(vec![], vec![], suspend),
+    );
+    assert!(
+        message_of(&denied).contains("card_ids"),
+        "{}",
+        message_of(&denied)
+    );
+
+    let denied = call(
+        &backend,
+        "BackendSchedulerService",
+        "bury_or_suspend_cards",
+        &bury_request(vec![card_id], vec![1], suspend),
+    );
+    assert!(
+        message_of(&denied).contains("note_ids"),
+        "{}",
+        message_of(&denied)
+    );
+
+    let denied = call(
+        &backend,
+        "BackendSchedulerService",
+        "bury_or_suspend_cards",
+        &bury_request(vec![999_999], vec![], suspend),
+    );
+    assert!(
+        message_of(&denied).contains("does not exist"),
+        "{}",
+        message_of(&denied)
+    );
+
+    let suspended = call(
+        &backend,
+        "BackendSchedulerService",
+        "bury_or_suspend_cards",
+        &bury_request(vec![card_id], vec![], suspend),
+    );
+    assert!(suspended.success, "{}", message_of(&suspended));
+}
+
+fn bury_request(
+    card_ids: Vec<i64>,
+    note_ids: Vec<i64>,
+    mode: i32,
+) -> anki_proto::scheduler::BuryOrSuspendCardsRequest {
+    anki_proto::scheduler::BuryOrSuspendCardsRequest {
+        card_ids,
+        note_ids,
+        mode,
+    }
+}
+
+#[test]
+fn validates_restore_buried_and_suspended_cards() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let paths = col_paths(dir.path());
+    let backend = open_desktop_collection(&paths);
+    let card_id = add_basic_card(&backend);
+    let not_suspended = call(
+        &backend,
+        "BackendSchedulerService",
+        "restore_buried_and_suspended_cards",
+        &anki_proto::cards::CardIds {
+            cids: vec![card_id],
+        },
+    );
+    assert!(!not_suspended.success);
+    assert!(
+        message_of(&not_suspended).contains("queue"),
+        "{}",
+        message_of(&not_suspended)
+    );
+
+    let suspended = call(
+        &backend,
+        "BackendSchedulerService",
+        "bury_or_suspend_cards",
+        &bury_request(
+            vec![card_id],
+            vec![],
+            anki_proto::scheduler::bury_or_suspend_cards_request::Mode::Suspend as i32,
+        ),
+    );
+    assert!(suspended.success, "{}", message_of(&suspended));
+    let restored = call(
+        &backend,
+        "BackendSchedulerService",
+        "restore_buried_and_suspended_cards",
+        &anki_proto::cards::CardIds {
+            cids: vec![card_id],
+        },
+    );
+    assert!(restored.success, "{}", message_of(&restored));
+}
+
+#[test]
+fn fsrs_init_runs_once_on_an_empty_collection() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let paths = col_paths(dir.path());
+    let backend = desktop_backend(&paths.root);
+    let open = open_request(&paths);
+    let err = fsrs_init::maybe_initialize(&backend, &open).unwrap_err();
+    assert!(
+        !marker_path(&paths.collection).exists(),
+        "marker written before success: {err}"
+    );
+
+    let opened = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &open,
+    );
+    assert!(opened.success, "{}", message_of(&opened));
+    let marker = marker_path(&paths.collection);
+    assert!(marker.is_file());
+    assert!(
+        !marker
+            .with_file_name(format!(
+                "{}.tmp",
+                marker.file_name().unwrap().to_string_lossy()
+            ))
+            .exists(),
+        "temporary marker file was left behind"
+    );
+    assert!(fsrs_enabled(&backend));
+    undo_is_empty(&backend);
+    let modified = marker.metadata().unwrap().modified().unwrap();
+    assert_eq!(
+        fsrs_init::maybe_initialize(&backend, &open).unwrap(),
+        FsrsInitOutcome::AlreadyMarked
+    );
+    assert_eq!(marker.metadata().unwrap().modified().unwrap(), modified);
+
+    let closed = call(
+        &backend,
+        "BackendCollectionService",
+        "close_collection",
+        &anki_proto::collection::CloseCollectionRequest {
+            downgrade_to_schema11: false,
+        },
+    );
+    assert!(closed.success, "{}", message_of(&closed));
+    let reopened = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &open,
+    );
+    assert!(reopened.success, "{}", message_of(&reopened));
+    assert_eq!(marker.metadata().unwrap().modified().unwrap(), modified);
+    assert!(fsrs_enabled(&backend));
+}
+
+#[test]
+fn fsrs_init_marks_existing_reviews_without_enabling_fsrs() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let paths = col_paths(dir.path());
+    let mobile = open_backend(init_bytes()).unwrap();
+    let open = open_request(&paths);
+    let opened = call(
+        &mobile,
+        "BackendCollectionService",
+        "open_collection",
+        &open,
+    );
+    assert!(opened.success, "{}", message_of(&opened));
+    fsrs_init::insert_revlog_row(&mobile).unwrap();
+    let closed = call(
+        &mobile,
+        "BackendCollectionService",
+        "close_collection",
+        &anki_proto::collection::CloseCollectionRequest {
+            downgrade_to_schema11: false,
+        },
+    );
+    assert!(closed.success, "{}", message_of(&closed));
+    drop(mobile);
+
+    let desktop = desktop_backend(&paths.root);
+    let opened = call(
+        &desktop,
+        "BackendCollectionService",
+        "open_collection",
+        &open,
+    );
+    assert!(opened.success, "{}", message_of(&opened));
+    assert!(marker_path(&paths.collection).is_file());
+    assert!(!fsrs_enabled(&desktop));
+    assert_eq!(
+        fsrs_init::maybe_initialize(&desktop, &open).unwrap(),
+        FsrsInitOutcome::AlreadyMarked
+    );
+}
+
+#[test]
+fn app_update_deck_configs_is_denied() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let paths = col_paths(dir.path());
+    let backend = open_desktop_collection(&paths);
+    assert!(fsrs_enabled(&backend), "internal init enables FSRS");
+    let denied = call(
+        &backend,
+        "BackendDeckConfigService",
+        "update_deck_configs",
+        &anki_proto::generic::Empty {},
+    );
+    assert!(!denied.success);
+    assert!(
+        message_of(&denied)
+            .contains("denied: BackendDeckConfigService.update_deck_configs (not on allowlist)"),
+        "{}",
+        message_of(&denied)
+    );
+}
