@@ -7,4 +7,6 @@ targets = [
   "aarch64-linux-android",
   "armv7-linux-androideabi",
   "x86_64-linux-android",
+  # native_toolchain_rust refuses a macOS build unless this triple is listed.
+  "aarch64-apple-darwin",
 ]

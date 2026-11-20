@@ -135,6 +135,8 @@ jobs:
       - name: Set up Rust 1.97.1
         if: steps.filter.outputs.run == 'true'
         uses: dtolnay/rust-toolchain@1.97.1
+        with:
+          targets: aarch64-apple-darwin
 
       - name: Install protoc 31.1
         if: steps.filter.outputs.run == 'true'
