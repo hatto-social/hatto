@@ -11,7 +11,7 @@ use std::env;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use hatto_card::{export_path, failure_json, validate_path, verify_path, write_skeleton, ToolFailure};
+use hatto_card::{export_path, failure_json, validate_path, write_skeleton, ToolFailure};
 use serde_json::Value;
 
 fn main() -> ExitCode {
@@ -42,7 +42,7 @@ fn main() -> ExitCode {
             } else {
                 eprintln!("hatto-card: {message}");
                 eprintln!(
-                    "usage: hatto-card [--json] new [--output FILE] | validate --deck FILE | export --deck FILE --output FILE | verify --deck FILE --apkg FILE"
+                    "usage: hatto-card [--json] new [--output FILE] | validate --deck FILE | export --deck FILE --output FILE"
                 );
             }
             ExitCode::from(2)
@@ -94,14 +94,11 @@ fn dispatch(words: &[String]) -> Result<Value, CliError> {
             only(&pairs, &["--deck", "--output"])?;
             let deck = required(&pairs, "--deck")?;
             let output = required(&pairs, "--output")?;
-            export_path(PathBuf::from(deck).as_path(), PathBuf::from(output).as_path())
-                .map_err(Failed)
-        }
-        "verify" => {
-            only(&pairs, &["--deck", "--apkg"])?;
-            let deck = required(&pairs, "--deck")?;
-            let apkg = required(&pairs, "--apkg")?;
-            verify_path(PathBuf::from(deck).as_path(), PathBuf::from(apkg).as_path()).map_err(Failed)
+            export_path(
+                PathBuf::from(deck).as_path(),
+                PathBuf::from(output).as_path(),
+            )
+            .map_err(Failed)
         }
         "" => Err(Usage("missing command".into())),
         other => Err(Usage(format!("unknown command {other}"))),

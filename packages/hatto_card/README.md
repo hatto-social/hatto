@@ -1,7 +1,8 @@
 # hatto-card
 
-Developer CLI that builds a deck in a temporary Anki collection and writes an
-apkg. It does not open a user collection.
+Developer CLI that only generates data. It checks a deck file, builds a
+temporary collection, and writes an apkg. It does not import a package and
+it does not open a user collection.
 
 Guid derivation and the guid format check come from `packages/hatto_card_contract`.
 Export flags come from `rslib_bridge::export_contract` (legacy false, media
@@ -39,8 +40,11 @@ plus `media/dot.png`.
 hatto-card --json new --output deck.json
 hatto-card --json validate --deck deck.json
 hatto-card --json export --deck deck.json --output out.apkg
-hatto-card --json verify --deck deck.json --apkg out.apkg
 ```
 
-`--json` prints one JSON object. Exit status is non-zero when validation or
-the roundtrip fails.
+`export` validates, writes the notes into a temporary collection, and exports
+that one deck. `--json` prints one JSON object. Exit status is non-zero when
+the deck JSON is invalid, a guid check fails, or a media file is missing.
+
+Checks kept here are the deck JSON shape, `GUID_FORMAT`, `NOTE_GUID_DUPLICATE`
+inside this file, and a missing media path. Media bytes are copied as-is.

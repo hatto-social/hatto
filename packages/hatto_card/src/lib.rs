@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `hatto-card` library: validate a provisional deck file, write it into a
-//! temp collection, export one deck, and read that package back.
+//! `hatto-card` library: validate a provisional deck file and export one deck
+//! from a temporary collection.
 
 mod collection;
 mod deck;
@@ -73,17 +73,18 @@ pub fn failure_json(failure: &ToolFailure) -> Value {
 
 pub fn write_skeleton(path: Option<&Path>) -> Result<Value, ToolFailure> {
     let value = skeleton();
-    let pretty = serde_json::to_string_pretty(&value).map_err(|err| ToolFailure::message(err.to_string()))?;
+    let pretty = serde_json::to_string_pretty(&value)
+        .map_err(|err| ToolFailure::message(err.to_string()))?;
     if let Some(path) = path {
-        fs::write(path, pretty + "\n").map_err(|err| {
-            ToolFailure::message(format!("write {}: {err}", path.display()))
-        })?;
+        fs::write(path, pretty + "\n")
+            .map_err(|err| ToolFailure::message(format!("write {}: {err}", path.display())))?;
     }
     Ok(json!({ "ok": true, "deck": value }))
 }
 
 pub fn validate_path(deck_path: &Path) -> Result<Value, ToolFailure> {
-    let derived = load_derived(deck_path)?;
+    let (deck, derived) = load(deck_path)?;
+    require_media(deck_path, &deck)?;
     Ok(json!({
         "ok": true,
         "notes": note_outs(&derived),
@@ -92,13 +93,16 @@ pub fn validate_path(deck_path: &Path) -> Result<Value, ToolFailure> {
 
 pub fn export_path(deck_path: &Path, out_path: &Path) -> Result<Value, ToolFailure> {
     let (deck, derived) = load(deck_path)?;
+    let media_dir = require_media(deck_path, &deck)?;
     let tmp = tempfile::TempDir::new().map_err(|err| ToolFailure::message(err.to_string()))?;
     let session = Session::open(tmp.path()).map_err(ToolFailure::message)?;
     let notetype = resolve_notetype(&session, &deck)?;
     let deck_id = session
         .add_deck(&deck.deck_name)
         .map_err(ToolFailure::message)?;
-    add_media(&session, deck_path, &deck)?;
+    if let Some(dir) = media_dir {
+        add_media(&session, &dir)?;
+    }
     for note in &derived {
         session
             .add_note(notetype, deck_id, note)
@@ -120,124 +124,12 @@ pub fn export_path(deck_path: &Path, out_path: &Path) -> Result<Value, ToolFailu
     }))
 }
 
-pub fn verify_path(deck_path: &Path, apkg: &Path) -> Result<Value, ToolFailure> {
-    let (deck, derived) = load(deck_path)?;
-    if !apkg.is_file() {
-        return Err(ToolFailure::message(format!(
-            "apkg does not exist: {}",
-            apkg.display()
-        )));
-    }
-    let tmp = tempfile::TempDir::new().map_err(|err| ToolFailure::message(err.to_string()))?;
-    let session = Session::open(tmp.path()).map_err(ToolFailure::message)?;
-    let imported = session.import_apkg(apkg).map_err(ToolFailure::message)?;
-    let log = imported
-        .log
-        .ok_or_else(|| ToolFailure::message("import returned no log"))?;
-    if log.new.len() != derived.len() || !log.duplicate.is_empty() {
-        return Err(ToolFailure::message(format!(
-            "import new={} duplicate={} expected new={} duplicate=0",
-            log.new.len(),
-            log.duplicate.len(),
-            derived.len()
-        )));
-    }
-    let names = session.deck_names().map_err(ToolFailure::message)?;
-    if !names.iter().any(|name| name == &deck.deck_name) {
-        return Err(ToolFailure::message(format!(
-            "deck {} not in imported names {names:?}",
-            deck.deck_name
-        )));
-    }
-    let rows = session
-        .query("select id, guid from notes order by id")
-        .map_err(ToolFailure::message)?;
-    let rows = rows
-        .as_array()
-        .ok_or_else(|| ToolFailure::message("notes query was not a list"))?;
-    let mut by_guid = std::collections::BTreeMap::new();
-    for row in rows {
-        let id = row[0]
-            .as_i64()
-            .ok_or_else(|| ToolFailure::message(format!("note id {row}")))?;
-        let guid = row[1]
-            .as_str()
-            .ok_or_else(|| ToolFailure::message(format!("note guid {row}")))?
-            .to_string();
-        let note = session.get_note(id).map_err(ToolFailure::message)?;
-        by_guid.insert(guid, note);
-    }
-    for expected in &derived {
-        let Some(note) = by_guid.get(&expected.guid) else {
-            return Err(ToolFailure::message(format!(
-                "imported collection has no guid {}",
-                expected.guid
-            )));
-        };
-        if note.fields != expected.fields {
-            return Err(ToolFailure::message(format!(
-                "{} fields {:?} != {:?}",
-                expected.guid, note.fields, expected.fields
-            )));
-        }
-        let mut tags = note.tags.clone();
-        let mut expect_tags = expected.tags.clone();
-        tags.sort();
-        expect_tags.sort();
-        if tags != expect_tags {
-            return Err(ToolFailure::message(format!(
-                "{} tags {tags:?} != {expect_tags:?}",
-                expected.guid
-            )));
-        }
-    }
-    let cards = session
-        .query("select type, queue from cards")
-        .map_err(ToolFailure::message)?;
-    let cards = cards
-        .as_array()
-        .ok_or_else(|| ToolFailure::message("cards query was not a list"))?;
-    if cards.is_empty() {
-        return Err(ToolFailure::message("imported package has no cards"));
-    }
-    for card in cards {
-        let card_type = card[0].as_i64().unwrap_or(-1);
-        let queue = card[1].as_i64().unwrap_or(-1);
-        if card_type != 0 || queue != 0 {
-            return Err(ToolFailure::message(format!(
-                "card is not new: type={card_type} queue={queue}"
-            )));
-        }
-    }
-    let revlog = session
-        .query("select count(*) from revlog")
-        .map_err(ToolFailure::message)?;
-    let revlog = revlog[0][0].as_i64().unwrap_or(-1);
-    if revlog != 0 {
-        return Err(ToolFailure::message(format!("revlog rows: {revlog}")));
-    }
-    let media = compare_media(&session, deck_path, &deck)?;
-    Ok(json!({
-        "ok": true,
-        "notes": derived.len(),
-        "cards_new": cards.len(),
-        "revlog": revlog,
-        "deck": deck.deck_name,
-        "media": media,
-    }))
-}
-
 fn load(deck_path: &Path) -> Result<(DeckFile, Vec<DerivedNote>), ToolFailure> {
-    let text = fs::read_to_string(deck_path).map_err(|err| {
-        ToolFailure::message(format!("read {}: {err}", deck_path.display()))
-    })?;
+    let text = fs::read_to_string(deck_path)
+        .map_err(|err| ToolFailure::message(format!("read {}: {err}", deck_path.display())))?;
     let deck = parse_deck(&text).map_err(|problem| ToolFailure::problems(vec![problem]))?;
     let derived = derive_notes(&deck).map_err(ToolFailure::problems)?;
     Ok((deck, derived))
-}
-
-fn load_derived(deck_path: &Path) -> Result<Vec<DerivedNote>, ToolFailure> {
-    Ok(load(deck_path)?.1)
 }
 
 fn note_outs(notes: &[DerivedNote]) -> Vec<NoteOut> {
@@ -271,17 +163,23 @@ fn media_root(deck_path: &Path, deck: &DeckFile) -> Option<PathBuf> {
     }
 }
 
-fn add_media(session: &Session, deck_path: &Path, deck: &DeckFile) -> Result<(), ToolFailure> {
+/// `media_dir`, when set, must exist. Files inside it are copied as-is.
+/// There is no type, magic-byte, or size check.
+fn require_media(deck_path: &Path, deck: &DeckFile) -> Result<Option<PathBuf>, ToolFailure> {
     let Some(dir) = media_root(deck_path, deck) else {
-        return Ok(());
+        return Ok(None);
     };
     if !dir.is_dir() {
         return Err(ToolFailure::message(format!(
-            "media_dir does not exist: {}",
+            "media file missing: {}",
             dir.display()
         )));
     }
-    let mut names = fs::read_dir(&dir)
+    Ok(Some(dir))
+}
+
+fn add_media(session: &Session, dir: &Path) -> Result<(), ToolFailure> {
+    let mut names = fs::read_dir(dir)
         .map_err(|err| ToolFailure::message(err.to_string()))?
         .map(|entry| entry.map_err(|err| ToolFailure::message(err.to_string())))
         .collect::<Result<Vec<_>, _>>()?;
@@ -298,72 +196,12 @@ fn add_media(session: &Session, deck_path: &Path, deck: &DeckFile) -> Result<(),
                 path.display()
             )));
         };
-        let bytes = fs::read(&path).map_err(|err| ToolFailure::message(err.to_string()))?;
+        let bytes = fs::read(&path).map_err(|err| {
+            ToolFailure::message(format!("media file missing: {}: {err}", path.display()))
+        })?;
         session
             .add_media_file(name, &bytes)
             .map_err(ToolFailure::message)?;
     }
     Ok(())
-}
-
-fn compare_media(
-    session: &Session,
-    deck_path: &Path,
-    deck: &DeckFile,
-) -> Result<Vec<String>, ToolFailure> {
-    let Some(dir) = media_root(deck_path, deck) else {
-        return Ok(Vec::new());
-    };
-    let mut expected = Vec::new();
-    for entry in fs::read_dir(&dir).map_err(|err| ToolFailure::message(err.to_string()))? {
-        let entry = entry.map_err(|err| ToolFailure::message(err.to_string()))?;
-        if !entry.path().is_file() {
-            continue;
-        }
-        let name = entry.file_name();
-        let Some(name) = name.to_str() else {
-            return Err(ToolFailure::message(
-                "media name is not utf-8".to_string(),
-            ));
-        };
-        let source = fs::read(entry.path()).map_err(|err| ToolFailure::message(err.to_string()))?;
-        let imported = session.media_dir().join(name);
-        let got = fs::read(&imported).map_err(|_| {
-            ToolFailure::message(format!("imported media missing {name}"))
-        })?;
-        if got != source {
-            return Err(ToolFailure::message(format!(
-                "media {name} bytes differ"
-            )));
-        }
-        expected.push(name.to_string());
-    }
-    expected.sort();
-    Ok(expected)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    #[test]
-    fn legacy_notetype_roundtrip_has_new_cards_and_no_revlog() {
-        let model = collection::stock_notetype_legacy("Basic", "Example Vocab")
-            .expect("legacy notetype");
-        let dir = tempfile::TempDir::new().unwrap();
-        let deck_path = dir.path().join("deck.json");
-        let mut deck = skeleton();
-        deck.as_object_mut().unwrap().remove("notetype");
-        deck.as_object_mut().unwrap().remove("media_dir");
-        deck["notetype_legacy"] = model;
-        fs::write(&deck_path, serde_json::to_vec_pretty(&deck).unwrap()).unwrap();
-        let apkg = dir.path().join("out.apkg");
-        export_path(&deck_path, &apkg).expect("export");
-        let report = verify_path(&deck_path, &apkg).expect("verify");
-        assert_eq!(report["ok"], json!(true));
-        assert_eq!(report["notes"], json!(3));
-        assert_eq!(report["revlog"], json!(0));
-        assert!(report["cards_new"].as_u64().unwrap() >= 3);
-    }
 }

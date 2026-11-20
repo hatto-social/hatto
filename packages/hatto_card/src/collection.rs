@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Temp-collection access for the CLI.
+//! Temp-collection access for generating a package.
 //!
 //! Every collection is a `tempfile` directory created here. There is no
 //! argument that points at a user's collection. Calls go through
@@ -10,24 +10,25 @@
 //! `run_service_method` by service and method name).
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::{Mutex, MutexGuard};
 
 use anki_proto::generic;
 use prost::Message;
-use rslib_bridge::api::{command, open_backend, prepare_runtime, service_method_index, AnkiBackend};
-use rslib_bridge::export_contract::{anki_package_export_request, anki_package_import_options};
-use serde_json::{json, Value};
+use rslib_bridge::api::{
+    command, open_backend, prepare_runtime, service_method_index, AnkiBackend,
+};
+use rslib_bridge::export_contract::anki_package_export_request;
+use serde_json::Value;
 
 use crate::deck::DerivedNote;
 
-pub struct Session {
+pub(crate) struct Session {
     // Declared first so it drops last, after the temp dir is restored.
     _lock: MutexGuard<'static, ()>,
     // Restores TMPDIR after `backend` drops and before `_lock` drops.
     _tmp_env: TmpEnv,
     backend: AnkiBackend,
-    media_dir: PathBuf,
 }
 
 /// `prepare_runtime` points the process temp dir at the collection. Put the
@@ -65,7 +66,7 @@ fn runtime_lock() -> MutexGuard<'static, ()> {
 }
 
 impl Session {
-    pub fn open(root: &Path) -> Result<Self, String> {
+    pub(crate) fn open(root: &Path) -> Result<Self, String> {
         let guard = runtime_lock();
         let media_dir = root.join("media");
         fs::create_dir_all(&media_dir).map_err(|err| err.to_string())?;
@@ -82,22 +83,17 @@ impl Session {
             _tmp_env: tmp_env,
             _lock: guard,
             backend,
-            media_dir,
         };
         let open = anki_proto::collection::OpenCollectionRequest {
             collection_path: root.join("collection.anki2").to_string_lossy().into_owned(),
-            media_folder_path: session.media_dir.to_string_lossy().into_owned(),
+            media_folder_path: media_dir.to_string_lossy().into_owned(),
             media_db_path: root.join("media.db").to_string_lossy().into_owned(),
         };
         session.call_raw("BackendCollectionService", "open_collection", &open)?;
         Ok(session)
     }
 
-    pub fn media_dir(&self) -> &Path {
-        &self.media_dir
-    }
-
-    pub fn notetype_id(&self, name: &str) -> Result<i64, String> {
+    pub(crate) fn notetype_id(&self, name: &str) -> Result<i64, String> {
         let found: anki_proto::notetypes::NotetypeId = self.call(
             "BackendNotetypesService",
             "get_notetype_id_by_name",
@@ -109,17 +105,7 @@ impl Session {
         Ok(found.ntid)
     }
 
-    #[cfg(test)]
-    pub fn notetype_legacy(&self, notetype_id: i64) -> Result<Value, String> {
-        let raw: generic::Json = self.call(
-            "BackendNotetypesService",
-            "get_notetype_legacy",
-            &anki_proto::notetypes::NotetypeId { ntid: notetype_id },
-        )?;
-        serde_json::from_slice(&raw.json).map_err(|err| err.to_string())
-    }
-
-    pub fn add_notetype_legacy(&self, model: &Value) -> Result<i64, String> {
+    pub(crate) fn add_notetype_legacy(&self, model: &Value) -> Result<i64, String> {
         let added: anki_proto::collection::OpChangesWithId = self.call(
             "BackendNotetypesService",
             "add_notetype_legacy",
@@ -133,7 +119,7 @@ impl Session {
         Ok(added.id)
     }
 
-    pub fn add_deck(&self, name: &str) -> Result<i64, String> {
+    pub(crate) fn add_deck(&self, name: &str) -> Result<i64, String> {
         let mut deck: anki_proto::decks::Deck =
             self.call("BackendDecksService", "new_deck", &generic::Empty {})?;
         deck.name = name.into();
@@ -145,7 +131,12 @@ impl Session {
         Ok(added.id)
     }
 
-    pub fn add_note(&self, notetype: i64, deck: i64, note: &DerivedNote) -> Result<i64, String> {
+    pub(crate) fn add_note(
+        &self,
+        notetype: i64,
+        deck: i64,
+        note: &DerivedNote,
+    ) -> Result<i64, String> {
         let mut fresh: anki_proto::notes::Note = self.call(
             "BackendNotesService",
             "new_note",
@@ -177,7 +168,7 @@ impl Session {
         Ok(added.note_id)
     }
 
-    pub fn add_media_file(&self, name: &str, data: &[u8]) -> Result<String, String> {
+    pub(crate) fn add_media_file(&self, name: &str, data: &[u8]) -> Result<(), String> {
         let stored: generic::String = self.call(
             "BackendMediaService",
             "add_media_file",
@@ -189,11 +180,11 @@ impl Session {
         if stored.val != name {
             return Err(format!("media {name} was stored as {}", stored.val));
         }
-        Ok(stored.val)
+        Ok(())
     }
 
     /// Desktop-contract export: one deck, flags from [anki_package_export_request].
-    pub fn export_deck(&self, path: &Path, deck_id: i64) -> Result<(), String> {
+    pub(crate) fn export_deck(&self, path: &Path, deck_id: i64) -> Result<(), String> {
         let request = anki_package_export_request(path.to_string_lossy().into_owned(), deck_id);
         self.call_raw(
             "BackendImportExportService",
@@ -204,59 +195,6 @@ impl Session {
             return Err(format!("export did not write {}", path.display()));
         }
         Ok(())
-    }
-
-    pub fn import_apkg(
-        &self,
-        path: &Path,
-    ) -> Result<anki_proto::import_export::ImportResponse, String> {
-        self.call(
-            "BackendImportExportService",
-            "import_anki_package",
-            &anki_proto::import_export::ImportAnkiPackageRequest {
-                package_path: path.to_string_lossy().into_owned(),
-                options: Some(anki_package_import_options()),
-            },
-        )
-    }
-
-    pub fn deck_names(&self) -> Result<Vec<String>, String> {
-        let names: anki_proto::decks::DeckNames = self.call(
-            "BackendDecksService",
-            "get_deck_names",
-            &anki_proto::decks::GetDeckNamesRequest {
-                skip_empty_default: false,
-                include_filtered: true,
-            },
-        )?;
-        Ok(names.entries.into_iter().map(|entry| entry.name).collect())
-    }
-
-    pub fn get_note(&self, note_id: i64) -> Result<anki_proto::notes::Note, String> {
-        self.call(
-            "BackendNotesService",
-            "get_note",
-            &anki_proto::notes::NoteId { nid: note_id },
-        )
-    }
-
-    /// Read-only SQL through `run_db_command`. Used for card queue and revlog
-    /// counts, which have no protobuf counter.
-    pub fn query(&self, sql: &str) -> Result<Value, String> {
-        let request = json!({
-            "kind": "query",
-            "sql": sql,
-            "args": [],
-            "first_row_only": false,
-        });
-        let response: generic::Json = self.call(
-            "BackendAnkidroidService",
-            "run_db_command",
-            &generic::Json {
-                json: serde_json::to_vec(&request).map_err(|err| err.to_string())?,
-            },
-        )?;
-        serde_json::from_slice(&response.json).map_err(|err| format!("db json {sql}: {err}"))
     }
 
     fn call<M: Message + Default>(
@@ -308,17 +246,4 @@ fn decode_backend_error(bytes: &[u8]) -> String {
         Ok(err) => format!("{} (kind={:?})", err.message, err.kind),
         Err(_) => "undecodable backend error".into(),
     }
-}
-
-/// Copy of a stock notetype, with `id` 0 and a new name, for
-/// `add_notetype_legacy`. Opens a temp collection and closes it.
-#[cfg(test)]
-pub fn stock_notetype_legacy(from: &str, name: &str) -> Result<Value, String> {
-    let tmp = tempfile::TempDir::new().map_err(|err| err.to_string())?;
-    let session = Session::open(tmp.path())?;
-    let id = session.notetype_id(from)?;
-    let mut model = session.notetype_legacy(id)?;
-    model["id"] = json!(0);
-    model["name"] = json!(name);
-    Ok(model)
 }
