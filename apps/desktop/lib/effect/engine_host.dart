@@ -25,9 +25,6 @@ class EngineHost {
   InstanceLock? _lock;
   String? _collectionPath;
 
-  /// Steps [open] has started, in order: `lock`, `sideDb`, `collection`.
-  final List<String> openOrder = [];
-
   SideDb? get sideDb => _side;
 
   WriteGateway? get writes => _gateway;
@@ -35,13 +32,11 @@ class EngineHost {
   bool get holdsInstanceLock => _lock != null;
 
   Future<BootstrapState> open({required String dataDir}) async {
-    openOrder.add('lock');
     final lock = InstanceLock.tryAcquire(dataDir);
     if (lock == null) {
       throw const AlreadyRunningException();
     }
     _lock = lock;
-    openOrder.add('sideDb');
     final side = SideDb.openOrCreate(p.join(dataDir, 'hatto.sqlite'));
     _side = side;
     _gateway = WriteGateway(
@@ -51,7 +46,6 @@ class EngineHost {
       },
     );
     try {
-      openOrder.add('collection');
       final opened = await Engine.open(
         dataDir: dataDir,
         langs: const ['ko', 'en'],

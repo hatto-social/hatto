@@ -49,6 +49,15 @@ class SideDbException implements Exception {
   String toString() => 'SideDbException: $message';
 }
 
+/// The file's `user_version` is newer than this build. The file is unchanged.
+class NewerSchemaException extends SideDbException {
+  NewerSchemaException(int version, int supported)
+    : super(
+        'side database schema version $version is newer than this app '
+        '($supported); refusing to open and leaving data in place',
+      );
+}
+
 const List<String> _version1 = <String>[
   '''
   CREATE TABLE meta (
@@ -133,10 +142,7 @@ void applySideDbMigrations(Database db) {
     return;
   }
   if (current > sideDbSchemaVersion) {
-    throw SideDbException(
-      'side database schema version $current is newer than this app '
-      '($sideDbSchemaVersion); refusing to open and leaving data in place',
-    );
+    throw NewerSchemaException(current, sideDbSchemaVersion);
   }
   if (current != 0) {
     throw SideDbException(
