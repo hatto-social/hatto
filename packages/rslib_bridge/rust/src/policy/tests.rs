@@ -1691,6 +1691,59 @@ fn undo_restores_an_answered_card_and_rejects_the_stale_answer() {
     );
 }
 
+#[test]
+fn undo_clears_the_offer_for_a_card_that_was_not_answered() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let paths = col_paths(dir.path());
+    let backend = open_desktop_collection(&paths);
+    let first = add_basic_card(&backend);
+    let second = add_basic_card(&backend);
+    let current = call(
+        &backend,
+        "BackendDecksService",
+        "set_current_deck",
+        &anki_proto::decks::DeckId { did: 1 },
+    );
+    assert!(current.success, "{}", message_of(&current));
+    let offered_first = scheduling_states(&backend, first);
+    let offered_second = scheduling_states(&backend, second);
+    let easy = offered_first.easy.clone().unwrap();
+    let easy_rating = anki_proto::scheduler::card_answer::Rating::Easy as i32;
+    let answered = call(
+        &backend,
+        "BackendSchedulerService",
+        "answer_card",
+        &answer_rated(first, offered_first.current, easy, easy_rating, 1_000, 0),
+    );
+    assert!(answered.success, "{}", message_of(&answered));
+    let undone = call(
+        &backend,
+        "BackendCollectionService",
+        "undo",
+        &anki_proto::generic::Empty {},
+    );
+    assert!(undone.success, "{}", message_of(&undone));
+    let stale = call(
+        &backend,
+        "BackendSchedulerService",
+        "answer_card",
+        &answer_rated(
+            second,
+            offered_second.current,
+            offered_second.easy.unwrap(),
+            easy_rating,
+            1_000,
+            0,
+        ),
+    );
+    assert!(
+        message_of(&stale).contains("was not offered"),
+        "{}",
+        message_of(&stale)
+    );
+    assert_eq!(card_queue(&backend, second), 0);
+}
+
 fn card_queue(backend: &crate::api::AnkiBackend, card_id: i64) -> i32 {
     let response = call(
         backend,
