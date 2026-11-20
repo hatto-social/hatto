@@ -93,6 +93,48 @@ impl Session {
         Ok(session)
     }
 
+    /// Import the committed seed package into this empty temporary collection,
+    /// then delete its notes. The notetypes stay, with their fixed ids.
+    pub(crate) fn load_seed(&self, seed: &[u8]) -> Result<(), String> {
+        let dir = tempfile::TempDir::new().map_err(|err| err.to_string())?;
+        let path = dir.path().join("hatto-seed.apkg");
+        fs::write(&path, seed).map_err(|err| err.to_string())?;
+        let request = anki_proto::import_export::ImportAnkiPackageRequest {
+            package_path: path.to_string_lossy().into_owned(),
+            options: Some(anki_proto::import_export::ImportAnkiPackageOptions {
+                merge_notetypes: false,
+                update_notes: anki_proto::import_export::ImportAnkiPackageUpdateCondition::Never
+                    as i32,
+                update_notetypes: anki_proto::import_export::ImportAnkiPackageUpdateCondition::Never
+                    as i32,
+                with_scheduling: false,
+                with_deck_configs: false,
+            }),
+        };
+        self.call_raw(
+            "BackendImportExportService",
+            "import_anki_package",
+            &request,
+        )?;
+        let found: anki_proto::search::SearchResponse = self.call(
+            "BackendSearchService",
+            "search_notes",
+            &anki_proto::search::SearchRequest {
+                search: String::new(),
+                order: None,
+            },
+        )?;
+        self.call_raw(
+            "BackendNotesService",
+            "remove_notes",
+            &anki_proto::notes::RemoveNotesRequest {
+                note_ids: found.ids,
+                card_ids: Vec::new(),
+            },
+        )?;
+        Ok(())
+    }
+
     pub(crate) fn notetype_id(&self, name: &str) -> Result<i64, String> {
         let found: anki_proto::notetypes::NotetypeId = self.call(
             "BackendNotetypesService",

@@ -69,3 +69,16 @@ path = [
 precedence = "override"
 SPDX-FileCopyrightText = "2026 Hatto Social contributors"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+# The CLI's seed package. Its notetypes are Anki's stock Basic and Cloze
+# notetypes (templates, CSS), copied from rslib 26.09.3, which is AGPL-3.0 or
+# later. Anki's copyright stays on the derivative. A binary cannot carry a
+# header, and it must never be regenerated (packages/hatto_card/seed/make_seed.py).
+[[annotations]]
+path = ["packages/hatto_card/seed/hatto-seed.apkg"]
+precedence = "override"
+SPDX-FileCopyrightText = [
+  "Ankitects Pty Ltd and contributors",
+  "2026 Hatto Social contributors",
+]
+SPDX-License-Identifier = "AGPL-3.0-or-later"
