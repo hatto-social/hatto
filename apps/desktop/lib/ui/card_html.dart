@@ -22,6 +22,9 @@ const kCardHtmlMaxBytes = 1 << 20;
 const kCardHtmlMaxDepth = 64;
 const kCardHtmlMaxTags = 2000;
 
+/// How much of an over-cap field is scanned when turning it into plain text.
+const kCardHtmlPlainPrefix = 4000;
+
 /// Network, asset, and data images are never loaded. A `file:` image is loaded
 /// only when its canonical path is a regular file inside [mediaDir].
 class CardHtmlFactory extends WidgetFactory {
@@ -175,6 +178,14 @@ bool cardHtmlNeedsPlainFallback(String html) {
   return value;
 }
 
+/// Plain text for an over-cap field. Only the first [kCardHtmlPlainPrefix]
+/// code units are scanned, and a tag cannot contain another `<`, so a long
+/// run of `<` does not rescan the rest of the string.
+String cardHtmlFallbackText(String html) {
+  final slice = html.length > kCardHtmlPlainPrefix ? html.substring(0, kCardHtmlPlainPrefix) : html;
+  return slice.replaceAll(RegExp(r'<[^<>]*>'), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+}
+
 class CssRules {
   CssRules(this.rules);
   final List<(String, Map<String, String>)> rules;
@@ -235,7 +246,7 @@ class CardView extends StatelessWidget {
     final style = TextStyle(color: fg, fontSize: size, fontFamily: family == 'arial' || family == null ? 'Liberation Sans' : family, fontFamilyFallback: const ['NanumGothic'], height: 1.25);
     final alignName = switch (align) { TextAlign.left => 'left', TextAlign.right => 'right', _ => 'center' };
     if (cardHtmlNeedsPlainFallback(html)) {
-      final text = html.replaceAll(RegExp(r'<[^>]*>'), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+      final text = cardHtmlFallbackText(html);
       final shown = text.length > 200 ? text.substring(0, 200) : text;
       return ColoredBox(color: bg, child: Text(shown, key: const ValueKey('card-html-fallback'), style: style));
     }

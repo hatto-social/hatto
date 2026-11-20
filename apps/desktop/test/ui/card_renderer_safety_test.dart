@@ -328,6 +328,15 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('a megabyte of angle brackets falls back quickly', (tester) async {
+    final html = '<' * (1 << 20);
+    final watch = Stopwatch()..start();
+    await show(tester, html, media.path);
+    expect(watch.elapsed, lessThan(const Duration(seconds: 2)));
+    expect(find.byKey(const ValueKey('card-html-fallback')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('R11 deep, huge, and wide HTML falls back', (tester) async {
     final deep = '${'<div>' * 5000}x${'</div>' * 5000}';
     final huge = 'a' * (kCardHtmlMaxBytes + 1);
