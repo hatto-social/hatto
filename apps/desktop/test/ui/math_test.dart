@@ -57,6 +57,7 @@ void main() {
       expect(find.text(r'\(\frac{1}{\)'), findsOneWidget);
       expect(find.text(r'\(\badmacro{x}\)'), findsOneWidget);
     });
+    // The pixel golden moves with the font rasterizer, so it stays skipped.
     testWidgets('golden: card with inline + display math and a dollar sign', skip: true, (t) async {
       await t.pumpWidget(host(r'피타고라스: \(a^2 + b^2 = c^2\)' '<br>' r'\[\sum_{n=1}^{\infty}\frac{1}{n^2}=\frac{\pi^2}{6}\]' '<br>' r'가격은 $5 와 $6 (수식 아님)' '<br>' r'깨진: \(\frac{1}{\)'));
       await t.pumpAndSettle();
