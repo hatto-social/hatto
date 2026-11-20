@@ -9,7 +9,125 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:html/dom.dart' as dom;
+import 'package:path/path.dart' as p;
 import 'math_html.dart';
+
+/// Decode cap for a media image. A large source is resized while decoding.
+const kCardImageCacheWidth = 1280;
+
+/// Fields larger than this, or nested or tagged past the caps below, are shown
+/// as plain text so layout cannot recurse without a bound.
+const kCardHtmlMaxBytes = 1 << 20;
+const kCardHtmlMaxDepth = 64;
+const kCardHtmlMaxTags = 2000;
+
+/// Network, asset, and data images are never loaded. A `file:` image is loaded
+/// only when its canonical path is a regular file inside [mediaDir].
+class CardHtmlFactory extends WidgetFactory {
+  CardHtmlFactory(this.mediaDir);
+  final String mediaDir;
+
+  @override
+  ImageProvider? imageProviderFromNetwork(String url) => null;
+
+  @override
+  ImageProvider? imageProviderFromAsset(String url) => null;
+
+  @override
+  ImageProvider? imageProviderFromDataUri(String dataUri) => null;
+
+  @override
+  ImageProvider? imageProviderFromFileUri(String url) {
+    final file = fileInsideMedia(mediaDir, url);
+    if (file == null) return null;
+    return ResizeImage(FileImage(file), width: kCardImageCacheWidth);
+  }
+}
+
+/// An `<img src>` may name one file in [mediaDir]. Separators, a scheme, or
+/// `..` (including one percent-decoding of them) are rejected before the
+/// filesystem is touched.
+File? cardImageFile(String mediaDir, String src) {
+  if (src.isEmpty) return null;
+  String decoded;
+  try {
+    decoded = Uri.decodeComponent(src.trim());
+  } catch (_) {
+    return null;
+  }
+  if (decoded.isEmpty ||
+      decoded.contains('/') ||
+      decoded.contains('\\') ||
+      decoded.contains(':') ||
+      decoded.contains('..')) {
+    return null;
+  }
+  return _openInsideMedia(mediaDir, decoded);
+}
+
+/// A `file:` URL or absolute path used by the HTML factory. The canonical
+/// file must stay inside [mediaDir], so a symlink that leaves the folder is
+/// rejected.
+File? fileInsideMedia(String mediaDir, String url) {
+  String path;
+  try {
+    final uri = Uri.parse(url);
+    if (uri.hasScheme && uri.scheme != 'file') return null;
+    path = uri.scheme == 'file' ? uri.toFilePath() : url;
+  } catch (_) {
+    return null;
+  }
+  if (path.isEmpty) return null;
+  return _openInsideMedia(mediaDir, path);
+}
+
+File? _openInsideMedia(String mediaDir, String path) {
+  if (mediaDir.isEmpty) return null;
+  String mediaCanon;
+  try {
+    mediaCanon = Directory(mediaDir).resolveSymbolicLinksSync();
+  } catch (_) {
+    return null;
+  }
+  final full = p.isAbsolute(path) ? path : p.join(mediaCanon, path);
+  final candidate = File(p.normalize(full));
+  if (!candidate.existsSync()) return null;
+  String resolved;
+  try {
+    resolved = candidate.resolveSymbolicLinksSync();
+  } catch (_) {
+    return null;
+  }
+  if (!p.isWithin(mediaCanon, resolved)) return null;
+  if (FileSystemEntity.typeSync(resolved, followLinks: false) != FileSystemEntityType.file) {
+    return null;
+  }
+  return File(resolved);
+}
+
+int cardHtmlTagDepth(String html) {
+  var depth = 0;
+  var maxDepth = 0;
+  final tags = RegExp(r'<\s*(/?)([a-zA-Z][\w:-]*)');
+  const voids = {'br', 'img', 'hr', 'meta', 'link', 'input', 'source', 'wbr', 'area', 'col', 'embed'};
+  for (final match in tags.allMatches(html)) {
+    final name = match.group(2)!.toLowerCase();
+    if (voids.contains(name)) continue;
+    if (match.group(1) == '/') {
+      if (depth > 0) depth--;
+    } else {
+      depth++;
+      if (depth > maxDepth) maxDepth = depth;
+    }
+  }
+  return maxDepth;
+}
+
+bool cardHtmlNeedsPlainFallback(String html) {
+  return html.length > kCardHtmlMaxBytes ||
+      cardHtmlTagDepth(html) > kCardHtmlMaxDepth ||
+      '<'.allMatches(html).length > kCardHtmlMaxTags;
+}
 
 class CssRules {
   CssRules(this.rules);
@@ -70,7 +188,13 @@ class CardView extends StatelessWidget {
     final family = card['font-family']?.split(',').first.replaceAll(RegExp('["\']'), '').trim();
     final style = TextStyle(color: fg, fontSize: size, fontFamily: family == 'arial' || family == null ? 'Liberation Sans' : family, fontFamilyFallback: const ['NanumGothic'], height: 1.25);
     final alignName = switch (align) { TextAlign.left => 'left', TextAlign.right => 'right', _ => 'center' };
+    if (cardHtmlNeedsPlainFallback(html)) {
+      final text = html.replaceAll(RegExp(r'<[^>]*>'), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+      final shown = text.length > 200 ? text.substring(0, 200) : text;
+      return ColoredBox(color: bg, child: Text(shown, key: const ValueKey('card-html-fallback'), style: style));
+    }
     final body = HtmlWidget('<div style="text-align:$alignName">${preprocess(html)}</div>', key: ValueKey(html), textStyle: style,
+      factoryBuilder: () => CardHtmlFactory(mediaDir),
       customStylesBuilder: (e) {
         final s = <String, String>{...rules.forElement(e)};
         if (e.localName == 'hr') return {'margin': '14px 0', 'border-top': '1px solid ${dark ? '#888' : '#555'}'};
@@ -82,9 +206,11 @@ class CardView extends StatelessWidget {
       customWidgetBuilder: (e) {
         if (e.localName == 'img') {
           final src = e.attributes['src'] ?? '';
-          final f = File('$mediaDir/${Uri.decodeFull(src)}');
+          final file = cardImageFile(mediaDir, src);
           return InlineCustomWidget(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 640, maxHeight: 420),
-              child: f.existsSync() ? Image.file(f, key: ValueKey('card-img-$src')) : Container(width: 64, height: 48, color: Colors.black12, alignment: Alignment.center, child: const Text('⚠', style: TextStyle(fontSize: 18)))));
+              child: file == null
+                  ? Container(key: const ValueKey('card-img-placeholder'), width: 64, height: 48, color: Colors.black12, alignment: Alignment.center, child: const Text('⚠', style: TextStyle(fontSize: 18)))
+                  : Image.file(file, key: const ValueKey('card-img'), cacheWidth: kCardImageCacheWidth)));
         }
         if (e.localName == 'hatto-math') {
           final disp = e.attributes['data-display'] == '1';
