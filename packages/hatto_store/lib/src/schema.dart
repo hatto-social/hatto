@@ -49,6 +49,19 @@ class SideDbException implements Exception {
   String toString() => 'SideDbException: $message';
 }
 
+/// The side-database file is not a readable SQLite database.
+///
+/// Only [SQLITE_CORRUPT] and [SQLITE_NOTADB], including their extended
+/// codes, use this type. Disk-full and permission errors stay
+/// [SqliteException]. [path] is the absolute file path, or null when the
+/// caller did not have one.
+class SideDbCorruptException extends SideDbException {
+  SideDbCorruptException(String detail, {this.path})
+    : super('side database file is corrupt: $detail');
+
+  final String? path;
+}
+
 /// The file's `user_version` is newer than this build. The file is unchanged.
 class NewerSchemaException extends SideDbException {
   NewerSchemaException(int version, int supported)

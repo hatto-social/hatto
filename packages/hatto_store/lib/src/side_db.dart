@@ -51,7 +51,7 @@ class SideDb {
 
   static SideDb open({required String path, required String deviceId}) {
     File(path).parent.createSync(recursive: true);
-    return _openHandle(sqlite3.open(path), providedDeviceId: deviceId);
+    return _openHandle(_openFile(path), path: path, providedDeviceId: deviceId);
   }
 
   /// Opens [path], creating the file and a UUIDv4 `meta.device_id` when
@@ -63,14 +63,30 @@ class SideDb {
   /// a copy is a v1 question.
   static SideDb openOrCreate(String path) {
     File(path).parent.createSync(recursive: true);
-    return _openHandle(sqlite3.open(path), providedDeviceId: null);
+    return _openHandle(_openFile(path), path: path, providedDeviceId: null);
   }
 
   static SideDb openInMemory({String deviceId = 'test-device'}) {
-    return _openHandle(sqlite3.openInMemory(), providedDeviceId: deviceId);
+    return _openHandle(
+      sqlite3.openInMemory(),
+      path: null,
+      providedDeviceId: deviceId,
+    );
   }
 
-  static SideDb _openHandle(Database db, {required String? providedDeviceId}) {
+  static Database _openFile(String path) {
+    try {
+      return sqlite3.open(path);
+    } on SqliteException catch (err) {
+      throw translateSideDbOpenError(err, path: path);
+    }
+  }
+
+  static SideDb _openHandle(
+    Database db, {
+    required String? path,
+    required String? providedDeviceId,
+  }) {
     try {
       applySideDbMigrations(db);
       final existing = _readDeviceId(db);
@@ -88,10 +104,20 @@ class SideDb {
         _insertDeviceId(db, id);
       }
       return SideDb._(db, id);
+    } on SqliteException catch (err) {
+      db.close();
+      throw translateSideDbOpenError(err, path: path);
     } catch (err) {
       db.close();
       rethrow;
     }
+  }
+
+  static String? _absoluteOrNull(String? path) {
+    if (path == null || path.isEmpty) {
+      return null;
+    }
+    return File(path).absolute.path;
   }
 
   static String? _readDeviceId(Database db) {
@@ -729,4 +755,20 @@ class NoteMapRow {
   /// Hatto deck guid chosen at import. [SideDb.rewriteDeckGuid] is the only
   /// later writer.
   final String homeDeckGuid;
+}
+
+/// Maps an open failure to [SideDbCorruptException] only for corruption.
+///
+/// Primary codes 11 (`SQLITE_CORRUPT`, including extended codes such as
+/// `SQLITE_CORRUPT_INDEX`) and 26 (`SQLITE_NOTADB`) are corruption. Disk-full,
+/// permission, and I/O errors are returned unchanged.
+Object translateSideDbOpenError(SqliteException err, {String? path}) {
+  final code = err.resultCode;
+  if (code == 11 || code == 26) {
+    return SideDbCorruptException(
+      err.message,
+      path: SideDb._absoluteOrNull(path),
+    );
+  }
+  return err;
 }

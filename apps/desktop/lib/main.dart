@@ -33,10 +33,11 @@ Future<void> main() async {
   try {
     await desktopHost.open(dataDir: dataDir);
   } catch (err) {
-    final message = startupDialogMessage(err);
-    if (message != null) {
-      stderr.writeln(message);
-      runApp(StartupFailureApp(message: message));
+    final notice = startupNotice(err);
+    if (notice != null) {
+      stderr.writeln(err);
+      stderr.writeln(notice.body);
+      runApp(StartupFailureApp(notice: notice));
       return;
     }
     rethrow;
