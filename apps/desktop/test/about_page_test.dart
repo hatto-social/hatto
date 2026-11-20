@@ -2,20 +2,52 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hatto_desktop/app.dart';
-import 'package:hatto_desktop/state/bootstrap_state.dart';
+import 'package:hatto_desktop/editor/anki_ui.dart';
+import 'package:hatto_desktop/engine/anki_api.dart';
+import 'package:hatto_desktop/engine/engine.dart';
+import 'package:hatto_desktop/state/app_controller.dart';
+import 'package:hatto_desktop/ui/shell.dart';
+import 'package:path/path.dart' as p;
+import 'package:rslib_bridge/rslib_bridge.dart';
 
 void main() {
-  testWidgets('main menu opens the about page', (tester) async {
+  testWidgets('the learning shell opens the about page', (tester) async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    final root = Directory.systemTemp.createTempSync('hatto-about');
+    addTearDown(() {
+      if (root.existsSync()) root.deleteSync(recursive: true);
+    });
+    final dataDir = p.join(root.path, 'collection');
+    Directory(dataDir).createSync();
+    late final Engine engine;
+    late final FlowApi api;
+    late final AppController app;
+    await tester.runAsync(() async {
+      await initRslibBridge();
+      engine = await Engine.open(dataDir: dataDir);
+      api = FlowApi(engine);
+      await api.openCollection(dataDir);
+      app = AppController(api);
+      await app.refreshDecks();
+    });
+    addTearDown(() async {
+      await api.closeCollection();
+      engine.close();
+    });
+
     await tester.pumpWidget(
-      const HattoDesktopApp(state: BootstrapState.closed()),
+      MaterialApp(
+        home: MainShell(app: app, colors: AnkiColors.light),
+      ),
     );
-    await tester.tap(find.text('메뉴'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('라이선스'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('nav-about')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
 
     expect(
       find.text('Copyright © 2026 Hatto Social contributors'),
@@ -41,7 +73,8 @@ void main() {
     );
 
     await tester.tap(find.text('라이선스 전문 보기'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
     final license = tester.widget<SelectableText>(find.byType(SelectableText));
     expect(license.data, contains('GNU AFFERO GENERAL PUBLIC LICENSE'));
   });

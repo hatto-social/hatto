@@ -5,6 +5,7 @@
 // Main window shell: Anki-like top toolbar (Decks / Add / Browse / Stats / Sync) + current screen + one-line status.
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../about/about_page.dart';
 import '../editor/anki_ui.dart';
 import '../state/app_controller.dart';
 import 'browse_screen.dart';
@@ -48,7 +49,10 @@ class _MainShellState extends State<MainShell> {
           decoration: BoxDecoration(color: k.dark ? const Color(0xff363636) : const Color(0xfffafafa), borderRadius: const BorderRadius.vertical(bottom: Radius.circular(14)), boxShadow: k.dark ? const [] : kShadowSoft),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             link('덱', 'nav-decks', s == Screen.decks || s == Screen.overview, () => app.go(Screen.decks)), link('추가', 'nav-add', false, null),
-            link('찾아보기', 'nav-browse', s == Screen.browse, () => app.go(Screen.browse)), link('통계', 'nav-stats', s == Screen.stats, () => app.go(Screen.stats)), link('동기화', 'nav-sync', false, null)]))),
+            link('찾아보기', 'nav-browse', s == Screen.browse, () => app.go(Screen.browse)), link('통계', 'nav-stats', s == Screen.stats, () => app.go(Screen.stats)), link('동기화', 'nav-sync', false, null),
+            link('라이선스', 'nav-about', false, () {
+              Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const AboutPage()));
+            })]))),
         Expanded(child: body),
       ]),
       if (app.message != null) Positioned(left: 0, right: 0, bottom: s == Screen.review ? 76 : 56, child: Center(child: Container(key: const ValueKey('toast'), padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7), decoration: ankiFloating(k),
