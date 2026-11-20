@@ -5,7 +5,7 @@
 name: hatto_desktop
 description: >-
   Hatto desktop app for macOS and Linux. Opens a collection through the
-  desktop bridge profile and shows the study flow and note editor.
+  desktop bridge profile and shows the study flow.
 publish_to: none
 version: 0.1.0+1
 resolution: workspace
