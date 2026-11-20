@@ -24,4 +24,22 @@ void main() {
     expect(small, greaterThanOrEqualTo(2000));
     expect(large, lessThanOrEqualTo(small * 8));
   });
+
+  test('opening braces before one closer stay linear as they grow', () {
+    int steps(int count) {
+      final scan = CssScan();
+      CssRules.parse('{' * count + '}', scan: scan);
+      return scan.steps;
+    }
+    final small = steps(2000);
+    final large = steps(8000);
+    expect(small, greaterThanOrEqualTo(2000));
+    expect(large, lessThanOrEqualTo(small * 8));
+  });
+
+  test('a megabyte of opening braces finishes quickly', () {
+    final watch = Stopwatch()..start();
+    CssRules.parse('{' * (1 << 20) + '}');
+    expect(watch.elapsed, lessThan(const Duration(seconds: 2)));
+  });
 }

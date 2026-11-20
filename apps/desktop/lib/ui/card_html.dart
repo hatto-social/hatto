@@ -206,10 +206,18 @@ String cardHtmlFallbackText(String html) {
   return slice.replaceAll(RegExp(r'<[^<>]*>'), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
 }
 
-/// Counts characters [CssRules.parse] looks at. Tests use it to reject a
-/// quadratic scan of a stylesheet that contains no `{`.
+/// Counts characters [indexOf] scans inside [CssRules.parse]. A repeated
+/// search that walks the same tail again shows up here.
 class CssScan {
   int steps = 0;
+}
+
+int _find(String source, String needle, int from, CssScan? scan) {
+  final n = source.length;
+  if (from >= n) return -1;
+  final found = source.indexOf(needle, from);
+  scan?.steps += found < 0 ? n - from : found - from + needle.length;
+  return found;
 }
 
 String _withoutCssComments(String css, CssScan? scan) {
@@ -242,25 +250,20 @@ class CssRules {
     final out = <(String, Map<String, String>)>[];
     final n = source.length;
     var i = 0;
+    var closeCache = -1;
     while (i < n) {
-      final open = source.indexOf('{', i);
-      if (open < 0) {
-        scan?.steps += n - i;
-        break;
-      }
-      scan?.steps += open - i + 1;
-      final close = source.indexOf('}', open + 1);
-      if (close < 0) {
-        scan?.steps += n - (open + 1);
-        break;
-      }
-      final nested = source.indexOf('{', open + 1);
+      final open = _find(source, '{', i, scan);
+      if (open < 0) break;
+      // One search for '}' covers every '{' up to that brace. Searching
+      // again from each '{' makes `{`×N + `}` quadratic.
+      if (closeCache <= open) closeCache = _find(source, '}', open + 1, scan);
+      final close = closeCache;
+      if (close < 0) break;
+      final nested = _find(source, '{', open + 1, scan);
       if (nested >= 0 && nested < close) {
-        scan?.steps += nested - open;
         i = open + 1;
         continue;
       }
-      scan?.steps += close - open;
       var selector = source.substring(i, open);
       final at = selector.lastIndexOf('@');
       if (at >= 0) selector = selector.substring(at + 1);
