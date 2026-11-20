@@ -140,7 +140,7 @@ pub static ALLOWLIST: &[AllowEntry] = &[
     row!(NOTETYPES, "get_change_notetype_info", Read, NameOnly, NONE, NAME_ONLY_TEST),
     row!(NOTETYPES, "add_notetype", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
     row!(NOTETYPES, "update_notetype", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
-    row!(NOTETYPES, "remove_notetype", Write, Pending, "검증은 상태 없이 가능. 이식 PR에서 함께 연다", PENDING_TEST),
+    row!(NOTETYPES, "remove_notetype", Write, Pending, "노트타입 관리 UI가 생길 때 연다", PENDING_TEST),
     row!(NOTETYPES, "change_notetype", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
     // Cards (1)
     row!(CARDS, "get_card", Read, NameOnly, NONE, NAME_ONLY_TEST),
@@ -175,7 +175,7 @@ pub static ALLOWLIST: &[AllowEntry] = &[
     row!(OCCLUSION, "get_image_occlusion_fields", Read, NameOnly, NONE, NAME_ONLY_TEST),
     row!(OCCLUSION, "add_image_occlusion_notetype", Write, NameOnly, NONE, NAME_ONLY_TEST),
     row!(OCCLUSION, "update_image_occlusion_note", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
-    row!(OCCLUSION, "get_image_occlusion_note", Read, Validated, "the note id exists (GetNote). note_map is not consulted", "validates_get_image_occlusion_note"),
+    row!(OCCLUSION, "get_image_occlusion_note", Read, Pending, "N1 초크포인트가 없다. 이미지 필드 경로 가드가 생기기 전에는 거부", PENDING_TEST),
     // Import / export (1)
     row!(IMPORT_EXPORT, "export_anki_package", Write, Validated, "with_scheduling=false, with_deck_configs=false, with_media=true, legacy=false; limit is one deck or a note id list", "validates_export_anki_package"),
     // Study scheduler (9) plus bury and restore

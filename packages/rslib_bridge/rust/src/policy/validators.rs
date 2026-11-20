@@ -15,7 +15,7 @@ use prost::Message;
 use super::desktop::{require_inside_data_dir, PresentedStates};
 use super::{
     ANSWER_TAKEN_MAX_MILLIS, CARDS, COLLECTION, CONFIG, DECKS, FETCH_LIMIT_MAX, GRAPHS_DAYS_MAX,
-    IMPORT_EXPORT, NOTES, NOTETYPES, OCCLUSION, SCHEDULER, SEARCH, STATS,
+    IMPORT_EXPORT, NOTES, NOTETYPES, SCHEDULER, SEARCH, STATS,
 };
 use crate::api::{dispatch_message, AnkiBackend};
 
@@ -39,7 +39,6 @@ pub(crate) fn prepare(
         (NOTETYPES, "get_cloze_field_ords") => validate_cloze_field_ords(backend, input),
         (DECKS, "add_deck") => validate_add_deck(backend, input),
         (NOTES, "remove_notes") => validate_remove_notes(backend, input),
-        (OCCLUSION, "get_image_occlusion_note") => validate_image_occlusion_note(backend, input),
         (SEARCH, "search_notes" | "search_cards") => validate_search(backend, input),
         _ => Ok(input.to_vec()),
     }
@@ -271,19 +270,6 @@ fn validate_remove_notes(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>,
     Ok(input.to_vec())
 }
 
-fn validate_image_occlusion_note(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String> {
-    let request = decode::<anki_proto::image_occlusion::GetImageOcclusionNoteRequest>(input)?;
-    dispatch_message(
-        backend,
-        NOTES,
-        "get_note",
-        &anki_proto::notes::NoteId {
-            nid: request.note_id,
-        },
-    )
-    .map_err(|_| format!("note {} does not exist", request.note_id))?;
-    Ok(input.to_vec())
-}
 
 fn validate_bury(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String> {
     let request = decode::<anki_proto::scheduler::BuryOrSuspendCardsRequest>(input)?;

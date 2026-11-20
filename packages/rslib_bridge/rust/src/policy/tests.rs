@@ -226,12 +226,12 @@ fn allowlist_names_resolve_and_counts_match() {
             Status::Deferred => deferred += 1,
         }
     }
-    assert_eq!(validated, 15);
+    assert_eq!(validated, 14);
     assert_eq!(name_only, 58);
-    assert_eq!(pending, 14);
+    assert_eq!(pending, 15);
     assert_eq!(deferred, 1);
     assert_eq!(ALLOWLIST.len(), 88);
-    assert_eq!(forwarded_names().len(), 73);
+    assert_eq!(forwarded_names().len(), 72);
 
     let pending_methods: std::collections::HashSet<_> = ALLOWLIST
         .iter()
@@ -253,10 +253,11 @@ fn allowlist_names_resolve_and_counts_match() {
         "change_notetype",
         "add_media_file",
         "update_image_occlusion_note",
+        "get_image_occlusion_note",
     ] {
         assert!(pending_methods.contains(method), "{method}");
     }
-    assert_eq!(pending_methods.len(), 14);
+    assert_eq!(pending_methods.len(), 15);
 }
 
 #[test]
@@ -319,7 +320,7 @@ fn desktop_denies_calls_outside_the_allowed_70() {
         denied += 1;
     }
     assert!(denied > 14, "denied {denied}");
-    assert_eq!(pending, 14);
+    assert_eq!(pending, 15);
 }
 
 #[test]
@@ -1624,36 +1625,6 @@ fn validates_remove_notes() {
         },
     );
     assert!(removed.success, "{}", message_of(&removed));
-}
-
-#[test]
-fn validates_get_image_occlusion_note() {
-    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
-    let paths = col_paths(dir.path());
-    let backend = open_desktop_collection(&paths);
-    let missing = call(
-        &backend,
-        "BackendImageOcclusionService",
-        "get_image_occlusion_note",
-        &anki_proto::image_occlusion::GetImageOcclusionNoteRequest { note_id: 99 },
-    );
-    assert!(
-        message_of(&missing).contains("does not exist"),
-        "{}",
-        message_of(&missing)
-    );
-    let note_id = add_basic_note(&backend);
-    let forwarded = call(
-        &backend,
-        "BackendImageOcclusionService",
-        "get_image_occlusion_note",
-        &anki_proto::image_occlusion::GetImageOcclusionNoteRequest { note_id },
-    );
-    let message = message_of(&forwarded);
-    assert!(
-        !message.contains("does not exist") && !message.contains("validator not implemented"),
-        "{message}"
-    );
 }
 
 #[test]
