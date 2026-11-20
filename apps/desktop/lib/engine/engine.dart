@@ -31,6 +31,7 @@ const desktopServices = <String, String>{
   'deck_tree': 'BackendDecksService',
   'new_deck': 'BackendDecksService',
   'add_deck': 'BackendDecksService',
+  'rename_deck': 'BackendDecksService',
   'get_deck_names': 'BackendDecksService',
   'set_current_deck': 'BackendDecksService',
   'get_notetype_names': 'BackendNotetypesService',

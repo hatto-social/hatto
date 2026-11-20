@@ -112,7 +112,7 @@ pub static ALLOWLIST: &[AllowEntry] = &[
     row!(DECKS, "get_deck_and_child_names", Read, NameOnly, NONE, NAME_ONLY_TEST),
     row!(DECKS, "deck_tree", Read, NameOnly, NONE, NAME_ONLY_TEST),
     row!(DECKS, "add_deck", Write, Validated, "name is non-empty, has no empty :: segment, and kind is normal. rslib may create missing parents", "validates_add_deck"),
-    row!(DECKS, "rename_deck", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
+    row!(DECKS, "rename_deck", Write, Validated, "the deck exists; the new name is non-empty, has no empty :: segment, is at most 255 bytes, and has no control character", "validates_rename_deck"),
     row!(DECKS, "reparent_decks", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
     row!(DECKS, "remove_decks", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
     row!(DECKS, "set_current_deck", Write, Validated, "the deck exists and is a normal deck", "validates_set_current_deck"),

@@ -259,12 +259,12 @@ fn allowlist_names_resolve_and_counts_match() {
             Status::Deferred => deferred += 1,
         }
     }
-    assert_eq!(validated, 16);
+    assert_eq!(validated, 17);
     assert_eq!(name_only, 58);
-    assert_eq!(pending, 13);
+    assert_eq!(pending, 12);
     assert_eq!(deferred, 1);
     assert_eq!(ALLOWLIST.len(), 88);
-    assert_eq!(forwarded_names().len(), 74);
+    assert_eq!(forwarded_names().len(), 75);
 
     let pending_methods: std::collections::HashSet<_> = ALLOWLIST
         .iter()
@@ -272,7 +272,6 @@ fn allowlist_names_resolve_and_counts_match() {
         .map(|row| row.method)
         .collect();
     for method in [
-        "rename_deck",
         "reparent_decks",
         "remove_decks",
         "add_note",
@@ -288,7 +287,7 @@ fn allowlist_names_resolve_and_counts_match() {
     ] {
         assert!(pending_methods.contains(method), "{method}");
     }
-    assert_eq!(pending_methods.len(), 13);
+    assert_eq!(pending_methods.len(), 12);
 }
 
 #[test]
@@ -351,7 +350,7 @@ fn desktop_denies_calls_outside_the_allowed_70() {
         denied += 1;
     }
     assert!(denied > 14, "denied {denied}");
-    assert_eq!(pending, 13);
+    assert_eq!(pending, 12);
 }
 
 #[test]
@@ -1810,5 +1809,70 @@ fn a_caught_panic_poisons_the_session() {
         message_of(&later).contains("backend poisoned"),
         "{}",
         message_of(&later)
+    );
+}
+
+#[test]
+fn validates_rename_deck() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let paths = col_paths(dir.path());
+    let backend = open_desktop_collection(&paths);
+    let mut deck = new_deck(&backend);
+    deck.name = "German".into();
+    let added = call(&backend, "BackendDecksService", "add_deck", &deck);
+    assert!(added.success, "{}", message_of(&added));
+    let id = anki_proto::collection::OpChangesWithId::decode(added.payload.as_slice())
+        .unwrap()
+        .id;
+    let renamed = call(
+        &backend,
+        "BackendDecksService",
+        "rename_deck",
+        &anki_proto::decks::RenameDeckRequest {
+            deck_id: id,
+            new_name: "Deutsch".into(),
+        },
+    );
+    assert!(renamed.success, "{}", message_of(&renamed));
+    for name in ["", "A::::B", "::A", "A::"] {
+        let denied = call(
+            &backend,
+            "BackendDecksService",
+            "rename_deck",
+            &anki_proto::decks::RenameDeckRequest {
+                deck_id: id,
+                new_name: name.into(),
+            },
+        );
+        assert!(!denied.success, "{name} was allowed");
+    }
+    let long = "a".repeat(256);
+    let denied = call(
+        &backend,
+        "BackendDecksService",
+        "rename_deck",
+        &anki_proto::decks::RenameDeckRequest {
+            deck_id: id,
+            new_name: long,
+        },
+    );
+    assert!(
+        message_of(&denied).contains("255"),
+        "{}",
+        message_of(&denied)
+    );
+    let missing = call(
+        &backend,
+        "BackendDecksService",
+        "rename_deck",
+        &anki_proto::decks::RenameDeckRequest {
+            deck_id: 0,
+            new_name: "Nope".into(),
+        },
+    );
+    assert!(
+        message_of(&missing).contains("does not exist"),
+        "{}",
+        message_of(&missing)
     );
 }

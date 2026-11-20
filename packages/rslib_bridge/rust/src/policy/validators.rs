@@ -39,6 +39,7 @@ pub(crate) fn prepare(
         (SCHEDULER, "restore_buried_and_suspended_cards") => validate_restore(backend, input),
         (NOTETYPES, "get_cloze_field_ords") => validate_cloze_field_ords(backend, input),
         (DECKS, "add_deck") => validate_add_deck(backend, input),
+        (DECKS, "rename_deck") => validate_rename_deck(backend, input),
         (NOTES, "remove_notes") => validate_remove_notes(backend, input),
         (SEARCH, "search_notes" | "search_cards") => validate_search(backend, input),
         _ => Ok(input.to_vec()),
@@ -244,11 +245,45 @@ fn require_built_search(backend: &AnkiBackend, search: &str) -> Result<(), Strin
     Ok(())
 }
 
-fn validate_add_deck(_backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String> {
-    let deck = decode::<anki_proto::decks::Deck>(input)?;
-    if deck.name.is_empty() || deck.name.split("::").any(|part| part.is_empty()) {
+fn validate_rename_deck(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String> {
+    let request = decode::<anki_proto::decks::RenameDeckRequest>(input)?;
+    if request.deck_id == 0 {
+        return Err("deck does not exist".into());
+    }
+    dispatch_message(
+        backend,
+        DECKS,
+        "get_deck",
+        &anki_proto::decks::DeckId {
+            did: request.deck_id,
+        },
+    )
+    .map_err(|_| format!("deck {} does not exist", request.deck_id))?;
+    check_deck_name(&request.new_name)?;
+    Ok(input.to_vec())
+}
+
+fn check_deck_name(name: &str) -> Result<(), String> {
+    if name.trim().is_empty() || name.split("::").any(|part| part.is_empty()) {
         return Err("deck name is empty or has an empty segment".into());
     }
+    if name.len() > 255 {
+        return Err("deck name is longer than 255 bytes".into());
+    }
+    if name.chars().any(|c| {
+        matches!(
+            c as u32,
+            0x00..=0x08 | 0x0B | 0x0C | 0x0E..=0x1F | 0x7F
+        )
+    }) {
+        return Err("deck name contains a control character".into());
+    }
+    Ok(())
+}
+
+fn validate_add_deck(_backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String> {
+    let deck = decode::<anki_proto::decks::Deck>(input)?;
+    check_deck_name(&deck.name)?;
     if deck.kind.is_none() || matches!(deck.kind, Some(anki_proto::decks::deck::Kind::Filtered(_)))
     {
         return Err("deck must be a normal deck".into());
