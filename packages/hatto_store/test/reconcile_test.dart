@@ -179,7 +179,7 @@ void main() {
     expect(db.journalRows(), isEmpty);
   });
 
-  test('a note with no cards is recorded and does not abort reconcile', () async {
+  test('a searched note with no cards is skipped and does not abort', () async {
     final db = SideDb.openInMemory();
     addTearDown(db.close);
     final collection = FakeCollection()
