@@ -29,7 +29,6 @@ const desktopServices = <String, String>{
   'undo': 'BackendCollectionService',
   'redo': 'BackendCollectionService',
   'deck_tree': 'BackendDecksService',
-  'new_deck': 'BackendDecksService',
   'rename_deck': 'BackendDecksService',
   'get_deck_names': 'BackendDecksService',
   'set_current_deck': 'BackendDecksService',

@@ -71,13 +71,13 @@ Future<void> seedDefaultNotes(Directory dir, List<(String, String)> notes) async
   await invoke('BackendCollectionService', 'close_collection', CloseCollectionRequest());
 }
 
-Future<void> boot(WidgetTester t, Future<void> Function() seed, {bool fsrs = true, List<(String, String)> seeded = const []}) async {
+Future<void> boot(WidgetTester t, Future<void> Function() seed, {List<(String, String)> seeded = const []}) async {
   t.view.physicalSize = const Size(1200, 720); t.view.devicePixelRatio = 1;
   addTearDown(() { t.view.resetPhysicalSize(); t.view.resetDevicePixelRatio(); });
   await t.runAsync(() async {
     tmp = await Directory.systemTemp.createTemp('hf_ui_');
     if (seeded.isNotEmpty) await seedDefaultNotes(tmp, seeded);
-    eng = await Engine.open(langs: ['ko', 'en'], dataDir: tmp.path); api = FlowApi(eng); await api.openCollection(tmp.path, fsrsDefault: fsrs);
+    eng = await Engine.open(langs: ['ko', 'en'], dataDir: tmp.path); api = FlowApi(eng); await api.openCollection(tmp.path);
     fake = FakeAudioService(); app = AppController(api, audio: fake);
     await seed(); await app.refreshDecks();
   });
