@@ -31,11 +31,14 @@ from pathlib import Path
 # Prebuilt libraries the sqlite3 3.8.0 hook downloads for this repo.
 # Android ABIs match apps/mobile/android/app/build.gradle.kts.
 # Linux x64 is the host hook used by packages/hatto_store.
+# macOS desktop is Apple Silicon only, so the arm64 dylib is staged and
+# libsqlite3.x64.macos.dylib is not.
 SQLITE3_TARGETS = (
     "libsqlite3.arm.android.so",
     "libsqlite3.arm64.android.so",
     "libsqlite3.x64.android.so",
     "libsqlite3.x64.linux.so",
+    "libsqlite3.arm64.macos.dylib",
 )
 
 FLUTTER_KEYS = (
