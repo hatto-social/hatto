@@ -77,7 +77,6 @@ class FlowApi {
   Future<void> renameDeck(int id, String name) => engine.call(Rpcs.renameDeck, RenameDeckRequest(deckId: Int64(id), newName: name), OpChanges.fromBuffer);
   Future<int> removeDecks(List<int> ids) async => (await engine.call(Rpcs.removeDecks, DeckIds(dids: ids.map(Int64.new)), OpChangesWithCount.fromBuffer)).count;
   Future<List<DeckNameId>> deckNames() async => (await engine.call(Rpcs.getDeckNames, GetDeckNamesRequest(skipEmptyDefault: true, includeFiltered: false), DeckNames.fromBuffer)).entries;
-  Future<void> setDeckCollapsed(int id, bool c) => engine.call(Rpcs.setDeckCollapsed, SetDeckCollapsedRequest(deckId: Int64(id), collapsed: c, scope: SetDeckCollapsedRequest_Scope.REVIEWER), OpChanges.fromBuffer);
   Future<void> setCurrentDeck(int id) => engine.call(Rpcs.setCurrentDeck, DeckId(did: Int64(id)), OpChanges.fromBuffer);
   Future<DeckTreeNode?> deckTreeNode(int id) async {
     DeckTreeNode? walk(DeckTreeNode n) { if (n.deckId.toInt() == id) return n; for (final c in n.children) { final r = walk(c); if (r != null) return r; } return null; }

@@ -53,12 +53,7 @@ void main() {
       expect(
         app.createDeck('한국어::기초::회화'),
         throwsA(isA<BackendException>()),
-        reason: 'AddDeck has no consumer in the learning PR',
-      );
-      expect(
-        api.setDeckCollapsed(1, true),
-        throwsA(isA<BackendException>()),
-        reason: 'SetDeckCollapsed is not in the 87-call contract',
+        reason: 'AddDeck has no consumer in the learning flow',
       );
       await api.closeCollection(); e.close();
     });

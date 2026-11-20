@@ -8,7 +8,6 @@
 import 'package:flutter/foundation.dart';
 import '../engine/anki_api.dart';
 import '../services/audio_service.dart';
-import 'deck_view.dart';
 import 'review_session.dart';
 import '../effect/sound_gate.dart';
 
@@ -72,28 +71,12 @@ class AppController extends ChangeNotifier {
 
   /// Decks: create / rename / delete (rslib ops).
   Future<void> createDeck(String name) async {
-    final before = await _deckNames();
     await api.addDeck(name);
-    await _expandAutoParents(before);
     await refreshDecks();
-  }
-  Future<Set<String>> _deckNames() async => {for (final d in await api.deckNames()) d.name};
-  /// Parents that rslib auto-created for a new "A::B" deck are shown expanded (pre-existing decks keep the user's collapsed state).
-  Future<void> _expandAutoParents(Set<String> before) async {
-    final now = await api.deckNames();
-    final auto = autoCreatedParents(before, now.map((d) => d.name));
-    for (final d in now) {
-      if (!auto.contains(d.name)) continue;
-      try {
-        await api.setDeckCollapsed(d.id.toInt(), false);
-      } on BackendException {
-        // SetDeckCollapsed is not one of the 87 contract calls.
-      }
-    }
   }
   Future<void> renameDeck(int id, String name) async { await api.renameDeck(id, name); if (deckId == id) deckName = name; await refreshDecks(); }
   Future<void> deleteDeck(int id) async { await api.removeDecks([id]); if (deckId == id) { deckId = null; overview = null; } await refreshDecks(); }
-  Future<void> importApkg(String path) async { final before = await _deckNames(); final r = await api.importApkg(path); await _expandAutoParents(before); await refreshDecks(); toast('가져오기 완료: 새 노트 ${r.log.new_1.length}, 갱신 ${r.log.updated.length}, 중복 ${r.log.duplicate.length}'); }
+  Future<void> importApkg(String path) async { final r = await api.importApkg(path); await refreshDecks(); toast('가져오기 완료: 새 노트 ${r.log.new_1.length}, 갱신 ${r.log.updated.length}, 중복 ${r.log.duplicate.length}'); }
   void touch() => _changed();
 
   /// Play a [sound:] file. The name must be a plain file in collection.media (see sound_gate.dart); anything else is refused with a toast.

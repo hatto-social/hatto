@@ -54,14 +54,14 @@ class _DeckRowState extends State<_DeckRow> {
   @override
   Widget build(BuildContext context) {
     final k = AnkiTheme.of(context); final n = widget.node; final app = widget.app;
-    final id = n.deckId.toInt(); final hasKids = n.children.isNotEmpty; final current = app.deckId == id;
+    final id = n.deckId.toInt(); final current = app.deckId == id;
     Widget cnt(int v, Color c, int w) => SizedBox(width: w.toDouble(), child: Text('$v', textAlign: TextAlign.center, style: ankiText(k, size: 15, color: v == 0 ? k.fgFaint : c)));
     return MouseRegion(onEnter: (_) => setState(() => hover = true), onExit: (_) => setState(() => hover = false), child: Container(
       key: ValueKey('deck-row-${n.name}'), height: 30, margin: const EdgeInsets.only(bottom: 0), decoration: BoxDecoration(color: current ? (k.dark ? const Color(0xff3e3e3e) : const Color(0xffececec)) : (hover ? (k.dark ? const Color(0xff3a3a3a) : const Color(0xfff2f2f2)) : null), borderRadius: BorderRadius.circular(14)),
       child: Row(children: [
-        // SetDeckCollapsed is not in the contract. The list stays expanded, and
-        // the control does not call the denied method (that call toasted every click).
-        SizedBox(width: 10.0 + (n.level - 1) * 18), SizedBox(width: 16, child: hasKids ? Text(n.collapsed ? '+' : '−', key: ValueKey('collapse-${n.name}'), textAlign: TextAlign.center, style: ankiText(k, size: 14, color: k.fgSubtle)) : null),
+        // The list stays expanded. There is no collapse control: SetDeckCollapsed
+        // is not one of the desktop calls.
+        SizedBox(width: 10.0 + (n.level - 1) * 18),
         const SizedBox(width: 6),
         Expanded(child: GestureDetector(key: ValueKey('deck-${n.name}'), behavior: HitTestBehavior.opaque, onTap: () => app.openDeck(id, n.name), child: Align(alignment: Alignment.centerLeft, child: Text(deckLeaf(n.name), overflow: TextOverflow.ellipsis, style: ankiText(k, size: 15))))),
         cnt(n.newCount, StateColors.n(k), 66), cnt(n.learnCount, StateColors.l(k), 66), cnt(n.reviewCount, StateColors.r(k), 66),
