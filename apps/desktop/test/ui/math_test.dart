@@ -33,11 +33,18 @@ void main() {
       expect(findMath(r'\[x\]').single.$3.raw, r'\[x\]');
     });
     test('unmatched delimiters are left alone', () { expect(findMath(r'\(x'), isEmpty); expect(findMath(r'x\]'), isEmpty); });
-    test('many unclosed delimiters finish in bounded time', () {
-      final html = r'\(' * 20000;
-      final watch = Stopwatch()..start();
-      expect(findMath(html), isEmpty);
-      expect(watch.elapsed, lessThan(const Duration(seconds: 2)));
+    test(r'an empty \(\) does not take the following closer', () {
+      expect(findMath(r'\(\)\)'), isEmpty);
+    });
+    test('unclosed delimiters stay linear as the input grows', () {
+      int steps(int count) {
+        final scan = MathScan();
+        expect(findMath(r'\(' * count, scan: scan), isEmpty);
+        return scan.steps;
+      }
+      final small = steps(2000);
+      final large = steps(8000);
+      expect(large, lessThanOrEqualTo(small * 8));
     });
   });
 

@@ -22,34 +22,67 @@ String? _cleanTex(String body) {
   return t.isEmpty ? null : t;
 }
 
+/// Counts characters the math scan looks at. Tests use it to check that a
+/// longer unclosed input does not do quadratic work.
+class MathScan {
+  int steps = 0;
+}
+
 /// Finds math spans in an HTML string. Returns (start, end, span) triples in order; no overlap.
 ///
-/// A single left-to-right scan. An unclosed `\(` or `\[` advances past the
-/// opener instead of asking a reluctant regex to rescan the rest of the string.
-List<(int, int, MathSpan)> findMath(String html) {
+/// One left-to-right pass. After a search for `\)` or `\]` fails, no later
+/// opener of that kind looks past that point again.
+List<(int, int, MathSpan)> findMath(String html, {MathScan? scan}) {
   final out = <(int, int, MathSpan)>[];
+  final limit = html.length;
+  var parenDead = limit;
+  var bracketDead = limit;
   var i = 0;
-  while (i < html.length) {
-    final open = html.indexOf(r'\', i);
-    if (open < 0 || open + 1 >= html.length) break;
-    final marker = html[open + 1];
-    if (marker != '(' && marker != '[') {
-      i = open + 1;
+  while (i < limit) {
+    scan?.steps++;
+    if (html.codeUnitAt(i) != 0x5c) {
+      i++;
       continue;
     }
-    final closer = marker == '(' ? r'\)' : r'\]';
-    final end = html.indexOf(closer, open + 2);
-    if (end < 0) {
-      i = open + 2;
+    if (i + 1 >= limit) break;
+    final marker = html.codeUnitAt(i + 1);
+    final inline = marker == 0x28;
+    final display = marker == 0x5b;
+    if (!inline && !display) {
+      i++;
       continue;
     }
-    final display = marker == '[';
-    final tex = _cleanTex(html.substring(open + 2, end));
+    final dead = inline ? parenDead : bracketDead;
+    if (i + 2 >= dead) {
+      i += 2;
+      continue;
+    }
+    final close = inline ? 0x29 : 0x5d;
+    var j = i + 2;
+    var found = -1;
+    while (j + 1 < dead) {
+      scan?.steps++;
+      if (html.codeUnitAt(j) == 0x5c && html.codeUnitAt(j + 1) == close) {
+        found = j;
+        break;
+      }
+      j++;
+    }
+    if (found < 0) {
+      if (inline) {
+        parenDead = i + 2;
+      } else {
+        bracketDead = i + 2;
+      }
+      i += 2;
+      continue;
+    }
+    final tex = _cleanTex(html.substring(i + 2, found));
     if (tex != null) {
-      final rawText = (hp.parseFragment(html.substring(open, end + 2)).text ?? '').trim();
-      out.add((open, end + 2, MathSpan(tex, rawText, display)));
+      final rawText = (hp.parseFragment(html.substring(i, found + 2)).text ?? '').trim();
+      out.add((i, found + 2, MathSpan(tex, rawText, display)));
     }
-    i = end + 2;
+    i = found + 2;
   }
   return out;
 }
