@@ -21,7 +21,10 @@ void main() {
     addTearDown(() => first?.release());
     final second = InstanceLock.tryAcquire(dir.path);
     expect(second, same(first));
-    expect(File(p.join(dir.path, 'hatto.lock')).existsSync(), isTrue);
+    final lockFile = File(p.join(dir.path, 'hatto.lock'));
+    expect(lockFile.existsSync(), isTrue);
+    final mode = lockFile.statSync().mode & 0x1ff;
+    expect(mode & 0x180, 0x180);
   });
 
   test('a second process reports already running and exits', () async {

@@ -94,8 +94,8 @@ class _Libc {
           >('free'),
       _open = lib
           .lookupFunction<
-            Int32 Function(Pointer<Uint8>, Int32, Int32),
-            int Function(Pointer<Uint8>, int, int)
+            Int32 Function(Pointer<Uint8>, Int32),
+            int Function(Pointer<Uint8>, int)
           >('open'),
       flock = lib
           .lookupFunction<Int32 Function(Int32, Int32), int Function(int, int)>(
@@ -116,7 +116,7 @@ class _Libc {
   static const int lockUn = 8;
   final Pointer<Uint8> Function(int) malloc;
   final void Function(Pointer<Uint8>) free;
-  final int Function(Pointer<Uint8>, int, int) _open;
+  final int Function(Pointer<Uint8>, int) _open;
   final int Function(int, int) flock;
   final int Function(int) close;
   final Pointer<Int32> Function() _errnoLocation;
@@ -126,13 +126,21 @@ class _Libc {
   int errno() => _errnoLocation().value;
 
   int openLock(String path) {
+    // `open` is variadic when O_CREAT is set. Dart FFI does not pass that
+    // mode argument on macOS arm64, so the file was created mode 000 and
+    // the next process got EACCES. Create it with Dart, then open it
+    // without O_CREAT.
+    final file = File(path);
+    if (!file.existsSync()) {
+      file.createSync();
+    }
     final encoded = _utf8(path);
     final ptr = malloc(encoded.length + 1);
     try {
       final view = ptr.asTypedList(encoded.length + 1);
       view.setAll(0, encoded);
       view[encoded.length] = 0;
-      return _open(ptr, _oReadWrite | _oCreat | _oCloexec, 0x1a4);
+      return _open(ptr, _oReadWrite | _oCloexec);
     } finally {
       free(ptr);
     }
@@ -154,8 +162,6 @@ class _Libc {
   }
 
   int get _oReadWrite => 2;
-
-  int get _oCreat => Platform.isMacOS ? 0x200 : 0x40;
 
   int get _oCloexec => Platform.isMacOS ? 0x01000000 : 0x80000;
 }
