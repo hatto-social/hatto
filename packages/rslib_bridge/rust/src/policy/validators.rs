@@ -28,6 +28,7 @@ pub(crate) fn prepare(
     match (service, method) {
         (COLLECTION, "open_collection") => validate_open(backend, input),
         (COLLECTION, "close_collection") => validate_close(input),
+        (COLLECTION, "undo" | "redo") => validate_undo(input),
         (CONFIG, "get_config_bool") => validate_get_config_bool(input),
         (IMPORT_EXPORT, "export_anki_package") => validate_export(input),
         (SCHEDULER, "get_queued_cards") => validate_queued(input),
@@ -57,6 +58,13 @@ fn validate_open(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String>
     request.media_folder_path = media.to_string_lossy().into_owned();
     request.media_db_path = media_db.to_string_lossy().into_owned();
     Ok(request.encode_to_vec())
+}
+
+fn validate_undo(input: &[u8]) -> Result<Vec<u8>, String> {
+    if !input.is_empty() {
+        return Err("undo request must be empty".into());
+    }
+    Ok(input.to_vec())
 }
 
 fn validate_close(input: &[u8]) -> Result<Vec<u8>, String> {

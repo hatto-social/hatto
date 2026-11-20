@@ -138,6 +138,9 @@ fn observe(backend: &AnkiBackend, service: &str, method: &str, input: &[u8], out
                 session.presented.remove(&answer.card_id);
             }
         }
+        (super::COLLECTION, "undo" | "redo") => {
+            session.presented.clear();
+        }
         (super::COLLECTION, "close_collection") => {
             session.presented.clear();
             session.search_strings.clear();

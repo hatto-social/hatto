@@ -100,8 +100,8 @@ pub static ALLOWLIST: &[AllowEntry] = &[
     row!(COLLECTION, "latest_progress", Read, NameOnly, NONE, NAME_ONLY_TEST),
     row!(COLLECTION, "set_wants_abort", Write, NameOnly, NONE, NAME_ONLY_TEST),
     row!(COLLECTION, "get_undo_status", Read, NameOnly, NONE, NAME_ONLY_TEST),
-    row!(COLLECTION, "undo", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
-    row!(COLLECTION, "redo", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
+    row!(COLLECTION, "undo", Write, Validated, "request is empty; the FSRS bootstrap is not left on the undo stack", "validates_undo_and_redo"),
+    row!(COLLECTION, "redo", Write, Validated, "request is empty", "validates_undo_and_redo"),
     // Config (1)
     row!(CONFIG, "get_config_bool", Read, Validated, "Bool key is NormalizeNoteText", "validates_get_config_bool"),
     // Decks (10) plus SetCurrentDeck from the study list

@@ -26,6 +26,8 @@ const desktopServices = <String, String>{
   'open_collection': 'BackendCollectionService',
   'close_collection': 'BackendCollectionService',
   'get_undo_status': 'BackendCollectionService',
+  'undo': 'BackendCollectionService',
+  'redo': 'BackendCollectionService',
   'deck_tree': 'BackendDecksService',
   'new_deck': 'BackendDecksService',
   'add_deck': 'BackendDecksService',
