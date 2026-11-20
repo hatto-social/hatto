@@ -4,7 +4,9 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# License check: REUSE lint, then byte identity of the two AGPL copies.
+# License check: REUSE lint, then byte identity of the AGPL copies.
+# The in-app asset is an extra copy so the About screen can show the
+# full text offline. It is not a per-package grant.
 #
 # Install once. reuse 6.3.0 raises NoEncodingModuleError unless
 # charset-normalizer is present:
@@ -29,7 +31,13 @@ fi
 
 reuse lint
 
-if ! cmp -s LICENSE LICENSES/AGPL-3.0-or-later.txt; then
-  echo "LICENSE and LICENSES/AGPL-3.0-or-later.txt are not byte-identical." >&2
-  exit 1
-fi
+copies=(
+  LICENSES/AGPL-3.0-or-later.txt
+  packages/hatto_legal/assets/LICENSE
+)
+for copy in "${copies[@]}"; do
+  if ! cmp -s LICENSE "$copy"; then
+    echo "LICENSE and $copy are not byte-identical." >&2
+    exit 1
+  fi
+done

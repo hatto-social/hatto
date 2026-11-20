@@ -2,9 +2,9 @@
 
 Hatto Social v0 is a local-first Android app. There is no server in this version. Study data lives on the device: one resident [Anki](https://github.com/ankitects/anki) collection, plus a Hatto side database in the app documents directory.
 
-The collection engine is Anki's Rust library **rslib**, pinned to **26.09.3** and not patched. The app talks to it only through rslib's protobuf backend (`init_backend` with a `BackendInit` message, then `Backend::run_service_method`). Service and method numbers are generated at build time from that tag's `.proto` files, because those numbers are not a stable ABI.
+The collection engine is Anki's Rust library **rslib**, pinned to **26.09.3** and not patched. Scheduling is rslib's. That library includes FSRS and an SM-2-family scheduler (see `NOTICE.md`). The app talks to it only through rslib's protobuf backend (`init_backend` with a `BackendInit` message, then `Backend::run_service_method`). Service and method numbers are generated at build time from that tag's `.proto` files, because those numbers are not a stable ABI.
 
-The app is AGPL-3.0-or-later, the same license as rslib, which it links statically. The license text is `LICENSE`. Notices for Anki and for files in this repository are in `NOTICE.md`. Third-party dependency notices are in `THIRD_PARTY_NOTICES.md`.
+The app is AGPL-3.0-or-later, the same license as rslib, which it links statically. The license text is `LICENSE`. Notices for Anki and for files in this repository are in `NOTICE.md`. Third-party dependency notices are in `THIRD_PARTY_NOTICES.md`. The About screen uses `packages/hatto_legal`, which shows the copyright lines, the warranty disclaimer, and that same license text offline.
 
 ## Layout
 
@@ -15,6 +15,7 @@ packages/rslib_bridge/       flutter_rust_bridge crate and the generated Dart AP
   hook/build.dart            Native-assets hook (Flutter builds the Rust library)
   lib/src/rust/              Generated bindings. Do not edit.
 packages/hatto_store/        Side SQLite, write wrapper, read-only SQL allowlist
+packages/hatto_legal/        AGPL notices and the offline license text
 third_party/anki/            Anki git submodule, tag 26.09.3, unmodified
 ```
 
@@ -39,6 +40,8 @@ git submodule update --init --recursive
 ```
 
 The submodule is Anki commit `29bb700b951e3f0c0cb69b77c0180fc1fe33e6ba` (tag `26.09.3`). Do not patch files under `third_party/anki`.
+
+Corresponding source for a binary that is handed to anyone is the archive from `tools/release/make-source-archive.sh`. Rebuilding that archive with no git metadata is [`SOURCE.md`](SOURCE.md). Release order, the rule against deleting a shipped release, and the desktop-app follow-ups are [`docs/release/CHECKLIST.md`](docs/release/CHECKLIST.md).
 
 ## Host build and smoke
 
@@ -75,13 +78,15 @@ Opening a collection still goes only through `init_backend` and `Backend::run_se
 
 Not verified in this workspace: the Android SDK/NDK are not installed, so `flutter build apk` and an emulator were not run. To build an APK locally:
 
-1. Install Android SDK command-line tools and NDK r29 (AnkiDroid's rslib build uses NDK `29.0.14206865`).
+1. Install Android SDK command-line tools and the NDK Flutter's Gradle plugin requests (`flutter.ndkVersion`, `28.2.13676358` on Flutter 3.47.9). AnkiDroid's own rslib build uses NDK `29.0.14206865`. This app's Gradle file follows Flutter, not that pin.
 2. Set `ANDROID_HOME` and `ANDROID_NDK_HOME`.
 3. Accept SDK licenses.
-4. From `apps/mobile`: `flutter build apk`.
+4. A debug build, from `apps/mobile`: `flutter build apk`.
+
+A binary that is handed to anyone is a release build, and `tools/release/build-android.sh <tag>` is the only path for that APK. The tag must be non-empty, must point at HEAD, and the work tree must be clean. The script passes `HATTO_RELEASE_TAG` and `HATTO_GIT_SHA` to Dart and writes `dist/BUILD_INFO.txt` from the toolchain that built the APK. `tools/release/make-source-archive.sh <tag>` copies that file into the source archive. The About screen's source button then opens `https://github.com/hatto-social/hatto/releases/tag/<tag>`. A build with no tag says which commit it is instead. Signing keys are not changed here.
 
 `.cargo/config.toml` already passes `-Wl,-z,max-page-size=16384` for the Android Rust targets so the `.so` can load on 16KB-page devices. `prepare_runtime` must run before import/export, or rslib writes temp files under a directory the app cannot use.
 
 ## What this skeleton does not do
 
-Import, scheduling, note editing, FSRS optimization, and backup/restore are specified for v0 and are not implemented yet. The side database schema is a single draft version (`PRAGMA user_version` 1). `note_map.home_deck_guid` records the import-time home deck (ord 0, or the lowest ord when there is no ord-0 card; a filtered card uses `odid`) and stays put when cards move. `deck_map.deleted_at` is null for a live deck. The app opens that file from the documents directory at startup. Original apkg files are copied to `<documents>/hatto/imports/<sha256>` (`storeImportArchive`); the side database stores the sha256 and not the path. Whether a note, card, or media file is unsynced is the `server_unsynced` flag of its deck. The write wrapper records an intent, calls rslib, then deletes the intent and appends the journal row (`field` null, `payload` the protobuf input). A failed call deletes the intent. A thrown call leaves it. Startup reconciliation of a pending intent is not implemented.
+Import, note editing, FSRS optimization, and backup/restore are specified for v0 and are not implemented yet. Scheduling itself is rslib's, including FSRS and an SM-2-family scheduler. The side database schema is a single draft version (`PRAGMA user_version` 1). `note_map.home_deck_guid` records the import-time home deck (ord 0, or the lowest ord when there is no ord-0 card; a filtered card uses `odid`) and stays put when cards move. `deck_map.deleted_at` is null for a live deck. The app opens that file from the documents directory at startup. Original apkg files are copied to `<documents>/hatto/imports/<sha256>` (`storeImportArchive`); the side database stores the sha256 and not the path. Whether a note, card, or media file is unsynced is the `server_unsynced` flag of its deck. The write wrapper records an intent, calls rslib, then deletes the intent and appends the journal row (`field` null, `payload` the protobuf input). A failed call deletes the intent. A thrown call leaves it. Startup reconciliation of a pending intent is not implemented.

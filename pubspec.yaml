@@ -12,3 +12,4 @@ workspace:
   - apps/mobile
   - packages/rslib_bridge
   - packages/hatto_store
+  - packages/hatto_legal

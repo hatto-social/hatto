@@ -3,54 +3,30 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:hatto_legal/hatto_legal.dart';
 
-/// License and source placeholder. The source archive itself is not built here.
+const _openUrlChannel = MethodChannel('social.hatto/open_url');
+
+/// Opens [url] in the Android view handler. No extra plugin: the activity
+/// sends `ACTION_VIEW`. Widget tests pass their own [OpenSourceUrl].
+Future<void> openExternalUrl(Uri url) {
+  return _openUrlChannel.invokeMethod<void>('open', url.toString());
+}
+
+/// License screen. A release build's source button opens the tag's release page.
 class AboutPage extends StatelessWidget {
-  const AboutPage({super.key});
+  const AboutPage({super.key, this.openUrl});
+
+  final OpenSourceUrl? openUrl;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('라이선스')),
-      body: Padding(
+      body: ListView(
         padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('AGPL-3.0-or-later'),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: () {
-                showLicensePage(
-                  context: context,
-                  applicationName: 'Hatto',
-                  applicationLegalese: 'AGPL-3.0-or-later',
-                );
-              },
-              child: const Text('오픈소스 고지'),
-            ),
-            const SizedBox(height: 12),
-            FilledButton(
-              onPressed: () {
-                showDialog<void>(
-                  context: context,
-                  builder: (context) {
-                    return AlertDialog(
-                      content: const Text('이 버전의 소스 링크는 아직 없습니다.'),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('닫기'),
-                        ),
-                      ],
-                    );
-                  },
-                );
-              },
-              child: const Text('소스 코드'),
-            ),
-          ],
-        ),
+        children: [LegalNoticesSection(openUrl: openUrl ?? openExternalUrl)],
       ),
     );
   }

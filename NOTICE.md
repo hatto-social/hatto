@@ -4,9 +4,9 @@
 
 Copyright 2026 Hatto Social contributors.
 
-Hatto is licensed under the GNU Affero General Public License, version 3, or any later version (`AGPL-3.0-or-later`). The license text is [`LICENSE`](LICENSE). The same bytes are in [`LICENSES/AGPL-3.0-or-later.txt`](LICENSES/AGPL-3.0-or-later.txt).
+Hatto is licensed under the GNU Affero General Public License, version 3, or any later version (`AGPL-3.0-or-later`). The license text is [`LICENSE`](LICENSE). The same bytes are in [`LICENSES/AGPL-3.0-or-later.txt`](LICENSES/AGPL-3.0-or-later.txt) and in [`packages/hatto_legal/assets/LICENSE`](packages/hatto_legal/assets/LICENSE). `tools/license/check.sh` checks the three copies. The asset is what the app shows offline. It is not a different license.
 
-The Dart packages in this repository set `publish_to: none`. They are not published to pub.dev. This repository does not keep a separate `LICENSE` copy in each package.
+The Dart packages in this repository set `publish_to: none`. They are not published to pub.dev. Packages do not each carry their own license file. `packages/hatto_legal` is the shared About-screen widget for the mobile app and, later, the desktop app.
 
 ## Anki
 
@@ -25,6 +25,14 @@ Anki's logo is copyright Alex Fraser and is AGPL, with a separate limited licens
 The name "Anki" is used only to describe compatibility with Anki decks and with rslib. A trademark policy for that use was not found in Anki's `LICENSE`.
 
 The submodule also points at Anki's translation checkouts (`ftl/core-repo`, `ftl/qt-repo`). Those repositories do not ship a `LICENSE` file. Anki's `LICENSE` describes translations in the `qt` folder as a mix of BSD and public domain. That sentence is not a license for the translation repositories. This notice does not add one.
+
+## Scheduling algorithms
+
+Hatto does not implement a scheduler. Scheduling is rslib's.
+
+FSRS is the `fsrs` crate from [open-spaced-repetition/fsrs-rs](https://github.com/open-spaced-repetition/fsrs-rs), BSD-3-Clause. Hatto uses it through rslib. The crate notice is in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) (`fsrs 6.6.2`).
+
+rslib's SM-2-family scheduler is based on SuperMemo's SM-2 algorithm by P. A. Woźniak. The algorithm is described at <https://www.super-memory.com/english/ol/sm2.htm>. The implementation in the binary is rslib's.
 
 ## Other notices
 

@@ -72,7 +72,7 @@ Adjust the comment marker and the last line to the language and the kind of chan
 
 ## License check
 
-`tools/license/check.sh` runs `reuse lint` and checks that `LICENSE` and `LICENSES/AGPL-3.0-or-later.txt` are the same bytes. `reuse lint` skips Git submodules. Do not pass `--include-submodules`.
+`tools/license/check.sh` runs `reuse lint` and checks that `LICENSE`, `LICENSES/AGPL-3.0-or-later.txt`, and `packages/hatto_legal/assets/LICENSE` are the same bytes. The third file is the copy the app shows offline. `reuse lint` skips Git submodules. Do not pass `--include-submodules`.
 
 `tools/license/gen-notices.sh` regenerates `THIRD_PARTY_NOTICES.md` and `apps/mobile/assets/licenses/`. It runs `cargo deny check licenses` first and fails if a crate license is outside the allow list.
 
