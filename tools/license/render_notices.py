@@ -214,6 +214,8 @@ def _markdown(
     flagged: list[str],
     rust_count: int,
     android_count: int,
+    desktop_count: int,
+    ofl_text: str,
 ) -> str:
     lines: list[str] = []
     lines.append("# Third-party notices")
@@ -223,10 +225,14 @@ def _markdown(
     )
     lines.append("")
     lines.append(
-        "Rust crates are the Android runtime graph of `packages/rslib_bridge/rust` "
+        "Rust crates in the Android section are the Android runtime graph of "
+        "`packages/rslib_bridge/rust` "
         "(`aarch64-linux-android`, `armv7-linux-androideabi`, `x86_64-linux-android`). "
         "Build-only and dev-only crates are omitted. Gradle dependencies are the "
-        "Android `releaseRuntimeClasspath`."
+        "Android `releaseRuntimeClasspath`. "
+        "The desktop graph (`x86_64-unknown-linux-gnu`, `aarch64-apple-darwin`) "
+        f"is {desktop_count} third-party crates in "
+        "`apps/desktop/assets/licenses/rust-crates.json`."
     )
     lines.append("")
     lines.append(
@@ -318,6 +324,28 @@ def _markdown(
     lines.append(material_entry["text"].rstrip())
     lines.append("```")
     lines.append("")
+    lines.append("## Desktop fonts")
+    lines.append("")
+    lines.append(
+        "Golden tests for `apps/desktop` load Noto Sans Regular and "
+        "Noto Sans KR Regular from `apps/desktop/test/fonts/` through "
+        "`FontLoader`. Both are SIL Open Font License 1.1. The text below "
+        "is `apps/desktop/test/fonts/OFL.txt`. The desktop app also loads "
+        "`apps/desktop/assets/licenses/material-icons.json` and "
+        "`apps/desktop/assets/licenses/flutter-sdk.json` (the Flutter SDK "
+        "`LICENSE`, BSD-3-Clause). Engine third parties stay in Flutter's "
+        "own `NOTICES` bundle via `LicenseRegistry`."
+    )
+    lines.append("")
+    lines.append("### OFL-1.1")
+    lines.append("")
+    lines.append("- Noto Sans Regular")
+    lines.append("- Noto Sans KR Regular")
+    lines.append("")
+    lines.append("```")
+    lines.append(ofl_text.rstrip())
+    lines.append("```")
+    lines.append("")
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -334,20 +362,37 @@ def _material_icons_entry(license_text: str) -> dict:
     }
 
 
+def _desktop_anki_text(text: str) -> str:
+    return text.replace(
+        "The path crates named with this entry are linked into the Android build.",
+        "The path crates named with this entry are linked into the desktop build.",
+    ).replace(
+        "it is not linked into the APK.",
+        "it is not linked into the desktop app.",
+    )
+
+
 def main() -> None:
-    if len(sys.argv) != 6:
+    if len(sys.argv) != 8:
         _die(
             "usage: render_notices.py ROOT ABOUT_JSON ANDROID_JSON "
-            "FLUTTER_LICENSE MATERIAL_ICONS_LICENSE"
+            "FLUTTER_LICENSE MATERIAL_ICONS_LICENSE DESKTOP_ABOUT_JSON OFL_TEXT"
         )
     root = Path(sys.argv[1])
     about = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
     android_raw = json.loads(Path(sys.argv[3]).read_text(encoding="utf-8"))
     flutter_license = Path(sys.argv[4]).read_text(encoding="utf-8")
     material_license = Path(sys.argv[5]).read_text(encoding="utf-8")
+    desktop_about = json.loads(Path(sys.argv[6]).read_text(encoding="utf-8"))
+    ofl_text = Path(sys.argv[7]).read_text(encoding="utf-8")
     if "Copyright 2014 The Flutter Authors" not in flutter_license:
         _die(f"{sys.argv[4]} is not the Flutter SDK LICENSE")
     anki, rust_entries, flagged, rust_count = _rust_entries(about)
+    desktop_anki, desktop_entries, _desktop_flagged, desktop_count = _rust_entries(
+        desktop_about
+    )
+    desktop_anki = dict(desktop_anki)
+    desktop_anki["text"] = _desktop_anki_text(desktop_anki["text"])
     android_entries = _android_entries(android_raw, flutter_license)
     material_entry = _material_icons_entry(material_license)
     android_count = sum(len(entry["packages"]) for entry in android_entries)
@@ -385,6 +430,39 @@ def main() -> None:
         json.dumps(material_doc, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
+    desktop_dir = root / "apps" / "desktop" / "assets" / "licenses"
+    desktop_dir.mkdir(parents=True, exist_ok=True)
+    desktop_doc = {
+        "generator": "cargo-about 0.9.3",
+        "targets": [
+            "x86_64-unknown-linux-gnu",
+            "aarch64-apple-darwin",
+        ],
+        "anki": desktop_anki,
+        "entries": desktop_entries,
+    }
+    flutter_doc = {
+        "generator": "flutter-sdk LICENSE",
+        "entries": [
+            {
+                "license": "BSD-3-Clause",
+                "packages": ["Flutter SDK"],
+                "text": flutter_license.strip() + "\n",
+            }
+        ],
+    }
+    (desktop_dir / "rust-crates.json").write_text(
+        json.dumps(desktop_doc, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    (desktop_dir / "material-icons.json").write_text(
+        json.dumps(material_doc, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    (desktop_dir / "flutter-sdk.json").write_text(
+        json.dumps(flutter_doc, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
     (root / "THIRD_PARTY_NOTICES.md").write_text(
         _markdown(
             anki,
@@ -394,6 +472,8 @@ def main() -> None:
             flagged,
             rust_count,
             android_count,
+            desktop_count,
+            ofl_text,
         ),
         encoding="utf-8",
     )

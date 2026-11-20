@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: 2026 Hatto Social contributors
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - build/**
+    - linux/**
+    - macos/**
+
+linter:
+  rules:
+    avoid_print: true

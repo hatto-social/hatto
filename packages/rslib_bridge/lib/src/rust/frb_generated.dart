@@ -69,7 +69,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -1276539588;
+  int get rustContentHash => 2030265303;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -97,6 +97,11 @@ abstract class RustLibApi extends BaseApi {
   });
 
   Future<AnkiBackend> crateApiOpenBackend({required List<int> initMsg});
+
+  Future<AnkiBackend> crateApiOpenDesktopBackend({
+    required List<int> initMsg,
+    required String dataDir,
+  });
 
   Future<void> crateApiPrepareRuntime({required String tmpDir});
 
@@ -277,6 +282,41 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "open_backend", argNames: ["initMsg"]);
 
   @override
+  Future<AnkiBackend> crateApiOpenDesktopBackend({
+    required List<int> initMsg,
+    required String dataDir,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_prim_u_8_loose(initMsg, serializer);
+          sse_encode_String(dataDir, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 6,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAnkiBackend,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiOpenDesktopBackendConstMeta,
+        argValues: [initMsg, dataDir],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiOpenDesktopBackendConstMeta => const TaskConstMeta(
+    debugName: "open_desktop_backend",
+    argNames: ["initMsg", "dataDir"],
+  );
+
+  @override
   Future<void> crateApiPrepareRuntime({required String tmpDir}) {
     return handler.executeNormal(
       NormalTask(
@@ -286,7 +326,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 6,
+            funcId: 7,
             port: port_,
           );
         },
@@ -315,7 +355,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(service, serializer);
           sse_encode_String(method, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 7)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 8)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_service_method_index,
@@ -343,7 +383,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 9,
             port: port_,
           );
         },

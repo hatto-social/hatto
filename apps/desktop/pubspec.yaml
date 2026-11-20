@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: 2026 Hatto Social contributors
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+name: hatto_desktop
+description: >-
+  Hatto desktop shell for macOS and Linux. This build opens a collection
+  and shows the license screen. The study flow is a later change.
+publish_to: none
+version: 0.1.0+1
+resolution: workspace
+
+environment:
+  sdk: ^3.13.7
+  flutter: ">=3.47.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  hatto_legal: any
+  path: ^1.9.1
+  path_provider: ^2.1.5
+  rslib_bridge: any
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/licenses/rust-crates.json
+    - assets/licenses/material-icons.json
+    - assets/licenses/flutter-sdk.json

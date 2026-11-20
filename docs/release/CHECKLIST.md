@@ -28,12 +28,24 @@ The Play Store description and a desktop dmg README are not written here. When a
 
 ## When the desktop app lands
 
-`apps/desktop` is not in this repository. The change that adds it is done only when all four of these are true:
+The desktop work is split into 세팅 (setup) and 출시 (release). Setup can land while a desktop release still does not exist.
+
+### 세팅 (setup)
+
+Done when both of these are true:
 
 1. The desktop About screen uses `LegalNoticesSection` from `packages/hatto_legal`.
-2. `tools/license/gen-notices.sh` grows a macOS target so the desktop third-party notices are generated.
+2. `tools/license/gen-notices.sh` has macOS and Linux targets so the desktop third-party notices are generated.
+
+### 출시 (release)
+
+Done when all of these are true:
+
 3. `tools/release/build-macos.sh` exists and refuses to build when the tag is empty, the tag does not point at HEAD, or the tree is dirty.
 4. The dmg contains `LICENSE` and a README, and that README includes the source sentence from `docs/release/RELEASE_BODY.md`.
+5. macOS App Sandbox and Hardened Runtime are verified. v0 setup leaves the sandbox off. The sandbox is a Mac App Store requirement, and notarization needs the Hardened Runtime.
+6. If the desktop app depends on `hatto_store`, `SQLITE3_TARGETS` includes a macOS sqlite3 library.
+7. The mobile allowlist has landed before the mobile v0 release. `MobileUnrestricted` is not a release profile.
 
 ## What is not in the source archive
 

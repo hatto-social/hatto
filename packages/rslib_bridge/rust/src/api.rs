@@ -3,17 +3,50 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use std::path::PathBuf;
+use std::sync::{Mutex, MutexGuard};
 
 use anki::backend::init_backend;
 use prost::Message;
 
 use crate::index;
+use crate::policy::{prepare_data_dir, DesktopSession};
+
+/// Which calls an open backend will forward.
+///
+/// The profile is fixed for the life of the backend.
+///
+/// Not exported to Dart: flutter_rust_bridge 2.13 emits a freezed enum for
+/// a variant that carries data, and this package does not take that
+/// dependency. Dart opens a desktop backend through [open_desktop_backend].
+#[flutter_rust_bridge::frb(ignore)]
+#[derive(Debug, Clone)]
+pub enum BridgeProfile {
+    /// No allowlist yet. Every `(service, method)` is forwarded to rslib,
+    /// which is the behavior `open_backend` has always had. The mobile
+    /// allowlist is a later PR, before the mobile v0 release.
+    MobileUnrestricted,
+    /// Desktop v0. Calls are checked against the name table. A call with no
+    /// implemented validator is denied and is not sent to rslib.
+    Desktop { data_dir: String },
+}
 
 /// One rslib backend. Open at most one of these against a given collection file;
 /// a second open fails with `DB_ERROR` (kind 5) because rslib takes an exclusive lock.
 #[flutter_rust_bridge::frb(opaque)]
 pub struct AnkiBackend {
     inner: anki::backend::Backend,
+    profile: BridgeProfile,
+    session: Mutex<DesktopSession>,
+}
+
+impl AnkiBackend {
+    pub(crate) fn is_unrestricted(&self) -> bool {
+        matches!(self.profile, BridgeProfile::MobileUnrestricted)
+    }
+
+    pub(crate) fn lock_session(&self) -> MutexGuard<'_, DesktopSession> {
+        self.session.lock().unwrap_or_else(|err| err.into_inner())
+    }
 }
 
 /// Bytes returned by `run_service_method`.
@@ -54,23 +87,119 @@ pub fn prepare_runtime(tmp_dir: String) {
 }
 
 /// `init_msg` is an encoded `anki.backend.BackendInit`. v0 passes `server = false`.
+///
+/// This stays unrestricted: it opens a [BridgeProfile::MobileUnrestricted]
+/// backend. Existing mobile and `hatto_store` callers keep that behavior.
 pub fn open_backend(init_msg: Vec<u8>) -> Result<AnkiBackend, String> {
-    init_backend(&init_msg)
-        .map(|inner| AnkiBackend { inner })
-        .map_err(|err| err)
+    open_backend_with_profile(init_msg, BridgeProfile::MobileUnrestricted)
+}
+
+/// Open a backend and fix its call profile.
+///
+/// `Desktop` requires `data_dir` to be an existing absolute directory with no
+/// `..` component. Later `command` calls on that backend use the desktop table.
+///
+/// Rust tests call this. Dart uses [open_desktop_backend] so the generated
+/// bindings do not need a freezed enum.
+#[flutter_rust_bridge::frb(ignore)]
+pub fn open_backend_with_profile(
+    init_msg: Vec<u8>,
+    profile: BridgeProfile,
+) -> Result<AnkiBackend, String> {
+    let data_dir = match &profile {
+        BridgeProfile::MobileUnrestricted => None,
+        BridgeProfile::Desktop { data_dir } => Some(prepare_data_dir(data_dir)?),
+    };
+    let inner = init_backend(&init_msg).map_err(|err| err)?;
+    Ok(AnkiBackend {
+        inner,
+        profile,
+        session: Mutex::new(DesktopSession::new(data_dir)),
+    })
+}
+
+/// Open a desktop-profile backend.
+///
+/// `data_dir` is the collection directory. This calls
+/// [open_backend_with_profile] with [BridgeProfile::Desktop].
+pub fn open_desktop_backend(init_msg: Vec<u8>, data_dir: String) -> Result<AnkiBackend, String> {
+    open_backend_with_profile(init_msg, BridgeProfile::Desktop { data_dir })
 }
 
 /// One protobuf backend call. `service` and `method` come from [service_method_index].
+///
+/// An unrestricted backend forwards the bytes. A desktop backend denies the
+/// call, without sending it to rslib, when the name is not allowed or its
+/// validator is not implemented.
 pub fn command(backend: &AnkiBackend, service: u32, method: u32, input: Vec<u8>) -> ProtoResponse {
-    match backend.inner.run_service_method(service, method, &input) {
-        Ok(payload) => ProtoResponse {
+    if backend.is_unrestricted() {
+        return dispatch(backend, service, method, &input);
+    }
+    crate::policy::enforce(backend, service, method, input)
+}
+
+pub(crate) fn dispatch(
+    backend: &AnkiBackend,
+    service: u32,
+    method: u32,
+    input: &[u8],
+) -> ProtoResponse {
+    // rslib can panic on a missing notetype (`GetClozeFieldOrds`). Catch that
+    // here so the panic becomes a BackendError instead of killing the process.
+    // A panic while rslib holds its collection mutex can still poison that
+    // mutex; callers that can check the input first should do so.
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        backend.inner.run_service_method(service, method, input)
+    }));
+    match result {
+        Ok(Ok(payload)) => ProtoResponse {
             success: true,
             payload,
         },
-        Err(payload) => ProtoResponse {
+        Ok(Err(payload)) => ProtoResponse {
             success: false,
             payload,
         },
+        Err(_) => backend_error("rslib panicked"),
+    }
+}
+
+pub(crate) fn dispatch_message(
+    backend: &AnkiBackend,
+    service: &str,
+    method: &str,
+    message: &impl Message,
+) -> Result<Vec<u8>, String> {
+    let Some((service_index, method_index)) = index::lookup(service, method) else {
+        return Err(format!(
+            "no index for {service}.{method}; {}",
+            index::describe_service(service)
+        ));
+    };
+    let response = dispatch(
+        backend,
+        service_index,
+        method_index,
+        &message.encode_to_vec(),
+    );
+    if response.success {
+        Ok(response.payload)
+    } else {
+        Err(decode_backend_error(&response.payload))
+    }
+}
+
+pub(crate) fn backend_error(message: impl Into<String>) -> ProtoResponse {
+    let err = anki_proto::backend::BackendError {
+        message: message.into(),
+        kind: anki_proto::backend::backend_error::Kind::InvalidInput as i32,
+        help_page: None,
+        context: String::new(),
+        backtrace: String::new(),
+    };
+    ProtoResponse {
+        success: false,
+        payload: err.encode_to_vec(),
     }
 }
 
@@ -206,7 +335,7 @@ pub(crate) fn call(
     }
 }
 
-fn decode_backend_error(bytes: &[u8]) -> String {
+pub(crate) fn decode_backend_error(bytes: &[u8]) -> String {
     match anki_proto::backend::BackendError::decode(bytes) {
         Ok(err) => format!("{} (kind={:?})", err.message, err.kind),
         Err(_) => format!("undecodable backend error ({} bytes)", bytes.len()),

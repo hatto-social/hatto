@@ -67,6 +67,7 @@ jobs:
                       "packages/rslib_bridge/rust/",
                       "tools/license/",
                       "apps/mobile/assets/licenses/",
+                      "apps/desktop/",
                   )
                   exact = {
                       "Cargo.lock",
@@ -171,4 +172,5 @@ jobs:
           tools/license/gen-notices.sh
           git diff --exit-code -- \
             THIRD_PARTY_NOTICES.md \
-            apps/mobile/assets/licenses
+            apps/mobile/assets/licenses \
+            apps/desktop/assets/licenses
