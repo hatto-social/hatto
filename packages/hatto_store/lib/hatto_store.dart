@@ -3,9 +3,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 export 'src/import_archive.dart';
+export 'src/instance_lock.dart';
+export 'src/intent_ops.dart';
+export 'src/media_journal.dart';
 export 'src/proto.dart';
+export 'src/reconcile.dart';
 export 'src/schema.dart' show SideDbException, sideDbSchemaVersion;
 export 'src/side_db.dart';
 export 'src/side_db_path.dart';
 export 'src/sql_allowlist.dart';
+export 'src/uuid.dart' show formatUuid, newUuidV4, uuidVersion4Or5;
 export 'src/write_wrapper.dart';

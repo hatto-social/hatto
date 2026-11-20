@@ -6,10 +6,12 @@ import 'package:sqlite3/sqlite3.dart';
 
 /// Draft schema for the Hatto side database. Not a stable contract.
 ///
-/// One version, because this build has not shipped. There is no upgrade from
-/// an older shape. A file at `user_version` 0 that already has tables is
-/// rejected. `PRAGMA user_version` is the schema version. `meta` stores
-/// `device_id` only.
+/// The current schema is [sideDbSchemaVersion] (v1). A higher
+/// `user_version` is refused and the file is left untouched. This runner
+/// never deletes rows or tables. A file at `user_version` 0 that already
+/// has tables is refused the same way. An empty file is created as v1.
+/// `PRAGMA user_version` is the schema version. `meta` stores `device_id`
+/// only.
 ///
 /// `edit_journal.field` is null in v0. `deck_map.server_unsynced` defaults to
 /// 1 and is the unsynced flag for that deck. Notes, cards, and media do not
@@ -20,15 +22,16 @@ import 'package:sqlite3/sqlite3.dart';
 /// `source_sha256` is the file name of the copied apkg under
 /// `<documents>/hatto/imports/`, not a path.
 ///
-/// `note_map` is the sole authority for Hatto note guids. rslib `notes.guid`
-/// is not stored. Anki notes have no deck column. `home_deck_guid` is the
-/// Hatto guid of the deck chosen at import: the ord-0 card when one exists,
-/// otherwise the card with the lowest ord. A card in a filtered deck
-/// contributes its original deck (`odid`), not the filtered deck. It is
-/// written once and is not updated when cards move. Edit-journal rows for
-/// notes key only on the note guid, so the home deck lives here. Rewriting a
-/// deck guid updates `note_map.home_deck_guid` in the same transaction,
-/// including decks whose `deleted_at` is set.
+/// `note_map.note_guid` is the Hatto guid. For a mapped note it is the same
+/// value as rslib `notes.guid`; there is no second guid column. Anki notes
+/// have no deck column. `home_deck_guid` is chosen when the note is first
+/// mapped: the ord-0 card when one exists, otherwise the card with the
+/// lowest ord. A card in a filtered deck contributes its original deck
+/// (`odid`), not the filtered deck. It is written once and is not updated
+/// when cards move. Edit-journal rows for notes key only on the note guid,
+/// so the home deck lives here. Rewriting a deck guid updates
+/// `note_map.home_deck_guid` in the same transaction, including decks whose
+/// `deleted_at` is set.
 ///
 /// The file is opened with `package:sqlite3`, which ships its own SQLite
 /// library. rslib 26.09.3 links a different copy (rusqlite 0.36, feature
@@ -118,14 +121,27 @@ int readUserVersion(Database db) {
   throw SideDbException('unexpected user_version value: $raw');
 }
 
+/// Creates v1 in an empty file.
+///
+/// The current schema is [sideDbSchemaVersion]. A higher `user_version`
+/// throws and does not delete or rewrite anything. Any other non-zero
+/// version throws the same way. Callers open the file again only after
+/// an app that understands that version is installed.
 void applySideDbMigrations(Database db) {
   final current = readUserVersion(db);
   if (current == sideDbSchemaVersion) {
     return;
   }
+  if (current > sideDbSchemaVersion) {
+    throw SideDbException(
+      'side database schema version $current is newer than this app '
+      '($sideDbSchemaVersion); refusing to open and leaving data in place',
+    );
+  }
   if (current != 0) {
     throw SideDbException(
-      'side database schema version $current is newer than this app ($sideDbSchemaVersion)',
+      'side database schema version $current cannot be opened by this app '
+      '($sideDbSchemaVersion); refusing to open and leaving data in place',
     );
   }
   final existing = db.select(
