@@ -79,6 +79,7 @@ void main() {
   late File outside;
 
   setUp(() async {
+    resetCardHtmlFallbackCache();
     _requests.clear();
     root = await Directory.systemTemp.createTemp('hatto-card-html-');
     media = Directory('${root.path}/media')..createSync();
@@ -301,7 +302,7 @@ void main() {
   });
 
   test('oversized tag lists are rejected before a parse', () {
-    cardHtmlParseCount = 0;
+    resetCardHtmlFallbackCache();
     final nested = '<div>' * 50000;
     final flat = '<b>x</b>' * 100000;
     final watch = Stopwatch()..start();
@@ -313,7 +314,7 @@ void main() {
 
   test('the fallback decision is cached for one HTML string', () {
     final html = '<b>x</b>';
-    cardHtmlParseCount = 0;
+    resetCardHtmlFallbackCache();
     expect(cardHtmlNeedsPlainFallback(html), isFalse);
     expect(cardHtmlNeedsPlainFallback(html), isFalse);
     expect(cardHtmlParseCount, 1);

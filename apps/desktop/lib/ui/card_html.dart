@@ -178,6 +178,14 @@ bool cardHtmlNeedsPlainFallback(String html) {
   return value;
 }
 
+/// Drops the remembered fallback decision. Widget tests call this so one case
+/// cannot satisfy the next.
+void resetCardHtmlFallbackCache() {
+  _fallbackHtml = null;
+  _fallbackValue = false;
+  cardHtmlParseCount = 0;
+}
+
 /// Plain text for an over-cap field. Only the first [kCardHtmlPlainPrefix]
 /// code units are scanned, and a tag cannot contain another `<`, so a long
 /// run of `<` does not rescan the rest of the string.
