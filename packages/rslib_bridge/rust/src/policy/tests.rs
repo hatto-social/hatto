@@ -287,7 +287,7 @@ fn print_allowlist_table() {
 }
 
 #[test]
-fn desktop_denies_calls_outside_the_allowed_70() {
+fn desktop_denies_calls_outside_the_allowed_71() {
     let dir = tempfile::TempDir::new_in("/tmp").unwrap();
     let backend = desktop_backend(dir.path());
     let allowed = forwarded_names();

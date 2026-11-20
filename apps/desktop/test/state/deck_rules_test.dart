@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Deck list rules: auto-created parents expanded; empty Default hidden when other decks exist.
+// Deck list rules: empty Default hidden when other decks exist.
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hatto_desktop/engine/anki_api.dart';
@@ -28,9 +28,4 @@ void main() {
     });
   });
 
-  test('autoCreatedParents', () {
-    expect(autoCreatedParents({'A'}, {'A', 'A::B::C', 'A::B'}), {'A::B'});
-    expect(autoCreatedParents({}, {'X::Y::Z', 'X::Y', 'X'}), {'X', 'X::Y'});
-    expect(autoCreatedParents({'A', 'A::B'}, {'A', 'A::B', 'A::B::C'}), isEmpty);
-  });
 }
