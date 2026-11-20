@@ -31,7 +31,10 @@ class EngineHost {
 
   bool get holdsInstanceLock => _lock != null;
 
-  Future<BootstrapState> open({required String dataDir}) async {
+  Future<BootstrapState> open({
+    required String dataDir,
+    Future<void> Function(Engine engine, FlowApi api)? openCollection,
+  }) async {
     final lock = InstanceLock.tryAcquire(dataDir);
     if (lock == null) {
       throw const AlreadyRunningException();
@@ -45,13 +48,25 @@ class EngineHost {
         throw StateError('no rslib write is open on this profile');
       },
     );
+    Engine? opened;
     try {
-      final opened = await Engine.open(
-        dataDir: dataDir,
-        langs: const ['ko', 'en'],
-      );
+      opened = await Engine.open(dataDir: dataDir, langs: const ['ko', 'en']);
       final api = FlowApi(opened);
-      await api.openCollection(dataDir);
+      try {
+        final inject = openCollection;
+        if (inject != null) {
+          await inject(opened, api);
+        } else {
+          await api.openCollection(dataDir);
+        }
+      } catch (err) {
+        opened.close();
+        opened = null;
+        if (err is CollectionOpenException) {
+          rethrow;
+        }
+        throw CollectionOpenException(err, path: _collectionFile(dataDir));
+      }
       engine = opened;
       flow = api;
       final collectionPath = p.join(dataDir, 'collection.anki2');
@@ -89,6 +104,13 @@ class EngineHost {
     }
   }
 
+  static String? _collectionFile(String dataDir) {
+    if (dataDir.isEmpty) {
+      return null;
+    }
+    return File(p.join(dataDir, 'collection.anki2')).absolute.path;
+  }
+
   bool get markerPresent {
     final path = _collectionPath;
     if (path == null) {
@@ -96,4 +118,18 @@ class EngineHost {
     }
     return File('$path.hatto-fsrs-init').existsSync();
   }
+}
+
+/// [FlowApi.openCollection] failed after the engine was opened.
+///
+/// The engine is already closed. [path] is the absolute collection file,
+/// or null when that path could not be built.
+class CollectionOpenException implements Exception {
+  CollectionOpenException(this.cause, {this.path});
+
+  final Object cause;
+  final String? path;
+
+  @override
+  String toString() => 'CollectionOpenException: $cause';
 }
