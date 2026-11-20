@@ -178,6 +178,30 @@ void main() {
     expect(pending.last.expected, 'not-json');
     expect(db.journalRows(), isEmpty);
   });
+
+  test('a note with no cards is recorded and does not abort reconcile', () async {
+    final db = SideDb.openInMemory();
+    addTearDown(db.close);
+    final collection = FakeCollection()
+      ..addNote(id: 10, guid: 'has-cards', cardId: 100);
+    collection.notes[11] = const CollectionNote(id: 11, guid: 'lonely');
+
+    final result = await reconcileCollection(db: db, anki: collection);
+    expect(result.skippedNotes, hasLength(1));
+    expect(result.skippedNotes.single.rslibNoteId, 11);
+    expect(result.skippedNotes.single.reason, 'no cards');
+    expect(db.note('has-cards'), isNotNull);
+    expect(db.note('lonely'), isNull);
+    expect(db.deckByRslibId(1), isNotNull);
+
+    final only = FakeCollection();
+    only.notes[11] = const CollectionNote(id: 11, guid: 'lonely');
+    final alone = SideDb.openInMemory();
+    addTearDown(alone.close);
+    final skipped = await reconcileCollection(db: alone, anki: only);
+    expect(skipped.skippedNotes.single.rslibNoteId, 11);
+    expect(alone.notes(), isEmpty);
+  });
 }
 
 String _snapshot(SideDb db) {

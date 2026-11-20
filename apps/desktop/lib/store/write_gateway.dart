@@ -46,7 +46,7 @@ class WriteGateway {
     );
   }
 
-  Future<void> reconcile(AnkiApi anki) {
+  Future<ReconcileResult> reconcile(AnkiApi anki) {
     return reconcileCollection(db: db, anki: anki);
   }
 }
