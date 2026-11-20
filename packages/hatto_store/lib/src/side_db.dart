@@ -2,12 +2,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:sqlite3/sqlite3.dart';
 
 import 'schema.dart';
+import 'uuid.dart';
 
 /// Hatto metadata stored outside the resident Anki collection.
 ///
@@ -27,24 +29,66 @@ class SideDb {
   int _hlcCounter = 0;
 
   static SideDb open({required String path, required String deviceId}) {
-    final file = File(path);
-    file.parent.createSync(recursive: true);
-    return _finishOpen(sqlite3.open(path), deviceId);
+    File(path).parent.createSync(recursive: true);
+    return _openHandle(sqlite3.open(path), providedDeviceId: deviceId);
+  }
+
+  /// Opens [path], creating the file and a UUIDv4 `meta.device_id` when
+  /// that row is missing.
+  ///
+  /// The id already stored in the file is kept. Copying or restoring the
+  /// data folder copies it, so two installs can share a device id. v0 does
+  /// not sync and does not regenerate an id that is present. Doing so after
+  /// a copy is a v1 question.
+  static SideDb openOrCreate(String path) {
+    File(path).parent.createSync(recursive: true);
+    return _openHandle(sqlite3.open(path), providedDeviceId: null);
   }
 
   static SideDb openInMemory({String deviceId = 'test-device'}) {
-    return _finishOpen(sqlite3.openInMemory(), deviceId);
+    return _openHandle(sqlite3.openInMemory(), providedDeviceId: deviceId);
   }
 
-  static SideDb _finishOpen(Database db, String deviceId) {
+  static SideDb _openHandle(Database db, {required String? providedDeviceId}) {
     try {
-      final side = SideDb._(db, deviceId);
-      side._migrate();
-      return side;
+      applySideDbMigrations(db);
+      final existing = _readDeviceId(db);
+      final String id;
+      if (existing != null) {
+        id = existing;
+      } else if (providedDeviceId != null) {
+        if (providedDeviceId.isEmpty) {
+          throw const SideDbException('device_id is empty');
+        }
+        id = providedDeviceId;
+        _insertDeviceId(db, id);
+      } else {
+        id = newUuidV4();
+        _insertDeviceId(db, id);
+      }
+      return SideDb._(db, id);
     } catch (err) {
       db.close();
       rethrow;
     }
+  }
+
+  static String? _readDeviceId(Database db) {
+    final rows = db.select("SELECT value FROM meta WHERE key = 'device_id'");
+    if (rows.isEmpty) {
+      return null;
+    }
+    final value = rows.first['value'];
+    if (value is! String || value.isEmpty) {
+      throw const SideDbException('meta.device_id is empty');
+    }
+    return value;
+  }
+
+  static void _insertDeviceId(Database db, String deviceId) {
+    db.execute("INSERT INTO meta(key, value) VALUES ('device_id', ?)", [
+      deviceId,
+    ]);
   }
 
   void close() => _db.close();
@@ -79,27 +123,41 @@ class SideDb {
     }
   }
 
-  /// Deletes the intent and appends one journal row. `field` is null in v0.
-  void completeIntent({
+  /// Deletes the intent and, when [journal] is true, appends one journal row.
+  ///
+  /// [map] runs inside the same transaction, after the rslib response has
+  /// been read by the caller and before the intent row is deleted. A throw
+  /// rolls the transaction back and leaves the intent pending. [journal]
+  /// defaults to true so existing mobile callers still append a row and an
+  /// HLC. `field` is null in v0. When [journal] is false, no journal row and
+  /// no HLC are written.
+  Future<void> completeIntent({
     required int intentId,
     required String op,
     required String entityKind,
     required String guid,
     Uint8List? payload,
-  }) {
-    final hlc = nextHlc();
+    bool journal = true,
+    FutureOr<void> Function()? map,
+  }) async {
     _db.execute('BEGIN IMMEDIATE');
     try {
+      if (map != null) {
+        await map();
+      }
       final rows = _db.select('SELECT id FROM intent WHERE id = ?', [intentId]);
       if (rows.isEmpty) {
         throw SideDbException('intent $intentId is not pending');
       }
       _db.execute('DELETE FROM intent WHERE id = ?', [intentId]);
-      _db.execute(
-        'INSERT INTO edit_journal(op, entity_kind, guid, field, hlc, payload) '
-        'VALUES (?, ?, ?, NULL, ?, ?)',
-        [op, entityKind, guid, hlc, payload],
-      );
+      if (journal) {
+        final hlc = nextHlc();
+        _db.execute(
+          'INSERT INTO edit_journal(op, entity_kind, guid, field, hlc, payload) '
+          'VALUES (?, ?, ?, NULL, ?, ?)',
+          [op, entityKind, guid, hlc, payload],
+        );
+      }
       _db.execute('COMMIT');
     } catch (err) {
       _db.execute('ROLLBACK');
@@ -333,7 +391,8 @@ class SideDb {
   /// card with the lowest ord. A card in a filtered deck (`odid` not 0)
   /// contributes that original deck instead of its current deck. The deck id
   /// is resolved through `deck_map`.
-  /// rslib `notes.guid` is ignored; [noteGuid] is the Hatto guid.
+  /// [noteGuid] is the Hatto guid and, for notes this app maps, the same
+  /// value as rslib `notes.guid`. This method does not read the collection.
   ///
   /// The home deck is written only on the first insert. Calling this again
   /// for the same note after a card has moved does not change it. A second
@@ -372,12 +431,93 @@ class SideDb {
     if (rows.isEmpty) {
       return null;
     }
-    final row = rows.first;
-    return NoteMapRow(
-      noteGuid: row['note_guid'] as String,
-      rslibNoteId: row['rslib_note_id'] as int,
-      homeDeckGuid: row['home_deck_guid'] as String,
+    return _noteRow(rows.first);
+  }
+
+  NoteMapRow? noteByRslibId(int rslibNoteId) {
+    final rows = _db.select(
+      'SELECT note_guid, rslib_note_id, home_deck_guid FROM note_map '
+      'WHERE rslib_note_id = ?',
+      [rslibNoteId],
     );
+    if (rows.isEmpty) {
+      return null;
+    }
+    return _noteRow(rows.first);
+  }
+
+  List<NoteMapRow> notes() {
+    final rows = _db.select(
+      'SELECT note_guid, rslib_note_id, home_deck_guid FROM note_map '
+      'ORDER BY rslib_note_id',
+    );
+    return [for (final row in rows) _noteRow(row)];
+  }
+
+  List<DeckMapRow> decks() {
+    final rows = _db.select(
+      'SELECT deck_guid, rslib_deck_id, import_batch_id, origin_kind, '
+      'origin_role, source_sha256, server_unsynced, deleted_at FROM deck_map '
+      'ORDER BY rslib_deck_id',
+    );
+    return [for (final row in rows) _deckRow(row)];
+  }
+
+  DeckMapRow? deckByRslibId(int rslibDeckId) {
+    final rows = _db.select(
+      'SELECT deck_guid, rslib_deck_id, import_batch_id, origin_kind, '
+      'origin_role, source_sha256, server_unsynced, deleted_at FROM deck_map '
+      'WHERE rslib_deck_id = ?',
+      [rslibDeckId],
+    );
+    if (rows.isEmpty) {
+      return null;
+    }
+    return _deckRow(rows.first);
+  }
+
+  /// Home deck guid for [cards], using the same rule as [importNote].
+  ///
+  /// The deck must already be in `deck_map`.
+  String homeDeckGuidFor(List<ImportedNoteCard> cards) {
+    return _homeDeckGuidAtImport(cards);
+  }
+
+  /// Replaces the `note_map` row for [rslibNoteId].
+  ///
+  /// Used when the collection id is still there but its guid changed, so
+  /// the old row is stale. One transaction: the old row is removed and the
+  /// new one inserted, or neither is.
+  void replaceNote({
+    required String noteGuid,
+    required int rslibNoteId,
+    required String homeDeckGuid,
+  }) {
+    if (noteGuid.isEmpty) {
+      throw const SideDbException('note guid is empty');
+    }
+    _db.execute('BEGIN IMMEDIATE');
+    try {
+      final rows = _db.select(
+        'SELECT note_guid FROM note_map WHERE rslib_note_id = ?',
+        [rslibNoteId],
+      );
+      if (rows.isEmpty) {
+        throw SideDbException('rslib note $rslibNoteId is not in note_map');
+      }
+      _db.execute('DELETE FROM note_map WHERE rslib_note_id = ?', [
+        rslibNoteId,
+      ]);
+      _db.execute(
+        'INSERT INTO note_map(note_guid, rslib_note_id, home_deck_guid) '
+        'VALUES (?, ?, ?)',
+        [noteGuid, rslibNoteId, homeDeckGuid],
+      );
+      _db.execute('COMMIT');
+    } catch (err) {
+      _db.execute('ROLLBACK');
+      rethrow;
+    }
   }
 
   String _homeDeckGuidAtImport(List<ImportedNoteCard> cards) {
@@ -447,15 +587,6 @@ class SideDb {
     ];
   }
 
-  void _migrate() {
-    applySideDbMigrations(_db);
-    _db.execute(
-      "INSERT INTO meta(key, value) VALUES ('device_id', ?) "
-      'ON CONFLICT(key) DO NOTHING',
-      [deviceId],
-    );
-  }
-
   DeckMapRow _deckRow(Row row) {
     return DeckMapRow(
       deckGuid: row['deck_guid'] as String,
@@ -466,6 +597,14 @@ class SideDb {
       sourceSha256: row['source_sha256'] as String?,
       serverUnsynced: (row['server_unsynced'] as int) != 0,
       deletedAt: row['deleted_at'] as String?,
+    );
+  }
+
+  NoteMapRow _noteRow(Row row) {
+    return NoteMapRow(
+      noteGuid: row['note_guid'] as String,
+      rslibNoteId: row['rslib_note_id'] as int,
+      homeDeckGuid: row['home_deck_guid'] as String,
     );
   }
 }
@@ -554,7 +693,8 @@ class ImportedNoteCard {
   final int odid;
 }
 
-/// `note_map` row. [noteGuid] is the Hatto guid, not rslib `notes.guid`.
+/// `note_map` row. [noteGuid] is the Hatto guid. For a mapped note it is
+/// the same value as rslib `notes.guid`.
 class NoteMapRow {
   const NoteMapRow({
     required this.noteGuid,
