@@ -74,16 +74,14 @@ class _DeckRowState extends State<_DeckRow> {
   }
   Future<void> _gear(BuildContext context, AnkiColors k, DeckTreeNode n) async {
     final id = n.deckId.toInt();
-    final act = await chooseFrom<String>(context, k, title: '덱: ${n.name}', items: const [('이름 바꾸기', 'rename'), ('삭제', 'delete')]);
+    // RemoveDecks stays closed until the product owner decides. The menu has no delete item.
+    final act = await chooseFrom<String>(context, k, title: '덱: ${n.name}', items: const [('이름 바꾸기', 'rename')]);
     if (!context.mounted || act == null) return;
     if (act == 'rename') {
       final name = await promptText(context, k, title: '덱 이름 바꾸기', label: '새 이름:', initial: n.name);
       if (name != null && name.trim().isNotEmpty && name.trim() != n.name) {
         try { await widget.app.renameDeck(id, name.trim()); } catch (e) { widget.app.toast('이름을 바꾸지 못했어요: $e'); }
       }
-    } else if (act == 'delete') {
-      final ok = await confirmDialog(context, k, title: '덱 삭제', message: '"${n.name}" 덱과 그 안의 카드 ${n.totalIncludingChildren}장을 삭제할까요?\n(실행 취소는 메뉴의 실행 취소에서 가능해요)', ok: '삭제');
-      if (ok) await widget.app.deleteDeck(id);
     }
   }
 }
