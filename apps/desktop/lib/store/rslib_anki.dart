@@ -49,7 +49,8 @@ class RslibAnkiApi implements store.AnkiApi {
   @override
   Future<List<store.CollectionDeck>> deckTree() async {
     final out = <store.CollectionDeck>[];
-    _flatten(await flow.deckTree(), '', out);
+    // now: 0 skips due counts. The current time can unbury cards.
+    _flatten(await flow.deckTree(now: 0), '', out);
     return out;
   }
 }

@@ -15,13 +15,11 @@ String? startupDialogMessage(Object error) {
   if (error is AlreadyRunningException) {
     return alreadyRunningMessage;
   }
-  if (error is SideDbException) {
-    final message = error.message;
-    if (message.contains('newer than this app') ||
-        message.contains('could not open ') ||
-        message.contains('could not lock ')) {
-      return message;
-    }
+  if (error is NewerSchemaException) {
+    return error.message;
+  }
+  if (error is InstanceLockException) {
+    return error.message;
   }
   return null;
 }

@@ -12,6 +12,12 @@ import 'schema.dart';
 /// Text a second process prints before it exits.
 const String alreadyRunningMessage = 'already running';
 
+/// The lock file could not be opened or locked for a reason other than
+/// another live holder. [AlreadyRunningException] is the held-lock case.
+class InstanceLockException extends SideDbException {
+  const InstanceLockException(super.message);
+}
+
 /// Thrown when [InstanceLock.tryAcquire] finds another process holding
 /// the lock. The collection must not be opened after this.
 class AlreadyRunningException implements Exception {
@@ -52,7 +58,9 @@ class InstanceLock {
     final path = p.join(key, 'hatto.lock');
     final fd = libc.openLock(path);
     if (fd < 0) {
-      throw SideDbException('could not open $path (errno ${libc.errno()})');
+      throw InstanceLockException(
+        'could not open $path (errno ${libc.errno()})',
+      );
     }
     final err = libc.lockExclusive(fd);
     if (err != 0) {
@@ -60,7 +68,7 @@ class InstanceLock {
       if (err == libc.eAgain) {
         return null;
       }
-      throw SideDbException('could not lock $path (errno $err)');
+      throw InstanceLockException('could not lock $path (errno $err)');
     }
     final lock = InstanceLock._(key, fd);
     _held[key] = lock;

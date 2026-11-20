@@ -267,6 +267,10 @@ jobs:
         working-directory: apps/desktop
         run: flutter test test/side_db_smoke_test.dart
 
+      - name: Test the side database package
+        working-directory: packages/hatto_store
+        run: flutter test
+
       - name: Build the macOS app without signing
         working-directory: apps/desktop
         run: flutter build macos --release

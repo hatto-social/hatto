@@ -57,6 +57,33 @@ void main() {
     expect(reconcileEntered, isTrue);
     expect(db.note(guid)!.rslibNoteId, 7);
   });
+
+  test('reconcile inside a write throws instead of deadlocking', () async {
+    final db = SideDb.openInMemory();
+    addTearDown(db.close);
+    final collection = FakeCollection();
+    final wrapper = WriteWrapper(
+      db: db,
+      command: (service, method, input) async {
+        await reconcileCollection(db: db, anki: collection);
+        return ProtoResponse.emptyOk;
+      },
+    );
+    await expectLater(
+      wrapper
+          .run(
+            op: intentNoteAdd,
+            entityKind: 'note',
+            guid: guid,
+            service: 1,
+            method: 1,
+            input: Uint8List(0),
+            journal: false,
+          )
+          .timeout(const Duration(seconds: 2)),
+      throwsA(isA<StateError>()),
+    );
+  });
 }
 
 class _Probe implements AnkiApi {

@@ -14,25 +14,24 @@ void main() {
       alreadyRunningMessage,
     );
     expect(
-      startupDialogMessage(
-        const SideDbException(
-          'side database schema version 2 is newer than this app (1); '
-          'refusing to open and leaving data in place',
-        ),
-      ),
+      startupDialogMessage(NewerSchemaException(2, 1)),
       contains('newer than this app'),
     );
     expect(
       startupDialogMessage(
-        const SideDbException('could not lock /tmp/hatto.lock (errno 13)'),
+        const InstanceLockException('could not lock /tmp/hatto.lock (errno 13)'),
       ),
       contains('could not lock'),
     );
     expect(
       startupDialogMessage(
-        const SideDbException('could not open /tmp/hatto.lock (errno 13)'),
+        const InstanceLockException('could not open /tmp/hatto.lock (errno 13)'),
       ),
       contains('could not open'),
+    );
+    expect(
+      startupDialogMessage(const SideDbException('some other failure')),
+      isNull,
     );
     expect(startupDialogMessage(StateError('other')), isNull);
   });

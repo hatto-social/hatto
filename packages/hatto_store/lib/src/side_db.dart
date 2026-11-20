@@ -28,15 +28,23 @@ class SideDb {
   final String deviceId;
   int _hlcCounter = 0;
 
+  static const Object _exclusiveZone = Object();
+
   /// Tail of the write/reconcile queue. The next caller waits for this.
   Future<void> _turn = Future<void>.value();
 
   /// Runs [action] only after earlier writes and reconciles on this file.
   ///
-  /// [action] must not call [exclusive] again. The inner call would wait
-  /// for the outer one, and the outer one would be waiting for the inner.
+  /// A call made from inside [action] throws. That call would wait for the
+  /// outer one, and the outer one would wait for it. A call from another
+  /// task waits its turn instead.
   Future<T> exclusive<T>(Future<T> Function() action) {
-    final result = _turn.then((_) => action());
+    if (Zone.current[_exclusiveZone] == true) {
+      throw StateError('the side database queue is not reentrant');
+    }
+    final result = _turn.then((_) {
+      return runZoned(action, zoneValues: {_exclusiveZone: true});
+    });
     _turn = result.then((_) {}, onError: (_) {});
     return result;
   }
