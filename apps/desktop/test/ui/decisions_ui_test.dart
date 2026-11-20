@@ -7,6 +7,7 @@
 import 'dart:io';
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hatto_desktop/editor/anki_ui.dart';
@@ -27,11 +28,6 @@ import 'package:hatto_desktop/ui/shell.dart';
 import 'test_fonts.dart';
 
 late Directory tmp; late Engine eng; late FlowApi api; late AppController app; late FakeAudioService fake;
-
-Future<int> addBasic(String f, String b, int deck) async {
-  final nt = (await api.notetypeNames()).firstWhere((n) => n.name == 'Basic').id.toInt();
-  final n = await api.newNote(nt); n.fields..clear()..addAll([f, b]); return api.addNote(n, deck);
-}
 
 /// Each `await` in the app's handlers resumes in the fake-async zone, so alternate: real time for the FFI reply, then a pump to run the continuation.
 Future<void> settle(WidgetTester t, {int rounds = 40}) async {
@@ -75,13 +71,13 @@ Future<void> seedDefaultNotes(Directory dir, List<(String, String)> notes) async
   await invoke('BackendCollectionService', 'close_collection', CloseCollectionRequest());
 }
 
-Future<void> boot(WidgetTester t, Future<void> Function() seed, {bool fsrs = true, List<(String, String)> seeded = const []}) async {
+Future<void> boot(WidgetTester t, Future<void> Function() seed, {List<(String, String)> seeded = const []}) async {
   t.view.physicalSize = const Size(1200, 720); t.view.devicePixelRatio = 1;
   addTearDown(() { t.view.resetPhysicalSize(); t.view.resetDevicePixelRatio(); });
   await t.runAsync(() async {
     tmp = await Directory.systemTemp.createTemp('hf_ui_');
     if (seeded.isNotEmpty) await seedDefaultNotes(tmp, seeded);
-    eng = await Engine.open(langs: ['ko', 'en'], dataDir: tmp.path); api = FlowApi(eng); await api.openCollection(tmp.path, fsrsDefault: fsrs);
+    eng = await Engine.open(langs: ['ko', 'en'], dataDir: tmp.path); api = FlowApi(eng); await api.openCollection(tmp.path);
     fake = FakeAudioService(); app = AppController(api, audio: fake);
     await seed(); await app.refreshDecks();
   });
@@ -91,20 +87,14 @@ Future<void> boot(WidgetTester t, Future<void> Function() seed, {bool fsrs = tru
   addTearDown(() async { try { await api.closeCollection(); } catch (_) {} eng.close(); try { await tmp.delete(recursive: true); } catch (_) {} });
 }
 
-// Tests that need AddNote, AddDeck, or an SM-2 collection are skipped.
-// Those calls stay denied, and the bridge turns FSRS on for a new collection.
+// Browse stays skipped: SetActiveBrowserColumns is deferred and the table
+// reports "Active browser columns not set." The math golden stays skipped
+// in math_test because pixel output moves with the font rasterizer.
 void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
     await initRslibBridge();
     await loadTestFonts();
-  });
-
-  testWidgets('deck list: empty Default hidden, auto-created parent expanded with child visible', skip: true, (t) async {
-    await boot(t, () async { await app.createDeck('한국어::기초'); });
-    expect(find.byKey(const ValueKey('deck-row-Default')), findsNothing);
-    expect(find.byKey(const ValueKey('deck-row-한국어')), findsOneWidget);
-    expect(find.byKey(const ValueKey('deck-row-기초')), findsOneWidget, reason: 'child visible => parent is expanded');
   });
 
   testWidgets('add, delete, and image entry points stay closed', (t) async {
@@ -116,9 +106,9 @@ void main() {
     expect(find.text('노트 편집은 이 버전에 없습니다.'), findsOneWidget);
   });
 
-  testWidgets('deck overview + deck list: unplanned features visible but disabled', skip: true, (t) async {
-    await boot(t, () async { final d = await api.addDeck('S'); await addBasic('q', 'a', d); });
-    await tapKey(t, 'deck-S');
+  testWidgets('deck overview + deck list: unplanned features visible but disabled', (t) async {
+    await boot(t, () async {}, seeded: [('q', 'a')]);
+    await tapKey(t, 'deck-Default');
     for (final label in ['옵션', '사용자 지정 학습', '설명']) {
       final b = t.widget<PillButton>(find.widgetWithText(PillButton, label)); expect(b.onTap, isNull, reason: label);
     }
@@ -129,10 +119,12 @@ void main() {
     final g = t.widget<GestureDetector>(find.byKey(const ValueKey('nav-sync'))); expect(g.onTap, isNull);
   });
 
-  testWidgets('browse: suspend toggle works; bury and due-date visible but disabled; delete dialog shows the PO copy; preview renders math', skip: true, (t) async {
-    late int deck;
-    await boot(t, () async { deck = await api.addDeck('B'); await addBasic(r'수식 \(x^2\)', r'답 \[a+b\]', deck); await addBasic('둘째', 'two', deck); });
+  // SetActiveBrowserColumns stays deferred, so the table answers
+  // "Active browser columns not set." Seeding notes does not unblock it.
+  testWidgets('browse: suspend toggle works; bury and due-date stay disabled; delete stays closed; preview renders math', skip: true, (t) async {
+    await boot(t, () async {}, seeded: [(r'수식 \(x^2\)', r'답 \[a+b\]'), ('둘째', 'two')]);
     await tapKey(t, 'nav-browse');
+    await tapKey(t, 'side-deck-Default');
     expect(widgetOf<QtPush>(t, 'br-bury').onTap, isNull); expect(widgetOf<QtPush>(t, 'br-due').onTap, isNull);
     expect(find.text('미루기(bury)'), findsOneWidget); expect(find.text('기한 설정…'), findsOneWidget);
     expect(widgetOf<QtPush>(t, 'br-suspend').onTap, isNull, reason: 'nothing selected');
@@ -153,11 +145,9 @@ void main() {
     await tapKey(t, 'preview-back');
     expect(find.byKey(const ValueKey('math-display')), findsOneWidget);
     await tapKey(t, 'preview-close');
-    // delete dialog copy
-    await tapKey(t, 'row-0'); await tapKey(t, 'br-delete');
-    expect(find.text('선택한 카드의 노트를 삭제할까요?\n\n$kDeleteNoteNotice'), findsOneWidget);
+    // RemoveNotes stays closed, so the delete control cannot open a dialog.
+    expect(widgetOf<QtPush>(t, 'br-delete').onTap, isNull);
     expect(kDeleteNoteNotice, '노트를 삭제해도 복습 기록은 전체 통계에 남아요. 덱별 통계와 카드 정보에서는 사라져요.');
-    await tapKey(t, 'confirm-cancel');
   });
 
   testWidgets('stats: scheduler card shows the FSRS guidance (PO copy) and a disabled FSRS-optimize button', (t) async {
@@ -168,14 +158,6 @@ void main() {
     expect(widgetOf<Text>(t, 'st-fsrs-2').data, "답이 떠오르지 않았다면 '어려움' 대신 '다시'를 눌러 주세요.");
     expect(widgetOf<PillButton>(t, 'fsrs-optimize').onTap, isNull); expect(find.text('FSRS 최적화'), findsOneWidget);
     for (final bad in ['정확도', '보장', '더 많이 배']) { expect(kFsrsGuidance1.contains(bad) || kFsrsGuidance2.contains(bad), isFalse, reason: 'no accuracy / guarantee claims'); }
-  });
-
-  testWidgets('stats on an SM-2 collection: no FSRS copy, optimize still visible+disabled', skip: true, (t) async {
-    await boot(t, () async {}, fsrs: false);
-    await tapKey(t, 'nav-stats');
-    expect(find.text('스케줄러: SM-2 (기본)'), findsOneWidget);
-    expect(find.byKey(const ValueKey('st-fsrs-1')), findsNothing);
-    expect(widgetOf<PillButton>(t, 'fsrs-optimize').onTap, isNull);
   });
 
   testWidgets('reviewer: answering the seeded card reaches congrats, and undo brings it back', (t) async {
@@ -189,11 +171,48 @@ void main() {
     expect(find.byKey(const ValueKey('congrats')), findsOneWidget);
     await tapKey(t, 'congrats-undo');
     expect(find.byKey(const ValueKey('show-answer')), findsOneWidget);
+    await t.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await t.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await t.sendKeyDownEvent(LogicalKeyboardKey.keyZ);
+    await settle(t);
+    await t.sendKeyUpEvent(LogicalKeyboardKey.keyZ);
+    await t.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await t.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    expect(find.byKey(const ValueKey('congrats')), findsOneWidget);
+    expect(find.text('이번 세션에서 1장 답했어요.'), findsOneWidget);
   });
 
-  testWidgets('reviewer: first-review hint uses the real button labels; disappears after the first answer; bury greyed in More menu; suspend works', skip: true, (t) async {
-    await boot(t, () async { final d = await api.addDeck('R'); await addBasic('q1', 'a1', d); await addBasic('q2', 'a2', d); await addBasic('q3', 'a3', d); });
-    await tapKey(t, 'deck-R'); await tapKey(t, 'study-now');
+  testWidgets('undo leaves a non-answer on the stack and keeps the answered count', (t) async {
+    await boot(t, () async { await api.renameDeck(1, '이름바꿈'); }, seeded: [('q1', 'a1')]);
+    await tapKey(t, 'deck-이름바꿈');
+    await tapKey(t, 'study-now');
+    await tapKey(t, 'rv-more');
+    expect(find.text('실행 취소 (할 것 없음)'), findsOneWidget);
+    await tapKey(t, 'window-close');
+    await t.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await t.sendKeyDownEvent(LogicalKeyboardKey.keyZ);
+    await settle(t);
+    await t.sendKeyUpEvent(LogicalKeyboardKey.keyZ);
+    await t.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    expect(find.byKey(const ValueKey('show-answer')), findsOneWidget);
+    expect(app.session!.answered, 0);
+    await tapKey(t, 'show-answer');
+    await tapKey(t, 'ans-easy');
+    expect(find.text('이번 세션에서 1장 답했어요.'), findsOneWidget);
+    await tapKey(t, 'congrats-undo');
+    expect(app.session!.answered, 0);
+    expect(find.byKey(const ValueKey('show-answer')), findsOneWidget);
+    await tapKey(t, 'rv-more');
+    expect(find.text('실행 취소 (할 것 없음)'), findsOneWidget);
+    await tapKey(t, 'window-close');
+    await tapKey(t, 'nav-decks');
+    expect(find.byKey(const ValueKey('deck-이름바꿈')), findsOneWidget);
+    expect(find.byKey(const ValueKey('deck-Default')), findsNothing);
+  });
+
+  testWidgets('reviewer: first-review hint uses the real button labels; disappears after the first answer; bury greyed in More menu; suspend works', (t) async {
+    await boot(t, () async {}, seeded: [('q1', 'a1'), ('q2', 'a2'), ('q3', 'a3')]);
+    await tapKey(t, 'deck-Default'); await tapKey(t, 'study-now');
     expect(find.byKey(const ValueKey('fsrs-hint')), findsNothing, reason: 'hint only next to the answer buttons');
     await tapKey(t, 'show-answer');
     expect(find.byKey(const ValueKey('fsrs-hint')), findsOneWidget);
@@ -215,13 +234,12 @@ void main() {
     expect((await t.runAsync(() => api.searchCards('is:suspended')))!.length, 1);
   });
 
-  testWidgets('reviewer: [sound:] plays through AudioService only for a file in collection.media', skip: true, (t) async {
+  testWidgets('reviewer: [sound:] plays through AudioService only for a file in collection.media', (t) async {
     await boot(t, () async {
-      final d = await api.addDeck('Snd'); await addBasic('소리 [sound:hello.mp3] 와 [sound:../evil.mp3]', 'a', d);
-      Directory(api.mediaDir).createSync(recursive: true); File('${api.mediaDir}/hello.mp3').writeAsBytesSync([0, 1, 2]);
+      File('${api.mediaDir}/hello.mp3').writeAsBytesSync([0, 1, 2]);
       File('${tmp.path}/evil.mp3').writeAsBytesSync([9]);
-    });
-    await tapKey(t, 'deck-Snd'); await tapKey(t, 'study-now');
+    }, seeded: [('소리 [sound:hello.mp3] 와 [sound:../evil.mp3]', 'a')]);
+    await tapKey(t, 'deck-Default'); await tapKey(t, 'study-now');
     await tapKey(t, 'play-q-0');
     expect(fake.played, ['${api.mediaDir}/hello.mp3']);
     await tapKey(t, 'play-q-1');

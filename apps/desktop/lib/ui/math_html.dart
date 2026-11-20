@@ -15,8 +15,6 @@ class MathSpan {
   final String tex, raw; final bool display;
 }
 
-final _mathRe = RegExp(r'\\\((.+?)\\\)|\\\[(.+?)\\\]', dotAll: true);
-
 /// Entity-decoded TeX body with tags (<br>, <div> ...) flattened to spaces. Null when nothing is left.
 String? _cleanTex(String body) {
   final withSpaces = body.replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), ' ');
@@ -24,15 +22,67 @@ String? _cleanTex(String body) {
   return t.isEmpty ? null : t;
 }
 
+/// Counts characters the math scan looks at. Tests use it to check that a
+/// longer unclosed input does not do quadratic work.
+class MathScan {
+  int steps = 0;
+}
+
 /// Finds math spans in an HTML string. Returns (start, end, span) triples in order; no overlap.
-List<(int, int, MathSpan)> findMath(String html) {
+///
+/// One left-to-right pass. After a search for `\)` or `\]` fails, no later
+/// opener of that kind looks past that point again.
+List<(int, int, MathSpan)> findMath(String html, {MathScan? scan}) {
   final out = <(int, int, MathSpan)>[];
-  for (final m in _mathRe.allMatches(html)) {
-    final display = m.group(2) != null;
-    final tex = _cleanTex(m.group(display ? 2 : 1)!);
-    if (tex == null) continue; // `\(\)` stays raw
-    final rawText = (hp.parseFragment(html.substring(m.start, m.end)).text ?? '').trim();
-    out.add((m.start, m.end, MathSpan(tex, rawText, display)));
+  final limit = html.length;
+  var parenDead = limit;
+  var bracketDead = limit;
+  var i = 0;
+  while (i < limit) {
+    scan?.steps++;
+    if (html.codeUnitAt(i) != 0x5c) {
+      i++;
+      continue;
+    }
+    if (i + 1 >= limit) break;
+    final marker = html.codeUnitAt(i + 1);
+    final inline = marker == 0x28;
+    final display = marker == 0x5b;
+    if (!inline && !display) {
+      i++;
+      continue;
+    }
+    final dead = inline ? parenDead : bracketDead;
+    if (i + 2 >= dead) {
+      i += 2;
+      continue;
+    }
+    final close = inline ? 0x29 : 0x5d;
+    var j = i + 2;
+    var found = -1;
+    while (j + 1 < dead) {
+      scan?.steps++;
+      if (html.codeUnitAt(j) == 0x5c && html.codeUnitAt(j + 1) == close) {
+        found = j;
+        break;
+      }
+      j++;
+    }
+    if (found < 0) {
+      if (inline) {
+        parenDead = i + 2;
+      } else {
+        bracketDead = i + 2;
+      }
+      i += 2;
+      continue;
+    }
+    final tex = _cleanTex(html.substring(i + 2, found));
+    if (tex != null) {
+      final rawText = (hp.parseFragment(html.substring(i, found + 2)).text ?? '').trim();
+      out.add((i, found + 2, MathSpan(tex, rawText, display)));
+    }
+    i = found + 2;
   }
   return out;
 }

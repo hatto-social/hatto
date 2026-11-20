@@ -19,11 +19,13 @@ class ReviewSession {
   List<String> avQuestion = [], avAnswer = [];
   List<String> buttonLabels = const ['', '', '', ''];
   String? undoLabel; // non-null => rslib has something to undo
+  String? redoLabel;
   int answered = 0;
   final _clock = Stopwatch();
   CongratsInfoResponse? congrats;
   RenderedCard? rendered;
-  bool get canUndo => undoLabel != null && undoLabel!.isNotEmpty;
+  bool get canUndo => isAnswerOp(undoLabel);
+  bool get canRedo => isAnswerOp(redoLabel);
   int get cardId => current?.card.id.toInt() ?? 0;
   int get noteId => current?.card.noteId.toInt() ?? 0;
   QueuedCards_Queue get queue => current?.queue ?? QueuedCards_Queue.NEW;
@@ -31,7 +33,9 @@ class ReviewSession {
   Future<void> loadNext() async {
     final q = await api.queuedCards(limit: 1);
     newCount = q.newCount; learnCount = q.learningCount; reviewCount = q.reviewCount;
-    undoLabel = (await api.undoStatus()).undo;
+    final status = await api.undoStatus();
+    undoLabel = status.undo;
+    redoLabel = status.redo;
     if (q.cards.isEmpty) {
       current = null; phase = ReviewPhase.finished; congrats = await api.congratsInfo(); return;
     }
@@ -54,14 +58,32 @@ class ReviewSession {
     await loadNext();
   }
 
-  /// rslib undo (of the last undoable op, normally the last answer), then re-fetch the queue (the card comes back at the front).
+  /// Undo only when the top of the stack is an answer. A rename or other
+  /// op stays put, and [answered] moves only for that answer.
   Future<void> undo() async {
-    if (!canUndo) return;
+    final status = await api.undoStatus();
+    if (!isAnswerOp(status.undo)) return;
     await api.undo();
     if (answered > 0) answered--;
+    await loadNext();
+  }
+
+  Future<void> redo() async {
+    final status = await api.undoStatus();
+    if (!isAnswerOp(status.redo)) return;
+    await api.redo();
+    answered++;
     await loadNext();
   }
 
   Future<void> suspendCurrent() async { await api.suspendCards([cardId]); await loadNext(); }
   // Bury is denied by the call policy (2026-11-19); the reviewer shows it greyed out.
 }
+
+/// AnswerCard is recognized from the undo label.
+///
+/// `UndoStatus` on the wire has `undo`, `redo`, and `lastStep`. `lastStep` is
+/// the undo counter, not the op. rslib turns `Op` into those translated
+/// strings before the protobuf is built, so the desktop profile never sees
+/// the op kind. The app languages are Korean, then English.
+bool isAnswerOp(String? label) => label == '카드 학습' || label == 'Answer Card';

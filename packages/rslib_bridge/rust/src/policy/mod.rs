@@ -173,11 +173,11 @@ pub static ALLOWLIST: &[AllowEntry] = &[
     row!(MEDIA, "extract_static_media_files", Read, NameOnly, NONE, NAME_ONLY_TEST),
     // Image occlusion (4)
     row!(OCCLUSION, "get_image_occlusion_fields", Read, NameOnly, NONE, NAME_ONLY_TEST),
-    row!(OCCLUSION, "add_image_occlusion_notetype", Write, NameOnly, NONE, NAME_ONLY_TEST),
+    row!(OCCLUSION, "add_image_occlusion_notetype", Write, Pending, "이미지 가리기 노트타입 UI가 생길 때 연다", PENDING_TEST),
     row!(OCCLUSION, "update_image_occlusion_note", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
     row!(OCCLUSION, "get_image_occlusion_note", Read, Pending, "N1 초크포인트가 없다. 이미지 필드 경로 가드가 생기기 전에는 거부", PENDING_TEST),
     // Import / export (1)
-    row!(IMPORT_EXPORT, "export_anki_package", Write, Validated, "with_scheduling=false, with_deck_configs=false, with_media=true, legacy=false; limit is one deck or a note id list", "validates_export_anki_package"),
+    row!(IMPORT_EXPORT, "export_anki_package", Write, Pending, "내보내는 UI가 없다", PENDING_TEST),
     // Study scheduler (9) plus bury and restore
     row!(SCHEDULER, "get_queued_cards", Read, Validated, "fetch_limit <= 50", "validates_get_queued_cards"),
     row!(SCHEDULER, "answer_card", Write, Validated, "new_state bytes match the offered rating; custom_data empty; milliseconds_taken <= 60000; wrapper sets answered_at_millis", "validates_answer_card"),

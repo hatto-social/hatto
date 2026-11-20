@@ -33,6 +33,19 @@ void main() {
       expect(findMath(r'\[x\]').single.$3.raw, r'\[x\]');
     });
     test('unmatched delimiters are left alone', () { expect(findMath(r'\(x'), isEmpty); expect(findMath(r'x\]'), isEmpty); });
+    test(r'an empty \(\) does not take the following closer', () {
+      expect(findMath(r'\(\)\)'), isEmpty);
+    });
+    test('unclosed delimiters stay linear as the input grows', () {
+      int steps(int count) {
+        final scan = MathScan();
+        expect(findMath(r'\(' * count, scan: scan), isEmpty);
+        return scan.steps;
+      }
+      final small = steps(2000);
+      final large = steps(8000);
+      expect(large, lessThanOrEqualTo(small * 8));
+    });
   });
 
   group('CardView renders math', () {
@@ -51,6 +64,7 @@ void main() {
       expect(find.text(r'\(\frac{1}{\)'), findsOneWidget);
       expect(find.text(r'\(\badmacro{x}\)'), findsOneWidget);
     });
+    // The pixel golden moves with the font rasterizer, so it stays skipped.
     testWidgets('golden: card with inline + display math and a dollar sign', skip: true, (t) async {
       await t.pumpWidget(host(r'피타고라스: \(a^2 + b^2 = c^2\)' '<br>' r'\[\sum_{n=1}^{\infty}\frac{1}{n^2}=\frac{\pi^2}{6}\]' '<br>' r'가격은 $5 와 $6 (수식 아님)' '<br>' r'깨진: \(\frac{1}{\)'));
       await t.pumpAndSettle();
