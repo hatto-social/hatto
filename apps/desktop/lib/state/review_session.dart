@@ -80,5 +80,10 @@ class ReviewSession {
   // Bury is denied by the call policy (2026-11-19); the reviewer shows it greyed out.
 }
 
-/// Undo labels for Op::AnswerCard. The desktop languages are Korean, then English.
+/// AnswerCard is recognized from the undo label.
+///
+/// `UndoStatus` on the wire has `undo`, `redo`, and `lastStep`. `lastStep` is
+/// the undo counter, not the op. rslib turns `Op` into those translated
+/// strings before the protobuf is built, so the desktop profile never sees
+/// the op kind. The app languages are Korean, then English.
 bool isAnswerOp(String? label) => label == '카드 학습' || label == 'Answer Card';
