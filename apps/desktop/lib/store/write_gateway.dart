@@ -49,4 +49,19 @@ class WriteGateway {
   Future<void> reconcile(AnkiApi anki) {
     return reconcileCollection(db: db, anki: anki);
   }
+
+  /// Records the note saved by rslib. The home deck is adopted when needed.
+  Future<void> recordSavedNote({
+    required AnkiApi anki,
+    required String guid,
+    required int rslibNoteId,
+    required int homeDeckId,
+  }) async {
+    await ensureDeckMapped(db: db, anki: anki, rslibDeckId: homeDeckId);
+    db.importNote(
+      noteGuid: guid,
+      rslibNoteId: rslibNoteId,
+      cards: [ImportedNoteCard(ord: 0, rslibDeckId: homeDeckId)],
+    );
+  }
 }
