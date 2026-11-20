@@ -75,5 +75,10 @@
       "k": 4294967295,
       "expect": "754ee130-ccd0-5a0e-9382-170cf547ed69"
     }
-  ]
+  ],
+  "smoke_jobs": {
+    "job1": "6f0c0a1e-7b2d-4c3a-8e91-0a1b2c3d4e5f",
+    "job2": "7a1d1b2f-8c3e-4d4b-9f02-1b2c3d4e5f60",
+    "job3": "8b2e2c30-9d4f-4e5c-a013-2c3d4e5f6071"
+  }
 }

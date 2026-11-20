@@ -40,6 +40,18 @@ def check(document):
         expect = str(uuid.uuid5(op_id, name))
         if case["expect"] != expect:
             errors.append(f"{case['label']}: file {case['expect']} python {expect}")
+    jobs = document.get("smoke_jobs")
+    if not isinstance(jobs, dict) or set(jobs) != {"job1", "job2", "job3"}:
+        errors.append("smoke_jobs must map job1, job2, and job3 to fixed UUIDs")
+    else:
+        seen = set()
+        for name, value in jobs.items():
+            parsed = str(uuid.UUID(value))
+            if parsed != value or value[14] not in "45":
+                errors.append(f"smoke_jobs.{name} is not a lowercase UUID version 4 or 5")
+            seen.add(parsed)
+        if len(seen) != 3:
+            errors.append("smoke_jobs must be three different ids")
     return errors
 
 
