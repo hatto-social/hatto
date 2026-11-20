@@ -204,6 +204,10 @@ pub fn prepare_data_dir(raw: &str) -> Result<PathBuf, String> {
 
 /// The collection, media folder, and media database must each be a normalized
 /// absolute path inside `data_dir`. `..` is rejected before normalization.
+///
+/// `data_dir` is stored canonicalized. A path may still use a symlink that is
+/// a strict ancestor of that directory (`/var` → `/private/var` on macOS).
+/// A symlink that is not on the way to `data_dir` stays outside.
 pub fn require_inside_data_dir(path: &str, data_dir: &Path) -> Result<(), String> {
     let raw = Path::new(path);
     if !raw.is_absolute() {
@@ -214,17 +218,69 @@ pub fn require_inside_data_dir(path: &str, data_dir: &Path) -> Result<(), String
     }
     let normalized = lexical_normalize(raw);
     let base = lexical_normalize(data_dir);
-    if !is_strict_child(&normalized, &base) {
-        return Err(format!("path is outside data_dir: {path}"));
-    }
-    let resolved = resolve_existing_prefix(&normalized)?;
     let base_canon = data_dir
         .canonicalize()
         .map_err(|err| format!("data_dir: {err}"))?;
+    let lexical_ok = is_strict_child(&normalized, &base)
+        || is_strict_child(&normalized, &base_canon)
+        || rewritten_ancestor_is_child(&normalized, &base_canon);
+    if !lexical_ok {
+        return Err(format!("path is outside data_dir: {path}"));
+    }
+    let resolved = resolve_existing_prefix(&normalized)?;
     if !is_strict_child(&resolved, &base_canon) {
         return Err(format!("path escapes data_dir: {path}"));
     }
     Ok(())
+}
+
+/// True when `path` is a child of `data_dir` after following symlinks that
+/// are strict ancestors of `data_dir`. A symlink whose target is `data_dir`
+/// itself is not followed.
+fn rewritten_ancestor_is_child(path: &Path, data_dir: &Path) -> bool {
+    let Some(rewritten) = rewrite_ancestor_symlinks(path, data_dir) else {
+        return false;
+    };
+    is_strict_child(&rewritten, data_dir)
+}
+
+fn rewrite_ancestor_symlinks(path: &Path, data_dir: &Path) -> Option<PathBuf> {
+    let mut resolved = PathBuf::new();
+    let mut inside = false;
+    for component in path.components() {
+        match component {
+            Component::RootDir => resolved.push(component),
+            Component::Normal(name) => {
+                if inside {
+                    resolved.push(name);
+                    continue;
+                }
+                let next = resolved.join(name);
+                if !next.exists() {
+                    return None;
+                }
+                let canon = next.canonicalize().ok()?;
+                if data_dir.starts_with(&canon) && canon != data_dir {
+                    resolved = canon;
+                    continue;
+                }
+                if canon == data_dir && !is_symlink(&next) {
+                    resolved = canon;
+                    inside = true;
+                    continue;
+                }
+                return None;
+            }
+            Component::Prefix(_) | Component::CurDir | Component::ParentDir => return None,
+        }
+    }
+    Some(resolved)
+}
+
+fn is_symlink(path: &Path) -> bool {
+    std::fs::symlink_metadata(path)
+        .map(|meta| meta.file_type().is_symlink())
+        .unwrap_or(false)
 }
 
 fn has_parent_dir(path: &Path) -> bool {

@@ -496,6 +496,56 @@ fn validates_open_collection() {
 }
 
 #[test]
+fn open_collection_accepts_a_symlinked_ancestor() {
+    // macOS spells the temp dir as /var, which is a symlink to /private/var.
+    // The desktop profile stores the canonical data_dir, and the app passes
+    // collection paths with the symlink spelling.
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let real = dir.path().join("real");
+    std::fs::create_dir_all(&real).unwrap();
+    let link = dir.path().join("link");
+    std::os::unix::fs::symlink(&real, &link).unwrap();
+    let root = link.join("collection");
+    let paths = col_paths(&root);
+    let backend = desktop_backend(&paths.root);
+    let opened = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &open_request(&paths),
+    );
+    assert!(opened.success, "{}", message_of(&opened));
+    assert!(marker_path(&paths.collection).is_file());
+}
+
+#[test]
+fn open_collection_rejects_a_sideways_symlink() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let paths = col_paths(dir.path());
+    let backend = desktop_backend(&paths.root);
+    let elsewhere = tempfile::TempDir::new_in("/tmp").unwrap();
+    let alias = elsewhere.path().join("alias");
+    std::os::unix::fs::symlink(&paths.root, &alias).unwrap();
+    let mut via_alias = open_request(&paths);
+    via_alias.collection_path = alias
+        .join("collection.anki2")
+        .to_string_lossy()
+        .into_owned();
+    let denied = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &via_alias,
+    );
+    assert!(!denied.success, "sideways symlink");
+    assert!(
+        message_of(&denied).contains("outside data_dir"),
+        "{}",
+        message_of(&denied)
+    );
+}
+
+#[test]
 fn validates_close_collection() {
     let dir = tempfile::TempDir::new_in("/tmp").unwrap();
     let paths = col_paths(dir.path());
