@@ -5,26 +5,22 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:hatto_store/hatto_store.dart' hide AnkiApi;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:rslib_bridge/rslib_bridge.dart';
 
 import 'app.dart';
 import 'editor/anki_ui.dart';
-import 'engine/anki_api.dart';
-import 'engine/engine.dart';
+import 'effect/engine_host.dart';
 import 'services/audio_service.dart';
 import 'state/app_controller.dart';
 import 'state/bootstrap_state.dart';
 import 'third_party_licenses.dart';
 import 'ui/shell.dart';
+import 'ui/startup_failure.dart';
 
-/// Process-lifetime lock. Closing the collection does not release it.
-InstanceLock? desktopInstanceLock;
-
-/// Side database opened before the collection. Held so it is not collected.
-SideDb? desktopSideDb;
+/// Kept for the process lifetime so the instance lock is not released.
+final EngineHost desktopHost = EngineHost();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,29 +30,21 @@ Future<void> main() async {
   final dataDir = p.join(support.path, 'hatto');
   final cache = await getTemporaryDirectory();
   prepareRuntime(tmpDir: cache.path);
-  final lock = InstanceLock.tryAcquire(dataDir);
-  if (lock == null) {
-    stderr.writeln(alreadyRunningMessage);
-    exit(1);
-  }
-  desktopInstanceLock = lock;
-  final side = SideDb.openOrCreate(p.join(dataDir, 'hatto.sqlite'));
-  desktopSideDb = side;
   try {
-    final engine = await Engine.open(
-      dataDir: dataDir,
-      langs: const ['ko', 'en'],
-    );
-    final api = FlowApi(engine);
-    await api.openCollection(dataDir);
-    final controller = AppController(api, audio: AudioplayersAudioService());
-    await controller.refreshDecks();
-    runApp(FlowDesktopApp(controller: controller));
-  } catch (_) {
-    side.close();
-    desktopSideDb = null;
+    await desktopHost.open(dataDir: dataDir);
+  } catch (err) {
+    final message = startupDialogMessage(err);
+    if (message != null) {
+      stderr.writeln(message);
+      runApp(StartupFailureApp(message: message));
+      return;
+    }
     rethrow;
   }
+  final api = desktopHost.flow!;
+  final controller = AppController(api, audio: AudioplayersAudioService());
+  await controller.refreshDecks();
+  runApp(FlowDesktopApp(controller: controller));
 }
 
 class FlowDesktopApp extends StatelessWidget {

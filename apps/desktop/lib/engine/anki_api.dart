@@ -65,7 +65,13 @@ class FlowApi {
   Future<void> closeCollection() => _send(Rpcs.closeCollection, CloseCollectionRequest());
 
   // ---- decks ----
-  Future<DeckTreeNode> deckTree() => engine.call(Rpcs.deckTree, DeckTreeRequest(now: Int64(DateTime.now().millisecondsSinceEpoch ~/ 1000)), DeckTreeNode.fromBuffer);
+  Future<DeckTreeNode> deckTree({int? now}) => engine.call(
+    Rpcs.deckTree,
+    DeckTreeRequest(
+      now: Int64(now ?? DateTime.now().millisecondsSinceEpoch ~/ 1000),
+    ),
+    DeckTreeNode.fromBuffer,
+  );
   Future<void> renameDeck(int id, String name) => engine.call(Rpcs.renameDeck, RenameDeckRequest(deckId: Int64(id), newName: name), OpChanges.fromBuffer);
   Future<List<DeckNameId>> deckNames() async => (await engine.call(Rpcs.getDeckNames, GetDeckNamesRequest(skipEmptyDefault: true, includeFiltered: false), DeckNames.fromBuffer)).entries;
   Future<void> setCurrentDeck(int id) => engine.call(Rpcs.setCurrentDeck, DeckId(did: Int64(id)), OpChanges.fromBuffer);

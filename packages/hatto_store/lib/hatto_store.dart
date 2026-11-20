@@ -8,7 +8,8 @@ export 'src/intent_ops.dart';
 export 'src/media_journal.dart';
 export 'src/proto.dart';
 export 'src/reconcile.dart';
-export 'src/schema.dart' show SideDbException, sideDbSchemaVersion;
+export 'src/schema.dart'
+    show NewerSchemaException, SideDbException, sideDbSchemaVersion;
 export 'src/side_db.dart';
 export 'src/side_db_path.dart';
 export 'src/sql_allowlist.dart';

@@ -88,6 +88,9 @@ void main() {
       'deleteRevlogOrigin(',
       'replaceNote(',
       'reconcileCollection(',
+      'adoptDeck(',
+      'adoptNote(',
+      'ensureDeckMapped(',
     ];
     for (final file in sources) {
       final path = file.path.replaceAll('\\', '/');

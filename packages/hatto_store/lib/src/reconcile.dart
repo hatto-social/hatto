@@ -14,7 +14,13 @@ import 'uuid.dart';
 /// Desktop and mobile inject their own Anki facade. This module does not
 /// open rslib and does not import the bridge, so a host test can pass a fake.
 abstract interface class AnkiApi {
-  /// Every note id. An empty search, built by the host's search builder.
+  /// Note ids from the host's search, not every note in the collection.
+  ///
+  /// An empty search is `BuildSearchString("")`, which becomes `deck:*`
+  /// and joins through the cards table. A note with no cards is absent.
+  /// Invariant I1 covers notes that have at least one card. Appendix C of
+  /// the desktop v0 mapping and media contract is the source of that limit.
+  /// Import and sync, when they open in v1, enumerate with `note:*` instead.
   Future<List<int>> searchNoteIds();
 
   Future<CollectionNote> getNote(int id);
@@ -123,13 +129,44 @@ Future<DeckMapRow> adoptDeck({
   return db.deck(guid)!;
 }
 
+/// A note the host's search returned that has no cards.
+///
+/// `home_deck_guid` is required, so the note is not inserted. The desktop
+/// empty search does not return these notes, so this path is unused there.
+/// Appendix C: v1 import and sync enumerate with `note:*` and then handle
+/// [SkippedNote].
+class CardlessNote extends SideDbException {
+  const CardlessNote(this.rslibNoteId)
+    : super('note $rslibNoteId has no cards');
+
+  final int rslibNoteId;
+}
+
+/// One note left out of `note_map` during a reconcile pass.
+class SkippedNote {
+  const SkippedNote({required this.rslibNoteId, required this.reason});
+
+  final int rslibNoteId;
+
+  /// Why the note was not adopted. v0 uses `no cards`.
+  final String reason;
+}
+
+/// Result of one [reconcileCollection] pass.
+class ReconcileResult {
+  const ReconcileResult({required this.skippedNotes});
+
+  final List<SkippedNote> skippedNotes;
+}
+
 /// Maps [rslibNoteId] to rslib's guid and a home deck.
 ///
 /// The home deck is the ord-0 card's deck, or the lowest ord when there is
 /// no ord-0 card. A filtered card contributes `odid`. That deck is adopted
 /// first. A second call with the same guid does not change the home deck.
 /// The same id with a different guid replaces the row: the old row belonged
-/// to a note that is no longer in the collection.
+/// to a note that is no longer in the collection. A note with no cards
+/// throws [CardlessNote] and writes nothing.
 Future<NoteMapRow> adoptNote({
   required SideDb db,
   required AnkiApi anki,
@@ -144,7 +181,7 @@ Future<NoteMapRow> adoptNote({
   }
   final refs = await anki.cardsOfNote(rslibNoteId);
   if (refs.isEmpty) {
-    throw SideDbException('note $rslibNoteId has no cards');
+    throw CardlessNote(rslibNoteId);
   }
   final imported = <ImportedNoteCard>[];
   for (final ref in refs) {
@@ -195,6 +232,15 @@ Future<NoteMapRow> adoptNote({
 
 /// One pass over the collection and the side database.
 ///
+/// Notes with no cards are not listed by the desktop empty search
+/// (`deck:*` joins through cards), so [ReconcileResult.skippedNotes] stays
+/// empty and nothing reads it yet. If a search does return one, the pass
+/// records it and continues instead of aborting. Appendix C of the desktop
+/// v0 mapping and media contract limits I1 to notes with at least one card.
+/// In v1, import and sync enumerate with `note:*`, handle
+/// [ReconcileResult.skippedNotes], and stop letting a skipped note block
+/// [_intentIsSettled].
+///
 /// Unmapped decks are adopted (a pending `deck.add` intent supplies the guid
 /// when its name matches). Unmapped notes are adopted from `GetNote`'s guid.
 /// A mapped id whose guid differs is replaced. Mapped ids that are gone stay
@@ -209,7 +255,14 @@ Future<NoteMapRow> adoptNote({
 /// notes. Both sentences are implemented as the conflict line: every live
 /// mapped id is compared. The cost of that read on a large collection is
 /// still an open question.
-Future<void> reconcileCollection({
+Future<ReconcileResult> reconcileCollection({
+  required SideDb db,
+  required AnkiApi anki,
+}) {
+  return db.exclusive(() => _reconcile(db: db, anki: anki));
+}
+
+Future<ReconcileResult> _reconcile({
   required SideDb db,
   required AnkiApi anki,
 }) async {
@@ -229,10 +282,12 @@ Future<void> reconcileCollection({
     );
   }
   final liveIds = (await anki.searchNoteIds()).toSet();
+  final skipped = <SkippedNote>[];
   for (final id in liveIds) {
     final row = db.noteByRslibId(id);
     if (row == null) {
-      await adoptNote(
+      await _adoptOrSkip(
+        skipped: skipped,
         db: db,
         anki: anki,
         rslibNoteId: id,
@@ -243,7 +298,8 @@ Future<void> reconcileCollection({
     }
     final note = await anki.getNote(id);
     if (note.guid != row.noteGuid) {
-      await adoptNote(
+      await _adoptOrSkip(
+        skipped: skipped,
         db: db,
         anki: anki,
         rslibNoteId: id,
@@ -256,6 +312,33 @@ Future<void> reconcileCollection({
     if (_intentIsSettled(db, intent, tree, liveIds)) {
       db.abandonIntent(intent.id);
     }
+  }
+  return ReconcileResult(skippedNotes: skipped);
+}
+
+/// Adopts [rslibNoteId]. A cardless note returned by the search is recorded
+/// in [skipped] and does not fail the pass. Returns false when skipped.
+/// The desktop empty search does not return those notes; see Appendix C.
+Future<bool> _adoptOrSkip({
+  required List<SkippedNote> skipped,
+  required SideDb db,
+  required AnkiApi anki,
+  required int rslibNoteId,
+  required List<CollectionDeck> decks,
+  required Map<String, String> reservedGuids,
+}) async {
+  try {
+    await adoptNote(
+      db: db,
+      anki: anki,
+      rslibNoteId: rslibNoteId,
+      decks: decks,
+      reservedGuids: reservedGuids,
+    );
+    return true;
+  } on CardlessNote catch (err) {
+    skipped.add(SkippedNote(rslibNoteId: err.rslibNoteId, reason: 'no cards'));
+    return false;
   }
 }
 
@@ -288,6 +371,10 @@ Map<String, String> _reservedDeckGuids(List<IntentRow> intents) {
 /// `note.add` / `deck.add` are dropped both when the rslib change is
 /// missing (the call never committed) and when the new row was adopted.
 /// They stay if a live row of that name or guid is still unmapped.
+///
+/// A note with no cards is not in the desktop empty search, so it does not
+/// reach this check. Appendix C: when v1 import or sync enumerates with
+/// `note:*`, a skipped note must not block this function.
 bool _intentIsSettled(
   SideDb db,
   IntentRow intent,

@@ -6,22 +6,24 @@ import 'dart:io';
 
 import 'package:hatto_store/hatto_store.dart' hide AnkiApi;
 import 'package:path/path.dart' as p;
-import 'package:rslib_bridge/rslib_bridge.dart';
 
+import '../engine/anki_api.dart';
+import '../engine/engine.dart';
 import '../state/bootstrap_state.dart';
 import '../store/write_gateway.dart';
 
-/// Opens the side database and the collection. The UI does not call the bridge.
+/// Opens the side database and the collection. Production and tests use this.
 ///
-/// The instance lock is taken before either database is used, and it is held
-/// for the process lifetime. A second process gets [AlreadyRunningException]
-/// and must not open the collection.
+/// Order is fixed: the instance lock, then the side database, then the
+/// collection. The lock is held for the process lifetime. A second process
+/// gets [AlreadyRunningException] and must not open the collection.
 class EngineHost {
-  AnkiApi? _api;
-  String? _collectionPath;
+  Engine? engine;
+  FlowApi? flow;
   SideDb? _side;
   WriteGateway? _gateway;
   InstanceLock? _lock;
+  String? _collectionPath;
 
   SideDb? get sideDb => _side;
 
@@ -44,18 +46,15 @@ class EngineHost {
       },
     );
     try {
-      final root = Directory(dataDir)..createSync(recursive: true);
-      final media = Directory(p.join(root.path, 'collection.media'))
-        ..createSync(recursive: true);
-      final collectionPath = p.join(root.path, 'collection.anki2');
-      final mediaDbPath = p.join(root.path, 'collection.media.db');
-      final api = await AnkiApi.openDesktop(
-        dataDir: root.path,
-        collectionPath: collectionPath,
-        mediaFolderPath: media.path,
-        mediaDbPath: mediaDbPath,
+      final opened = await Engine.open(
+        dataDir: dataDir,
+        langs: const ['ko', 'en'],
       );
-      _api = api;
+      final api = FlowApi(opened);
+      await api.openCollection(dataDir);
+      engine = opened;
+      flow = api;
+      final collectionPath = p.join(dataDir, 'collection.anki2');
       _collectionPath = collectionPath;
       final marker = File('$collectionPath.hatto-fsrs-init');
       final markerPresent = marker.existsSync();
@@ -75,11 +74,13 @@ class EngineHost {
   }
 
   Future<void> close() async {
-    final api = _api;
+    final api = flow;
     if (api != null) {
       await api.closeCollection();
-      _api = null;
+      flow = null;
     }
+    engine?.close();
+    engine = null;
     final side = _side;
     if (side != null) {
       side.close();
