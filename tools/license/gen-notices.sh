@@ -73,10 +73,17 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
 echo "cargo-deny check licenses"
-cargo deny --locked \
-  --manifest-path packages/rslib_bridge/rust/Cargo.toml \
-  --config tools/license/deny.toml \
-  check licenses
+for manifest in \
+  packages/rslib_bridge/rust/Cargo.toml \
+  packages/hatto_card_contract/Cargo.toml \
+  packages/hatto_card/Cargo.toml
+do
+  echo "cargo-deny $manifest"
+  cargo deny --locked \
+    --manifest-path "$manifest" \
+    --config tools/license/deny.toml \
+    check licenses
+done
 
 echo "cargo-about generate"
 python3 - "$WORK" <<'PY'

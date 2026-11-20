@@ -15,6 +15,7 @@ name = "rslib_bridge"
 crate-type = ["lib", "cdylib", "staticlib"]
 
 [dependencies]
+hatto_card_contract = { path = "../../hatto_card_contract" }
 # Unmodified Anki 26.09.3 (gitlink). Path deps stay inside that checkout; we do not patch it.
 anki = { path = "../../../third_party/anki/rslib", features = ["rustls"] }
 anki_proto = { path = "../../../third_party/anki/rslib/proto" }

@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: 2026 Hatto Social contributors
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+[package]
+name = "hatto_card"
+description = "Developer CLI for a provisional Hatto card file. Temp collections only."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "hatto-card"
+path = "src/main.rs"
+
+[dependencies]
+anki_proto = { path = "../../third_party/anki/rslib/proto" }
+hatto_card_contract = { path = "../hatto_card_contract" }
+prost = "0.13"
+rslib_bridge = { path = "../rslib_bridge/rust" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tempfile = "3"

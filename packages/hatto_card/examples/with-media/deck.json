@@ -1,0 +1,40 @@
+{
+  "deck_name": "Example",
+  "job_id": "01234567-89ab-4cde-8fab-0123456789ab",
+  "media_dir": "media",
+  "notes": [
+    {
+      "fields": [
+        "front <img src=\"dot.png\">",
+        "back"
+      ],
+      "source_guid": "'\"`\\한글",
+      "tags": [
+        "example"
+      ]
+    },
+    {
+      "fields": [
+        "local zero",
+        "back"
+      ],
+      "k": 0,
+      "tags": [
+        "local"
+      ]
+    },
+    {
+      "fields": [
+        "local max",
+        "back"
+      ],
+      "k": 4294967295,
+      "tags": [
+        "local",
+        "max"
+      ]
+    }
+  ],
+  "notetype": "Basic",
+  "op_id": "fedcba98-7654-4210-8fed-cba987654321"
+}

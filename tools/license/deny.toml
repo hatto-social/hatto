@@ -1,4 +1,6 @@
-# cargo-deny 0.21.0 license policy for packages/rslib_bridge/rust.
+# cargo-deny 0.21.0 license policy for packages/rslib_bridge/rust,
+# packages/hatto_card_contract, and packages/hatto_card.
+# gen-notices.sh runs this file against each of those manifests.
 #
 # `cargo deny check licenses` fails when a crate in the Android graph uses a
 # license this list cannot satisfy. Advisories, bans, and source checks are

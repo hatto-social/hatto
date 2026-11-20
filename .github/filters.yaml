@@ -11,6 +11,8 @@
 
 engine: &engine
   - 'packages/rslib_bridge/**'
+  - 'packages/hatto_card_contract/**'
+  - 'packages/hatto_card/**'
   - 'Cargo.lock'
   - 'Cargo.toml'
   - 'rust-toolchain.toml'

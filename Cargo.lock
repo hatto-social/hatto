@@ -1272,6 +1272,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "hatto_card"
+version = "0.1.0"
+dependencies = [
+ "anki_proto",
+ "hatto_card_contract",
+ "prost",
+ "rslib_bridge",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "hatto_card_contract"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
 name = "headers"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2678,6 +2699,7 @@ dependencies = [
  "anki_proto_gen",
  "anyhow",
  "flutter_rust_bridge",
+ "hatto_card_contract",
  "prost",
  "prost-build",
  "prost-reflect",
@@ -2979,6 +3001,12 @@ dependencies = [
  "cpufeatures 0.2.17",
  "digest 0.10.7",
 ]
+
+[[package]]
+name = "sha1_smol"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbfa15b3dddfee50a0fff136974b3e1bde555604ba463834a7eb7deb6417705d"
 
 [[package]]
 name = "sha2"
@@ -3721,6 +3749,17 @@ name = "utf8_iter"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6c140620e7ffbb22c2dee59cafe6084a59b5ffc27a8859a5f0d494b5d52b6be"
+
+[[package]]
+name = "uuid"
+version = "1.29.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c14b15dffa2f4bd712103e857140aa04a4f2ff6e955c77d7eb8e53ee02a3b64"
+dependencies = [
+ "js-sys",
+ "sha1_smol",
+ "wasm-bindgen",
+]
 
 [[package]]
 name = "valuable"

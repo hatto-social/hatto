@@ -18,7 +18,10 @@ import sys
 from pathlib import Path
 
 ANKI_RUNTIME = ("anki", "anki_i18n", "anki_io", "anki_proto")
-OWN_CRATE = "rslib_bridge"
+# rslib_bridge, the guid contract, and the developer CLI are this
+# repository. They are not third-party notices. hatto_card is not in the
+# rslib_bridge graph; it is listed so a later direct dependency is dropped.
+OWN_CRATES = {"rslib_bridge", "hatto_card_contract", "hatto_card"}
 ANKI_COMMIT = "29bb700b951e3f0c0cb69b77c0180fc1fe33e6ba"
 
 ANKI_TEXT = f"""\
@@ -81,14 +84,15 @@ def _rust_entries(
             "Anki runtime crates missing from cargo-about output: "
             + ", ".join(missing)
         )
-    if OWN_CRATE not in by_name:
-        _die("rslib_bridge missing from cargo-about output")
+    for name in ("rslib_bridge", "hatto_card_contract"):
+        if name not in by_name:
+            _die(f"{name} missing from cargo-about output")
 
     anki_packages = [
         _package_label(name, by_name[name]["package"]["version"])
         for name in ANKI_RUNTIME
     ]
-    skip = set(ANKI_RUNTIME) | {OWN_CRATE}
+    skip = set(ANKI_RUNTIME) | OWN_CRATES
 
     entries: list[dict] = []
     satisfied: dict[str, list[str]] = {}
