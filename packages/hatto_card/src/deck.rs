@@ -281,7 +281,9 @@ mod tests {
             {"source_guid": "same", "fields": ["c", "d"]}
         ]));
         let errors = derive_notes(&file).unwrap_err();
-        assert!(errors.iter().all(|error| error.code == "NOTE_GUID_DUPLICATE"));
+        assert!(errors
+            .iter()
+            .all(|error| error.code == "NOTE_GUID_DUPLICATE"));
         assert_eq!(errors.len(), 2);
     }
 
