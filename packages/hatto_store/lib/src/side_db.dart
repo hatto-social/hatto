@@ -28,6 +28,19 @@ class SideDb {
   final String deviceId;
   int _hlcCounter = 0;
 
+  /// Tail of the write/reconcile queue. The next caller waits for this.
+  Future<void> _turn = Future<void>.value();
+
+  /// Runs [action] only after earlier writes and reconciles on this file.
+  ///
+  /// [action] must not call [exclusive] again. The inner call would wait
+  /// for the outer one, and the outer one would be waiting for the inner.
+  Future<T> exclusive<T>(Future<T> Function() action) {
+    final result = _turn.then((_) => action());
+    _turn = result.then((_) {}, onError: (_) {});
+    return result;
+  }
+
   static SideDb open({required String path, required String deviceId}) {
     File(path).parent.createSync(recursive: true);
     return _openHandle(sqlite3.open(path), providedDeviceId: deviceId);

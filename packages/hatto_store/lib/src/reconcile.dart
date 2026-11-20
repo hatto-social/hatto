@@ -245,6 +245,13 @@ Future<NoteMapRow> adoptNote({
 Future<ReconcileResult> reconcileCollection({
   required SideDb db,
   required AnkiApi anki,
+}) {
+  return db.exclusive(() => _reconcile(db: db, anki: anki));
+}
+
+Future<ReconcileResult> _reconcile({
+  required SideDb db,
+  required AnkiApi anki,
 }) async {
   final tree = await anki.deckTree();
   final reserved = _reservedDeckGuids(db.pendingIntents());

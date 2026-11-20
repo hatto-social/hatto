@@ -64,6 +64,34 @@ class WriteWrapper {
     bool journal = true,
     MappingCallback? map,
     MediaJournal? media,
+  }) {
+    return db.exclusive(
+      () => _run(
+        op: op,
+        entityKind: entityKind,
+        guid: guid,
+        service: service,
+        method: method,
+        input: input,
+        expected: expected,
+        journal: journal,
+        map: map,
+        media: media,
+      ),
+    );
+  }
+
+  Future<ProtoResponse> _run({
+    required String op,
+    required String entityKind,
+    required String guid,
+    required int service,
+    required int method,
+    required Uint8List input,
+    String? expected,
+    required bool journal,
+    MappingCallback? map,
+    MediaJournal? media,
   }) async {
     if (op == intentMediaAdd && media == null) {
       throw const SideDbException(
