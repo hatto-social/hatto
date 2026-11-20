@@ -9,6 +9,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:html/dom.dart' as dom;
+import 'package:html/parser.dart' as html_parser;
 import 'package:path/path.dart' as p;
 import 'math_html.dart';
 
@@ -105,20 +106,18 @@ File? _openInsideMedia(String mediaDir, String path) {
   return File(resolved);
 }
 
+/// Depth of the parsed tree. An unmatched closer such as `</b>` does not
+/// reduce the depth of an open `<div>`, which is what the HTML parser does.
 int cardHtmlTagDepth(String html) {
-  var depth = 0;
+  return _elementDepth(html_parser.parseFragment(html));
+}
+
+int _elementDepth(dom.Node node) {
   var maxDepth = 0;
-  final tags = RegExp(r'<\s*(/?)([a-zA-Z][\w:-]*)');
-  const voids = {'br', 'img', 'hr', 'meta', 'link', 'input', 'source', 'wbr', 'area', 'col', 'embed'};
-  for (final match in tags.allMatches(html)) {
-    final name = match.group(2)!.toLowerCase();
-    if (voids.contains(name)) continue;
-    if (match.group(1) == '/') {
-      if (depth > 0) depth--;
-    } else {
-      depth++;
-      if (depth > maxDepth) maxDepth = depth;
-    }
+  for (final child in node.nodes) {
+    final nested = _elementDepth(child);
+    final here = child is dom.Element ? nested + 1 : nested;
+    if (here > maxDepth) maxDepth = here;
   }
   return maxDepth;
 }

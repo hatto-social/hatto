@@ -245,6 +245,15 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('R11 unmatched closers still count as nested elements', (tester) async {
+    final html = '<div></b>' * (kCardHtmlMaxDepth + 8);
+    expect(cardHtmlTagDepth(html), greaterThan(kCardHtmlMaxDepth));
+    await show(tester, html, media.path);
+    expect(find.byKey(const ValueKey('card-html-fallback')), findsOneWidget);
+    expect(_requests, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('R11 deep, huge, and wide HTML falls back', (tester) async {
     final deep = '${'<div>' * 5000}x${'</div>' * 5000}';
     final huge = 'a' * (kCardHtmlMaxBytes + 1);
