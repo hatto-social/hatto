@@ -181,6 +181,7 @@ bool cardHtmlNeedsPlainFallback(String html) {
 
 /// Drops the remembered fallback decision. Widget tests call this so one case
 /// cannot satisfy the next.
+@visibleForTesting
 void resetCardHtmlFallbackCache() {
   _fallbackHtml = null;
   _fallbackValue = false;
