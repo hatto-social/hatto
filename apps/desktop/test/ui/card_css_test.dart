@@ -13,6 +13,12 @@ void main() {
     expect(rules.forSelector('.inner')['color'], 'blue');
   });
 
+  test('a rule after an at-media block is kept', () {
+    final rules = CssRules.parse('@media (screen) { .card { color: red } } .after { color: blue }');
+    expect(rules.forSelector('.card')['color'], 'red');
+    expect(rules.forSelector('.after')['color'], 'blue');
+  });
+
   test('a stylesheet with no brace stays linear as it grows', () {
     int steps(int count) {
       final scan = CssScan();

@@ -266,7 +266,9 @@ class CssRules {
       }
       var selector = source.substring(i, open);
       final at = selector.lastIndexOf('@');
-      if (at >= 0) selector = selector.substring(at + 1);
+      final previous = selector.lastIndexOf('}');
+      final cut = at > previous ? at : previous;
+      if (cut >= 0) selector = selector.substring(cut + 1);
       if (selector.isNotEmpty) {
         final props = <String, String>{};
         for (final declaration in source.substring(open + 1, close).split(';')) {
