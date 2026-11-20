@@ -105,25 +105,35 @@ void main() {
     }
   });
 
-  test('the desktop app does not take a webview, url_launcher, or HttpClient', () {
+  test('the desktop app does not take a webview, url_launcher, HttpClient, or a network image', () {
     const packages = [
       'webview_flutter',
       'flutter_inappwebview',
       'webview_windows',
       'url_launcher',
+      'dio',
     ];
     final pubspec = File('pubspec.yaml').readAsStringSync();
     for (final name in packages) {
       expect(pubspec, isNot(contains('$name:')), reason: name);
     }
     expect(pubspec, isNot(contains('flutter_widget_from_html:')));
-    final httpClient = RegExp(r'\bHttpClient\b');
+    final banned = <RegExp>[
+      RegExp(r'\bHttpClient\b'),
+      RegExp(r'\bImage\.network\b'),
+      RegExp(r'\bNetworkImage\b'),
+      RegExp(r'\bSocket\b'),
+      RegExp(r'\bWebSocket\b'),
+    ];
     final processRun = RegExp(r'\bProcess\.run\b');
     for (final file in sources) {
       final path = file.path.replaceAll('\\', '/');
       final text = file.readAsStringSync();
-      expect(httpClient.hasMatch(text), isFalse, reason: '$path names HttpClient');
+      for (final pattern in banned) {
+        expect(pattern.hasMatch(text), isFalse, reason: '$path matches ${pattern.pattern}');
+      }
       expect(_imports(text, 'package:http'), isFalse, reason: path);
+      expect(_imports(text, 'package:dio'), isFalse, reason: path);
       expect(_imports(text, 'package:url_launcher'), isFalse, reason: path);
       for (final name in packages) {
         expect(_imports(text, 'package:$name'), isFalse, reason: '$path imports $name');
