@@ -57,6 +57,8 @@ File? cardImageFile(String mediaDir, String src) {
     return null;
   }
   if (decoded.isEmpty ||
+      _hasControl(src) ||
+      _hasControl(decoded) ||
       decoded.contains('/') ||
       decoded.contains('\\') ||
       decoded.contains(':') ||
@@ -80,6 +82,13 @@ File? fileInsideMedia(String mediaDir, String url) {
   }
   if (path.isEmpty) return null;
   return _openInsideMedia(mediaDir, path);
+}
+
+bool _hasControl(String value) {
+  for (final unit in value.codeUnits) {
+    if (unit < 0x20 || unit == 0x7f) return true;
+  }
+  return false;
 }
 
 File? _openInsideMedia(String mediaDir, String path) {
