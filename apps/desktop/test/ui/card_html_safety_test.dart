@@ -4,7 +4,8 @@
 
 // The reviewer renders card HTML with flutter_widget_from_html_core.
 // Saved field HTML may contain script and iframe. This surface must not
-// execute or load them. Image fetching and link opening are not this PR.
+// execute or load them. The contract cases, including remote images, are
+// in card_renderer_safety_test.dart.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
