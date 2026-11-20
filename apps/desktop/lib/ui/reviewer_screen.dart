@@ -27,7 +27,11 @@ class _ReviewerScreenState extends State<ReviewerScreen> {
 
   Future<void> _run(Future<void> Function() f) async {
     if (busy) return; busy = true;
-    try { await f(); } finally { busy = false; if (mounted) { widget.app.touch(); } }
+    try {
+      await f();
+    } catch (e) {
+      widget.app.toast('실행하지 못했어요: $e');
+    } finally { busy = false; if (mounted) { widget.app.touch(); } }
   }
   void _answer(CardAnswer_Rating r) => _run(() => s.answer(r));
   void _show() { if (s.phase == ReviewPhase.question) { s.showAnswer(); widget.app.touch(); } }
@@ -116,7 +120,10 @@ class _Congrats extends StatelessWidget {
       Padding(padding: const EdgeInsets.only(bottom: 14), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
         PillButton('덱 목록', key: const ValueKey('congrats-decks'), width: 90, onTap: () => app.go(Screen.decks)),
         const SizedBox(width: 12),
-        if (app.session!.canUndo) PillButton('마지막 답 취소', key: const ValueKey('congrats-undo'), width: 120, onTap: () async { await app.session!.undo(); app.touch(); }),
+        if (app.session!.canUndo) PillButton('마지막 답 취소', key: const ValueKey('congrats-undo'), width: 120, onTap: () async {
+          try { await app.session!.undo(); } catch (e) { app.toast('실행 취소하지 못했어요: $e'); }
+          app.touch();
+        }),
       ])),
     ]);
   }

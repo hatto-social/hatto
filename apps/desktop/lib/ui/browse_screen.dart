@@ -55,7 +55,10 @@ class _BrowseScreenState extends State<BrowseScreen> {
     if (mounted) setState(() {});
   }
 
-  Future<void> _act(Future<void> Function() f) async { await f(); await widget.app.refreshDecks(); final keep = Set.of(sel); await _search(); sel..clear()..addAll(keep.where(rows.containsKey)); if (mounted) setState(() {}); }
+  Future<void> _act(Future<void> Function() f) async {
+    try { await f(); } catch (e) { widget.app.toast('실행하지 못했어요: $e'); }
+    await widget.app.refreshDecks(); final keep = Set.of(sel); await _search(); sel..clear()..addAll(keep.where(rows.containsKey)); if (mounted) setState(() {});
+  }
 
 
   @override
