@@ -7,8 +7,7 @@ targets = [
   "aarch64-linux-android",
   "armv7-linux-androideabi",
   "x86_64-linux-android",
-  # native_toolchain_rust refuses a macOS build unless these triples are
-  # listed. `flutter build macos` asks for both slices.
+  # native_toolchain_rust refuses a macOS build unless the requested triple
+  # is listed. The release app is arm64 only.
   "aarch64-apple-darwin",
-  "x86_64-apple-darwin",
 ]
