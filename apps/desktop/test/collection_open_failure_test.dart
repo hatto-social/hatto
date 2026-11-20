@@ -16,51 +16,80 @@ void main() {
     await initRslibBridge();
   });
 
-  test(
-    'a failed collection open closes the engine and the side database',
-    () async {
-      final root = Directory('/tmp').createTempSync('hatto-open-fail');
-      addTearDown(() {
-        if (root.existsSync()) {
-          root.deleteSync(recursive: true);
-        }
-      });
-      final tmp = Directory(p.join(root.path, 'tmp'))..createSync();
-      prepareRuntime(tmpDir: tmp.path);
-      final dataDir = Directory(p.join(root.path, 'collection'))..createSync();
-      final host = EngineHost();
-      Engine? opened;
-      await expectLater(
-        host.open(
-          dataDir: dataDir.path,
-          openCollection: (engine, api) async {
-            opened = engine;
-            throw StateError('injected openCollection failure');
-          },
-        ),
-        throwsA(
-          isA<CollectionOpenException>()
-              .having(
-                (error) => error.cause,
-                'cause',
-                isA<StateError>().having(
-                  (error) => error.message,
-                  'message',
-                  'injected openCollection failure',
-                ),
-              )
-              .having(
-                (error) => error.path,
-                'path',
-                File(p.join(dataDir.path, 'collection.anki2')).absolute.path,
+  test('a failed collection open marks the engine closed and closes the side database', () async {
+    final root = Directory('/tmp').createTempSync('hatto-open-fail');
+    addTearDown(() {
+      if (root.existsSync()) {
+        root.deleteSync(recursive: true);
+      }
+    });
+    final tmp = Directory(p.join(root.path, 'tmp'))..createSync();
+    prepareRuntime(tmpDir: tmp.path);
+    final dataDir = Directory(p.join(root.path, 'collection'))..createSync();
+    final host = EngineHost();
+    Engine? opened;
+    await expectLater(
+      host.open(
+        dataDir: dataDir.path,
+        openCollection: (engine, api) async {
+          opened = engine;
+          throw StateError('injected openCollection failure');
+        },
+      ),
+      throwsA(
+        isA<CollectionOpenException>()
+            .having(
+              (error) => error.cause,
+              'cause',
+              isA<StateError>().having(
+                (error) => error.message,
+                'message',
+                'injected openCollection failure',
               ),
+            )
+            .having(
+              (error) => error.path,
+              'path',
+              File(p.join(dataDir.path, 'collection.anki2')).absolute.path,
+            ),
+      ),
+    );
+    expect(opened, isNotNull);
+    expect(opened!.isOpen, isFalse);
+    expect(host.markedClosedEngine, same(opened));
+    expect(host.engine, isNull);
+    expect(host.flow, isNull);
+    expect(host.sideDb, isNull);
+    expect(host.holdsInstanceLock, isFalse);
+  });
+
+  test('a corrupt collection.anki2 marks the engine closed', () async {
+    final root = Directory('/tmp').createTempSync('hatto-corrupt-collection');
+    addTearDown(() {
+      if (root.existsSync()) {
+        root.deleteSync(recursive: true);
+      }
+    });
+    final tmp = Directory(p.join(root.path, 'tmp'))..createSync();
+    await prepareRuntime(tmpDir: tmp.path);
+    final dataDir = Directory(p.join(root.path, 'collection'))..createSync();
+    final collection = File(p.join(dataDir.path, 'collection.anki2'));
+    collection.writeAsBytesSync(const [1, 2, 3, 4, 5, 6, 7, 8]);
+    final host = EngineHost();
+    await expectLater(
+      host.open(dataDir: dataDir.path),
+      throwsA(
+        isA<CollectionOpenException>().having(
+          (error) => error.path,
+          'path',
+          collection.absolute.path,
         ),
-      );
-      expect(opened, isNotNull);
-      expect(opened!.isOpen, isFalse);
-      expect(host.engine, isNull);
-      expect(host.flow, isNull);
-      expect(host.sideDb, isNull);
-    },
-  );
+      ),
+    );
+    expect(host.markedClosedEngine, isNotNull);
+    expect(host.markedClosedEngine!.isOpen, isFalse);
+    expect(host.engine, isNull);
+    expect(host.sideDb, isNull);
+    expect(host.holdsInstanceLock, isFalse);
+  });
 }

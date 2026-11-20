@@ -15,8 +15,9 @@ import '../store/write_gateway.dart';
 /// Opens the side database and the collection. Production and tests use this.
 ///
 /// Order is fixed: the instance lock, then the side database, then the
-/// collection. The lock is held for the process lifetime. A second process
-/// gets [AlreadyRunningException] and must not open the collection.
+/// collection. After a successful open the lock is held for the process
+/// lifetime. A failed open releases it. A second process gets
+/// [AlreadyRunningException] and must not open the collection.
 class EngineHost {
   Engine? engine;
   FlowApi? flow;
@@ -24,6 +25,10 @@ class EngineHost {
   WriteGateway? _gateway;
   InstanceLock? _lock;
   String? _collectionPath;
+
+  /// Engine from a failed open, after [Engine.close] marked it closed.
+  /// Null when [Engine.open] itself did not return.
+  Engine? markedClosedEngine;
 
   SideDb? get sideDb => _side;
 
@@ -40,17 +45,21 @@ class EngineHost {
       throw const AlreadyRunningException();
     }
     _lock = lock;
-    final side = SideDb.openOrCreate(p.join(dataDir, 'hatto.sqlite'));
-    _side = side;
-    _gateway = WriteGateway(
-      db: side,
-      command: (service, method, input) async {
-        throw StateError('no rslib write is open on this profile');
-      },
-    );
-    Engine? opened;
+    markedClosedEngine = null;
+    SideDb? side;
     try {
-      opened = await Engine.open(dataDir: dataDir, langs: const ['ko', 'en']);
+      side = SideDb.openOrCreate(p.join(dataDir, 'hatto.sqlite'));
+      _side = side;
+      _gateway = WriteGateway(
+        db: side,
+        command: (service, method, input) async {
+          throw StateError('no rslib write is open on this profile');
+        },
+      );
+      final opened = await Engine.open(
+        dataDir: dataDir,
+        langs: const ['ko', 'en'],
+      );
       final api = FlowApi(opened);
       try {
         final inject = openCollection;
@@ -59,13 +68,16 @@ class EngineHost {
         } else {
           await api.openCollection(dataDir);
         }
-      } catch (err) {
+      } catch (err, stack) {
         opened.close();
-        opened = null;
+        markedClosedEngine = opened;
         if (err is CollectionOpenException) {
-          rethrow;
+          Error.throwWithStackTrace(err, stack);
         }
-        throw CollectionOpenException(err, path: _collectionFile(dataDir));
+        Error.throwWithStackTrace(
+          CollectionOpenException(err, path: _collectionFile(dataDir)),
+          stack,
+        );
       }
       engine = opened;
       flow = api;
@@ -81,9 +93,11 @@ class EngineHost {
             : '컬렉션이 열려 있습니다.',
       );
     } catch (err) {
-      side.close();
+      side?.close();
       _side = null;
       _gateway = null;
+      _lock?.release();
+      _lock = null;
       rethrow;
     }
   }
@@ -122,8 +136,8 @@ class EngineHost {
 
 /// [FlowApi.openCollection] failed after the engine was opened.
 ///
-/// The engine is already closed. [path] is the absolute collection file,
-/// or null when that path could not be built.
+/// The engine is already marked closed. [path] is the absolute collection
+/// file, or null when that path could not be built.
 class CollectionOpenException implements Exception {
   CollectionOpenException(this.cause, {this.path});
 

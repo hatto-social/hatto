@@ -77,8 +77,11 @@ class SideDb {
   static Database _openFile(String path) {
     try {
       return sqlite3.open(path);
-    } on SqliteException catch (err) {
-      throw translateSideDbOpenError(err, path: path);
+    } on SqliteException catch (err, stack) {
+      Error.throwWithStackTrace(
+        translateSideDbOpenError(err, path: path),
+        stack,
+      );
     }
   }
 
@@ -104,9 +107,12 @@ class SideDb {
         _insertDeviceId(db, id);
       }
       return SideDb._(db, id);
-    } on SqliteException catch (err) {
+    } on SqliteException catch (err, stack) {
       db.close();
-      throw translateSideDbOpenError(err, path: path);
+      Error.throwWithStackTrace(
+        translateSideDbOpenError(err, path: path),
+        stack,
+      );
     } catch (err) {
       db.close();
       rethrow;

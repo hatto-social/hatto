@@ -74,6 +74,41 @@ void main() {
       reopened.close();
     }
   });
+
+  test('a failed open releases the instance lock', () async {
+    final root = Directory.systemTemp.createTempSync('hatto-order-release');
+    addTearDown(() {
+      if (root.existsSync()) {
+        root.deleteSync(recursive: true);
+      }
+    });
+    final side = sqlite3.open(p.join(root.path, 'hatto.sqlite'));
+    side.execute('PRAGMA user_version = 99');
+    side.close();
+
+    final host = EngineHost();
+    await expectLater(
+      host.open(dataDir: root.path),
+      throwsA(isA<NewerSchemaException>()),
+    );
+    expect(host.holdsInstanceLock, isFalse);
+
+    // Same-process tryAcquire returns a lock this process already holds, so
+    // a second process is what shows the OS lock was released.
+    final child = await Process.start(dartExecutable(), [
+      'run',
+      'bin/lock_probe.dart',
+      root.path,
+    ], workingDirectory: _storePackage());
+    final stdoutText = await child.stdout.transform(utf8.decoder).join();
+    final code = await child.exitCode.timeout(const Duration(minutes: 2));
+    expect(code, 0);
+    expect(stdoutText, contains('acquired'));
+
+    final again = InstanceLock.tryAcquire(root.path);
+    expect(again, isNotNull);
+    again!.release();
+  });
 }
 
 String _storePackage() {
