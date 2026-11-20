@@ -15,6 +15,13 @@ import 'card_html.dart';
 import 'common.dart';
 
 const _colLabels = {'noteFld': '정렬 필드', 'template': '카드', 'deck': '덱', 'cardDue': '기한', 'cardIvl': '간격', 'noteTags': '태그'};
+
+/// One browse cell, as plain text. Only a prefix is scanned, and a tag cannot
+/// contain another `<`, so a long run of `<` or `&lt;` does not rescan the cell.
+String browseCellText(String s) {
+  final slice = cardHtmlLimit(s, kCardHtmlPlainPrefix);
+  return slice.replaceAll(RegExp(r'<[^<>]*>'), ' ').replaceAll('&nbsp;', ' ').trim();
+}
 const _colWidths = {'noteFld': 170.0, 'template': 56.0, 'deck': 100.0, 'cardDue': 92.0, 'cardIvl': 62.0, 'noteTags': 100.0};
 
 class BrowseScreen extends StatefulWidget {
@@ -111,7 +118,7 @@ class _BrowseScreenState extends State<BrowseScreen> {
           child: Text(_clean(r.cells[c].text), maxLines: 1, overflow: TextOverflow.ellipsis, style: ankiText(k, size: 12.5).copyWith(height: 1)))])));
     })),
   ]));
-  static String _clean(String s) => s.replaceAll(RegExp(r'<[^>]*>'), ' ').replaceAll('&nbsp;', ' ').trim();
+  static String _clean(String s) => browseCellText(s);
 
   Widget _pane(AnkiColors k) {
     return Center(child: Text('노트 편집은 이 버전에 없습니다.', key: const ValueKey('browse-pane-empty'), style: ankiText(k, color: k.fgSubtle)));

@@ -181,33 +181,108 @@ bool cardHtmlNeedsPlainFallback(String html) {
 
 /// Drops the remembered fallback decision. Widget tests call this so one case
 /// cannot satisfy the next.
+@visibleForTesting
 void resetCardHtmlFallbackCache() {
   _fallbackHtml = null;
   _fallbackValue = false;
   cardHtmlParseCount = 0;
 }
 
+/// The first [max] code units of [value]. A cut that would keep only the high
+/// half of a surrogate pair drops that unit too.
+String cardHtmlLimit(String value, int max) {
+  if (value.length <= max) return value;
+  var end = max;
+  final unit = value.codeUnitAt(end - 1);
+  if (unit >= 0xD800 && unit <= 0xDBFF) end--;
+  return value.substring(0, end);
+}
+
 /// Plain text for an over-cap field. Only the first [kCardHtmlPlainPrefix]
 /// code units are scanned, and a tag cannot contain another `<`, so a long
 /// run of `<` does not rescan the rest of the string.
 String cardHtmlFallbackText(String html) {
-  final slice = html.length > kCardHtmlPlainPrefix ? html.substring(0, kCardHtmlPlainPrefix) : html;
+  final slice = cardHtmlLimit(html, kCardHtmlPlainPrefix);
   return slice.replaceAll(RegExp(r'<[^<>]*>'), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+}
+
+/// Counts characters [indexOf] scans inside [CssRules.parse]. A repeated
+/// search that walks the same tail again shows up here.
+class CssScan {
+  int steps = 0;
+}
+
+int _find(String source, String needle, int from, CssScan? scan) {
+  final n = source.length;
+  if (from >= n) return -1;
+  final found = source.indexOf(needle, from);
+  scan?.steps += found < 0 ? n - from : found - from + needle.length;
+  return found;
+}
+
+String _withoutCssComments(String css, CssScan? scan) {
+  final buffer = StringBuffer();
+  final n = css.length;
+  var i = 0;
+  while (i < n) {
+    scan?.steps++;
+    if (i + 1 < n && css.codeUnitAt(i) == 0x2f && css.codeUnitAt(i + 1) == 0x2a) {
+      final end = css.indexOf('*/', i + 2);
+      // An unclosed /* swallows the rest of the sheet. A browser does the same.
+      if (end < 0) {
+        scan?.steps += n - (i + 2);
+        break;
+      }
+      scan?.steps += end - (i + 2);
+      i = end + 2;
+      continue;
+    }
+    buffer.writeCharCode(css.codeUnitAt(i));
+    i++;
+  }
+  return buffer.toString();
 }
 
 class CssRules {
   CssRules(this.rules);
   final List<(String, Map<String, String>)> rules;
-  factory CssRules.parse(String css) {
-    css = css.replaceAll(RegExp(r'/\*.*?\*/', dotAll: true), '');
+  factory CssRules.parse(String css, {CssScan? scan}) {
+    final source = _withoutCssComments(css, scan);
     final out = <(String, Map<String, String>)>[];
-    for (final m in RegExp(r'([^{}@]+)\{([^{}]*)\}').allMatches(css)) {
-      final props = <String, String>{};
-      for (final d in m.group(2)!.split(';')) {
-        final i = d.indexOf(':'); if (i < 0) continue;
-        props[d.substring(0, i).trim().toLowerCase()] = d.substring(i + 1).trim().replaceAll('!important', '').trim();
+    final n = source.length;
+    var i = 0;
+    var closeCache = -1;
+    while (i < n) {
+      final open = _find(source, '{', i, scan);
+      if (open < 0) break;
+      // One search for '}' covers every '{' up to that brace. Searching
+      // again from each '{' makes `{`×N + `}` quadratic.
+      if (closeCache <= open) closeCache = _find(source, '}', open + 1, scan);
+      final close = closeCache;
+      if (close < 0) break;
+      final nested = _find(source, '{', open + 1, scan);
+      if (nested >= 0 && nested < close) {
+        i = open + 1;
+        continue;
       }
-      for (final sel in m.group(1)!.split(',')) { out.add((sel.trim(), props)); }
+      var selector = source.substring(i, open);
+      final at = selector.lastIndexOf('@');
+      final previous = selector.lastIndexOf('}');
+      final cut = at > previous ? at : previous;
+      if (cut >= 0) selector = selector.substring(cut + 1);
+      if (selector.isNotEmpty) {
+        final props = <String, String>{};
+        for (final declaration in source.substring(open + 1, close).split(';')) {
+          final colon = declaration.indexOf(':');
+          if (colon < 0) continue;
+          props[declaration.substring(0, colon).trim().toLowerCase()] =
+              declaration.substring(colon + 1).trim().replaceAll('!important', '').trim();
+        }
+        for (final sel in selector.split(',')) {
+          out.add((sel.trim(), props));
+        }
+      }
+      i = close + 1;
     }
     return CssRules(out);
   }
@@ -256,7 +331,7 @@ class CardView extends StatelessWidget {
     final alignName = switch (align) { TextAlign.left => 'left', TextAlign.right => 'right', _ => 'center' };
     if (cardHtmlNeedsPlainFallback(html)) {
       final text = cardHtmlFallbackText(html);
-      final shown = text.length > 200 ? text.substring(0, 200) : text;
+      final shown = cardHtmlLimit(text, 200);
       return ColoredBox(color: bg, child: Text(shown, key: const ValueKey('card-html-fallback'), style: style));
     }
     final body = HtmlWidget('<div style="text-align:$alignName">${preprocess(html)}</div>', key: ValueKey(html), textStyle: style,
