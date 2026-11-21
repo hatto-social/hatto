@@ -7,6 +7,7 @@
 use std::fs;
 use std::path::Path;
 use std::process::Command;
+use std::sync::{Mutex, MutexGuard};
 
 use anki_proto::generic;
 use hatto_card_contract::{imported_note_guid, local_note_guid, parse_uuid, NoteGuid};
@@ -15,6 +16,15 @@ use rslib_bridge::api::{
     command, open_backend, prepare_runtime, service_method_index, AnkiBackend,
 };
 use rslib_bridge::export_contract::anki_package_import_options;
+
+/// `import_apkg` calls `prepare_runtime`, which sets TMPDIR/TMP/TEMP for the
+/// whole process, and `run` spawns children that inherit them. Two tests on two
+/// threads would point each other's temp files at a directory the other one is
+/// about to delete. Hold this for the whole test body so tests never overlap.
+fn serial() -> MutexGuard<'static, ()> {
+    static LOCK: Mutex<()> = Mutex::new(());
+    LOCK.lock().unwrap_or_else(|err| err.into_inner())
+}
 
 fn bin() -> Command {
     Command::new(env!("CARGO_BIN_EXE_hatto-card"))
@@ -30,6 +40,7 @@ fn run(args: &[&str]) -> (i32, String, String) {
 
 #[test]
 fn export_then_import_matches_guids_fields_and_media() {
+    let _serial = serial();
     let root = tempfile::tempdir().unwrap();
     fs::create_dir(root.path().join("media")).unwrap();
     let png = tiny_png();
@@ -76,6 +87,7 @@ fn export_then_import_matches_guids_fields_and_media() {
 
 #[test]
 fn add_note_then_export_imports_the_added_notes() {
+    let _serial = serial();
     let root = tempfile::tempdir().unwrap();
     fs::create_dir(root.path().join("media")).unwrap();
     let png = tiny_png();
@@ -258,6 +270,358 @@ fn add_note_then_export_imports_the_added_notes() {
     assert!(!root.path().join("collection.anki2").exists());
 }
 
+/// Fixed ids and names of the seed notetypes (contract section 16). Written
+/// out here on purpose: the CLI's own table must agree with these.
+const SEED_NOTETYPES: [(&str, &str, i64, usize); 5] = [
+    ("Basic", "Hatto Basic", 1_767_225_600_001, 2),
+    (
+        "Basic (and reversed card)",
+        "Hatto Basic (and reversed card)",
+        1_767_225_600_002,
+        2,
+    ),
+    (
+        "Basic (optional reversed card)",
+        "Hatto Basic (optional reversed card)",
+        1_767_225_600_003,
+        3,
+    ),
+    (
+        "Basic (type in the answer)",
+        "Hatto Basic (type in the answer)",
+        1_767_225_600_004,
+        2,
+    ),
+    ("Cloze", "Hatto Cloze", 1_767_225_600_005, 2),
+];
+
+fn export_to(deck: &Path, apkg: &Path) {
+    let (code, stdout, stderr) = run(&[
+        "--json",
+        "export",
+        "--deck",
+        deck.to_str().unwrap(),
+        "--output",
+        apkg.to_str().unwrap(),
+    ]);
+    assert_eq!(code, 0, "{stdout}\n{stderr}");
+}
+
+fn copy_example(root: &Path) -> std::path::PathBuf {
+    let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/with-media");
+    fs::create_dir_all(root.join("media")).unwrap();
+    fs::copy(src.join("media/dot.png"), root.join("media/dot.png")).unwrap();
+    fs::copy(src.join("deck.json"), root.join("deck.json")).unwrap();
+    root.join("deck.json")
+}
+
+/// The two notes `add-note` appends in the existing test, with fixed ids.
+fn add_two_notes(deck: &Path) {
+    let deck_arg = deck.to_str().unwrap();
+    for args in [
+        [
+            "--field",
+            "added front",
+            "--field",
+            "added back",
+            "--tag",
+            "added",
+            "--op-id",
+            "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+            "--k",
+            "1",
+        ]
+        .as_slice(),
+        [
+            "--field",
+            "imported front",
+            "--field",
+            "imported back",
+            "--job-id",
+            "11111111-2222-4333-8444-555555555555",
+            "--source-guid",
+            "  roundtrip  ",
+        ]
+        .as_slice(),
+    ] {
+        let mut full = vec![
+            "--json",
+            "add-note",
+            "--deck",
+            deck_arg,
+            "--notetype",
+            "Basic",
+        ];
+        full.extend_from_slice(args);
+        let (code, stdout, stderr) = run(&full);
+        assert_eq!(code, 0, "{stdout}\n{stderr}");
+    }
+}
+
+#[derive(Debug, PartialEq)]
+struct Counts {
+    new: usize,
+    updated: usize,
+    duplicate: usize,
+    conflicting: usize,
+}
+
+struct Sequence {
+    counts: Vec<Counts>,
+    notetypes: Vec<(i64, String)>,
+    note_mids: Vec<i64>,
+    /// guid, fields and tags of every note, the ords of every card and the
+    /// deck names the cards sit in. Nothing that rslib draws at random.
+    content: serde_json::Value,
+}
+
+/// Import the files in order into one new collection, with the options the
+/// desktop contract fixes.
+fn import_sequence(apkgs: &[&Path]) -> Sequence {
+    let root = tempfile::tempdir().unwrap();
+    fs::create_dir_all(root.path().join("tmp")).unwrap();
+    let _tmp_env = TmpEnv::set(&root.path().join("tmp"));
+    let init = anki_proto::backend::BackendInit {
+        preferred_langs: vec!["en".into()],
+        locale_folder_path: String::new(),
+        server: false,
+    };
+    let backend = open_backend(init.encode_to_vec()).unwrap();
+    call_raw(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &anki_proto::collection::OpenCollectionRequest {
+            collection_path: root
+                .path()
+                .join("collection.anki2")
+                .to_string_lossy()
+                .into_owned(),
+            media_folder_path: root.path().join("media").to_string_lossy().into_owned(),
+            media_db_path: root.path().join("media.db").to_string_lossy().into_owned(),
+        },
+    );
+    let mut counts = Vec::new();
+    for apkg in apkgs {
+        let response: anki_proto::import_export::ImportResponse = call(
+            &backend,
+            "BackendImportExportService",
+            "import_anki_package",
+            &anki_proto::import_export::ImportAnkiPackageRequest {
+                package_path: apkg.to_string_lossy().into_owned(),
+                options: Some(anki_package_import_options()),
+            },
+        );
+        let log = response.log.unwrap();
+        counts.push(Counts {
+            new: log.new.len(),
+            updated: log.updated.len(),
+            duplicate: log.duplicate.len(),
+            conflicting: log.conflicting.len(),
+        });
+    }
+    let notetypes = query(&backend, "select id, name from notetypes order by id")
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|row| {
+            (
+                row[0].as_i64().unwrap(),
+                row[1].as_str().unwrap().to_string(),
+            )
+        })
+        .collect();
+    let note_mids = query(&backend, "select mid from notes order by guid")
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|row| row[0].as_i64().unwrap())
+        .collect();
+    let content = serde_json::json!({
+        "notes": query(&backend, "select guid, flds, tags from notes order by guid"),
+        "card_ords": query(&backend, "select nid, ord from cards order by ord, nid").as_array().unwrap().iter().map(|row| row[1].clone()).collect::<Vec<_>>(),
+        "card_decks": query(&backend, "select distinct d.name from cards c join decks d on d.id = c.did order by d.name"),
+    });
+    call_raw(
+        &backend,
+        "BackendCollectionService",
+        "close_collection",
+        &anki_proto::collection::CloseCollectionRequest {
+            downgrade_to_schema11: false,
+        },
+    );
+    Sequence {
+        counts,
+        notetypes,
+        note_mids,
+        content,
+    }
+}
+
+fn assert_no_plus_notetype(notetypes: &[(i64, String)]) {
+    let plus: Vec<_> = notetypes
+        .iter()
+        .filter(|(_, name)| name.ends_with('+'))
+        .collect();
+    assert!(plus.is_empty(), "notetypes with a + suffix: {plus:?}");
+}
+
+#[test]
+fn same_deck_exported_twice_imports_without_conflicts() {
+    let _serial = serial();
+    let root = tempfile::tempdir().unwrap();
+    let deck = copy_example(root.path());
+    let (first, second) = (root.path().join("1.apkg"), root.path().join("2.apkg"));
+    export_to(&deck, &first);
+    export_to(&deck, &second);
+    let seq = import_sequence(&[&first, &second]);
+    assert_eq!(
+        seq.counts,
+        [
+            Counts {
+                new: 3,
+                updated: 0,
+                duplicate: 0,
+                conflicting: 0
+            },
+            Counts {
+                new: 0,
+                updated: 0,
+                duplicate: 3,
+                conflicting: 0
+            },
+        ]
+    );
+    assert_no_plus_notetype(&seq.notetypes);
+    assert!(seq
+        .notetypes
+        .contains(&(1_767_225_600_001, "Hatto Basic".to_string())));
+    // The collection's own stock Basic is untouched and is not the one used.
+    assert!(seq
+        .notetypes
+        .iter()
+        .any(|(id, name)| name == "Basic" && *id != 1_767_225_600_001));
+    assert_eq!(seq.note_mids, [1_767_225_600_001; 3]);
+}
+
+#[test]
+fn a_note_added_between_exports_is_new_and_the_rest_are_not_conflicts() {
+    let _serial = serial();
+    let root = tempfile::tempdir().unwrap();
+    let deck = copy_example(root.path());
+    let (first, second) = (root.path().join("1.apkg"), root.path().join("2.apkg"));
+    export_to(&deck, &first);
+    let (code, stdout, stderr) = run(&[
+        "--json",
+        "add-note",
+        "--deck",
+        deck.to_str().unwrap(),
+        "--notetype",
+        "Hatto Basic",
+        "--field",
+        "later front",
+        "--field",
+        "later back",
+        "--op-id",
+        "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+        "--k",
+        "7",
+    ]);
+    assert_eq!(code, 0, "{stdout}\n{stderr}");
+    export_to(&deck, &second);
+    let seq = import_sequence(&[&first, &second]);
+    assert_eq!(seq.counts[1].new, 1);
+    assert_eq!(seq.counts[1].conflicting, 0);
+    assert_eq!(seq.note_mids, [1_767_225_600_001; 4]);
+    assert_no_plus_notetype(&seq.notetypes);
+}
+
+#[test]
+fn every_seed_notetype_keeps_its_id_under_the_stock_and_the_hatto_name() {
+    let _serial = serial();
+    for (stock, hatto, id, fields) in SEED_NOTETYPES {
+        for name in [stock, hatto] {
+            let root = tempfile::tempdir().unwrap();
+            let mut value: serde_json::Value =
+                serde_json::from_str(&fs::read_to_string(copy_example(root.path())).unwrap())
+                    .unwrap();
+            value["notetype"] = name.into();
+            let first_field = if stock == "Cloze" {
+                "{{c1::a}} b"
+            } else {
+                "front"
+            };
+            let mut note_fields = vec![first_field.to_string()];
+            note_fields.resize(fields, "x".to_string());
+            value["notes"] = serde_json::json!([{ "fields": note_fields, "k": 0 }]);
+            fs::write(root.path().join("deck.json"), value.to_string()).unwrap();
+            let deck = root.path().join("deck.json");
+            let (first, second) = (root.path().join("1.apkg"), root.path().join("2.apkg"));
+            export_to(&deck, &first);
+            export_to(&deck, &second);
+            let seq = import_sequence(&[&first, &second]);
+            assert_eq!(seq.counts[0].new, 1, "{name}");
+            assert_eq!(seq.counts[1].conflicting, 0, "{name}");
+            assert_eq!(seq.counts[1].new, 0, "{name}");
+            assert!(
+                seq.notetypes.contains(&(id, hatto.to_string())),
+                "{name}: {:?}",
+                seq.notetypes
+            );
+            assert_eq!(seq.note_mids, [id], "{name}");
+            assert_no_plus_notetype(&seq.notetypes);
+        }
+    }
+}
+
+/// "Unchanged" means what a user's notes are: guids, fields, tags, the cards
+/// Anki builds (count and template ords) and the deck they sit in. The
+/// notetype's name, id, mtime and the ids inside it do change on purpose:
+/// that is the fix. The expected values below were taken from the CLI at
+/// 2dc5251 (before the seed) on the same decks.
+#[test]
+fn existing_decks_export_the_same_notes_cards_and_deck() {
+    let _serial = serial();
+    let root = tempfile::tempdir().unwrap();
+    let deck = copy_example(root.path());
+    let apkg = root.path().join("example.apkg");
+    export_to(&deck, &apkg);
+    let seq = import_sequence(&[&apkg]);
+    assert_eq!(
+        seq.content,
+        serde_json::json!({
+            "notes": [
+                ["244091ee-521b-5229-a8e9-b1db2ff4dda3", "front <img src=\"dot.png\">\u{1f}back", " example "],
+                ["74a16fcd-b6db-5db5-be79-787c72943de7", "local zero\u{1f}back", " local "],
+                ["ecd3ff65-dfef-5a7f-8224-47e03d25710c", "local max\u{1f}back", " local max "],
+            ],
+            "card_ords": [0, 0, 0],
+            "card_decks": [["Example"]],
+        })
+    );
+
+    let five = tempfile::tempdir().unwrap();
+    let deck = copy_example(five.path());
+    add_two_notes(&deck);
+    let apkg = five.path().join("five.apkg");
+    export_to(&deck, &apkg);
+    let seq = import_sequence(&[&apkg]);
+    assert_eq!(
+        seq.content,
+        serde_json::json!({
+            "notes": [
+                ["244091ee-521b-5229-a8e9-b1db2ff4dda3", "front <img src=\"dot.png\">\u{1f}back", " example "],
+                ["32de43eb-25fa-573d-8733-ece2944d829e", "imported front\u{1f}imported back", ""],
+                ["37b79715-eed7-5757-b39e-bdaa9ef6df6a", "added front\u{1f}added back", " added "],
+                ["74a16fcd-b6db-5db5-be79-787c72943de7", "local zero\u{1f}back", " local "],
+                ["ecd3ff65-dfef-5a7f-8224-47e03d25710c", "local max\u{1f}back", " local max "],
+            ],
+            "card_ords": [0, 0, 0, 0, 0],
+            "card_decks": [["Example"]],
+        })
+    );
+}
+
 fn deck_fields(path: &Path) -> Vec<Vec<String>> {
     let value: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap();
@@ -304,8 +668,9 @@ impl TmpEnv {
 impl Drop for TmpEnv {
     fn drop(&mut self) {
         for (key, value) in &self.saved {
-            // SAFETY: tests run on one thread. This value is dropped before
-            // the temp dir that `prepare_runtime` pointed at.
+            // SAFETY: every test holds `serial()` for its whole body, so no
+            // other thread reads or writes the environment. This value is
+            // dropped before the temp dir that `prepare_runtime` pointed at.
             match value {
                 Some(value) => unsafe { std::env::set_var(key, value) },
                 None => unsafe { std::env::remove_var(key) },

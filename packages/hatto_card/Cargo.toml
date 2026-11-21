@@ -28,3 +28,4 @@ uuid = { version = "1.11", default-features = false, features = ["std", "v4"] }
 
 [dev-dependencies]
 hatto_card_contract = { path = "../hatto_card_contract" }
+sha2 = "0.10"
