@@ -41,6 +41,9 @@ pub(crate) struct DesktopSession {
     pub poisoned: bool,
     pub presented: HashMap<i64, PresentedStates>,
     pub search_strings: HashSet<String>,
+    /// UUID v4 of the collection the import-E profile has open.
+    /// The desktop profile leaves this empty.
+    pub import_batch_id: Option<String>,
 }
 
 impl DesktopSession {
@@ -51,6 +54,7 @@ impl DesktopSession {
             poisoned: false,
             presented: HashMap::new(),
             search_strings: HashSet::new(),
+            import_batch_id: None,
         }
     }
 }

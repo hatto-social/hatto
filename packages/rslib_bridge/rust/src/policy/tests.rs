@@ -163,9 +163,7 @@ fn validates_undo_and_redo() {
         &backend,
         "BackendCollectionService",
         "undo",
-        &anki_proto::generic::String {
-            val: "no".into(),
-        },
+        &anki_proto::generic::String { val: "no".into() },
     );
     assert!(
         message_of(&nonempty).contains("empty"),
@@ -228,12 +226,46 @@ fn allowlist_names_resolve_and_counts_match() {
             Status::Deferred => deferred += 1,
         }
     }
-    assert_eq!(validated, 14);
+    // Resident table after ImportAnkiPackage: 15 validated + 57 name-only
+    // = 72 forwarded. 16 pending and 1 deferred stay. 89 rows in all.
+    assert_eq!(validated, 15);
     assert_eq!(name_only, 57);
     assert_eq!(pending, 16);
     assert_eq!(deferred, 1);
-    assert_eq!(ALLOWLIST.len(), 88);
-    assert_eq!(forwarded_names().len(), 71);
+    assert_eq!(ALLOWLIST.len(), 89);
+    assert_eq!(forwarded_names().len(), 72);
+    let mut e_validated = 0;
+    let mut e_name_only = 0;
+    let mut e_seen = std::collections::HashSet::new();
+    for row in super::import_e::E_ALLOWLIST {
+        assert!(
+            e_seen.insert((row.service, row.method)),
+            "duplicate import-e {}.{}",
+            row.service,
+            row.method
+        );
+        assert!(
+            index::lookup(row.service, row.method).is_some(),
+            "import-e {}.{} is not in this rslib build",
+            row.service,
+            row.method
+        );
+        match row.status {
+            Status::Validated => e_validated += 1,
+            Status::NameOnly => e_name_only += 1,
+            Status::Pending | Status::Deferred => panic!("import-e has no pending row"),
+        }
+    }
+    // Import-E adds 11 rows (7 validated, 4 name-only), all forwarded.
+    // Combined rows: 89 + 11 = 100. Combined forwarded: 72 + 11 = 83.
+    assert_eq!(e_validated, 7);
+    assert_eq!(e_name_only, 4);
+    assert_eq!(super::import_e::E_ALLOWLIST.len(), 11);
+    assert_eq!(ALLOWLIST.len() + super::import_e::E_ALLOWLIST.len(), 100);
+    assert_eq!(
+        forwarded_names().len() + super::import_e::E_ALLOWLIST.len(),
+        83
+    );
 
     let pending_methods: std::collections::HashSet<_> = ALLOWLIST
         .iter()
@@ -269,7 +301,7 @@ fn print_allowlist_table() {
     println!("{table}");
     assert_eq!(
         table.lines().filter(|line| line.starts_with("| ")).count(),
-        89
+        90
     );
     assert!(table.contains("| Collection | OpenCollection |"));
     assert!(table.contains("검증 미구현, 이 PR에서는 거부"));
@@ -287,7 +319,7 @@ fn print_allowlist_table() {
 }
 
 #[test]
-fn desktop_denies_calls_outside_the_allowed_71() {
+fn desktop_denies_calls_outside_the_allowed_72() {
     let dir = tempfile::TempDir::new_in("/tmp").unwrap();
     let backend = desktop_backend(dir.path());
     let allowed = forwarded_names();
@@ -356,12 +388,19 @@ fn denied_calls_stay_denied() {
         ("BackendSchedulerService", "unbury_deck"),
         ("BackendSchedulerService", "set_due_date"),
         ("BackendDeckConfigService", "update_deck_configs"),
-        ("BackendImportExportService", "import_anki_package"),
+        ("BackendImportExportService", "import_csv"),
+        ("BackendImportExportService", "import_json_file"),
+        ("BackendImportExportService", "import_json_string"),
+        ("BackendImportExportService", "import_collection_package"),
+        ("BackendImportExportService", "export_note_csv"),
+        ("BackendImportExportService", "export_card_csv"),
         ("BackendMediaService", "add_media_from_url"),
         ("BackendMediaService", "add_media_from_path"),
         ("BackendSearchService", "set_active_browser_columns"),
         ("BackendCollectionService", "check_database"),
         ("BackendAnkidroidService", "run_db_command"),
+        ("BackendDecksService", "update_deck"),
+        ("BackendSchedulerService", "empty_filtered_deck"),
     ];
     for (service, method) in cases {
         let response = call(&backend, service, method, &anki_proto::generic::Empty {});
@@ -638,7 +677,6 @@ fn validates_get_config_bool() {
     );
     assert!(allowed.success, "{}", message_of(&allowed));
 }
-
 
 #[test]
 fn validates_get_queued_cards() {
@@ -1529,7 +1567,14 @@ fn undo_restores_an_answered_card_and_rejects_the_stale_answer() {
         &backend,
         "BackendSchedulerService",
         "answer_card",
-        &answer_rated(card_id, offered.current, easy.clone(), easy_rating, 1_000, 0),
+        &answer_rated(
+            card_id,
+            offered.current,
+            easy.clone(),
+            easy_rating,
+            1_000,
+            0,
+        ),
     );
     assert!(answered.success, "{}", message_of(&answered));
     let after_answer = queued_ids(&backend);
@@ -1780,7 +1825,10 @@ fn open_collection_sends_the_canonical_path() {
     let expected_collection = stored.join("collection.anki2");
     let expected_media = stored.join("collection.media");
     let expected_db = stored.join("collection.media.db");
-    assert_eq!(request.collection_path, expected_collection.to_string_lossy());
+    assert_eq!(
+        request.collection_path,
+        expected_collection.to_string_lossy()
+    );
     assert_eq!(request.media_folder_path, expected_media.to_string_lossy());
     assert_eq!(request.media_db_path, expected_db.to_string_lossy());
     assert_ne!(request.collection_path, spelled);
@@ -1883,4 +1931,850 @@ fn validates_rename_deck() {
         "{}",
         message_of(&missing)
     );
+}
+
+const BATCH_V4: &str = "3f2b8a64-1c0e-4d5a-9b7e-0a1b2c3d4e5f";
+const OTHER_V4: &str = "11111111-1111-4111-8111-111111111111";
+const THIRD_V4: &str = "22222222-2222-4222-8222-222222222222";
+const BATCH_V5: &str = "ec425e06-0eeb-5cbc-b4c8-3818366d46e9";
+
+fn policy_denied(response: &ProtoResponse) -> bool {
+    !response.success && message_of(response).contains("denied:")
+}
+
+fn resident_import(
+    path: String,
+    with_deck_configs: bool,
+) -> anki_proto::import_export::ImportAnkiPackageRequest {
+    anki_proto::import_export::ImportAnkiPackageRequest {
+        package_path: path,
+        options: Some(import_options(
+            anki_proto::import_export::ImportAnkiPackageUpdateCondition::IfNewer as i32,
+            with_deck_configs,
+        )),
+    }
+}
+
+fn e_import(path: String) -> anki_proto::import_export::ImportAnkiPackageRequest {
+    anki_proto::import_export::ImportAnkiPackageRequest {
+        package_path: path,
+        options: Some(import_options(
+            anki_proto::import_export::ImportAnkiPackageUpdateCondition::Never as i32,
+            true,
+        )),
+    }
+}
+
+fn import_options(
+    update_notes: i32,
+    with_deck_configs: bool,
+) -> anki_proto::import_export::ImportAnkiPackageOptions {
+    anki_proto::import_export::ImportAnkiPackageOptions {
+        merge_notetypes: false,
+        update_notes,
+        update_notetypes: anki_proto::import_export::ImportAnkiPackageUpdateCondition::Never as i32,
+        with_scheduling: true,
+        with_deck_configs,
+    }
+}
+
+fn whole_collection_export(
+    path: String,
+    with_deck_configs: bool,
+) -> anki_proto::import_export::ExportAnkiPackageRequest {
+    anki_proto::import_export::ExportAnkiPackageRequest {
+        out_path: path,
+        options: Some(anki_proto::import_export::ExportAnkiPackageOptions {
+            with_scheduling: true,
+            with_deck_configs,
+            with_media: true,
+            legacy: false,
+        }),
+        limit: Some(anki_proto::import_export::ExportLimit {
+            limit: Some(
+                anki_proto::import_export::export_limit::Limit::WholeCollection(
+                    anki_proto::generic::Empty {},
+                ),
+            ),
+        }),
+    }
+}
+
+fn export_package(backend: &crate::api::AnkiBackend, out: &Path) {
+    dispatch_message(
+        backend,
+        "BackendImportExportService",
+        "export_anki_package",
+        &whole_collection_export(out.to_string_lossy().into_owned(), true),
+    )
+    .unwrap_or_else(|err| panic!("export {}: {err}", out.display()));
+}
+
+fn assert_denied(response: &ProtoResponse, needle: &str) {
+    assert!(policy_denied(response), "{}", message_of(response));
+    assert!(
+        message_of(response).contains(needle),
+        "expected {needle} in {}",
+        message_of(response)
+    );
+}
+
+#[test]
+fn validates_resident_import_anki_package() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let paths = col_paths(dir.path());
+    let backend = open_desktop_collection(&paths);
+    let _card = add_basic_card(&backend);
+    let staged_dir = dir.path().join("import").join("staged");
+    let raw_dir = dir.path().join("import").join("raw");
+    std::fs::create_dir_all(&staged_dir).unwrap();
+    std::fs::create_dir_all(&raw_dir).unwrap();
+    let staged = staged_dir.join(format!("{BATCH_V4}.apkg"));
+    export_package(&backend, &staged);
+
+    let imported = call(
+        &backend,
+        "BackendImportExportService",
+        "import_anki_package",
+        &resident_import(staged.to_string_lossy().into_owned(), true),
+    );
+    assert!(imported.success, "{}", message_of(&imported));
+    let again = call(
+        &backend,
+        "BackendImportExportService",
+        "import_anki_package",
+        &resident_import(staged.to_string_lossy().into_owned(), false),
+    );
+    assert!(again.success, "{}", message_of(&again));
+
+    let mut missing_options = resident_import(staged.to_string_lossy().into_owned(), true);
+    missing_options.options = None;
+    assert_denied(
+        &call(
+            &backend,
+            "BackendImportExportService",
+            "import_anki_package",
+            &missing_options,
+        ),
+        "options must be set",
+    );
+
+    let mut merged = resident_import(staged.to_string_lossy().into_owned(), true);
+    merged.options.as_mut().unwrap().merge_notetypes = true;
+    assert_denied(
+        &call(
+            &backend,
+            "BackendImportExportService",
+            "import_anki_package",
+            &merged,
+        ),
+        "merge_notetypes must be false",
+    );
+
+    let mut notes = resident_import(staged.to_string_lossy().into_owned(), true);
+    notes.options.as_mut().unwrap().update_notes =
+        anki_proto::import_export::ImportAnkiPackageUpdateCondition::Always as i32;
+    assert_denied(
+        &call(
+            &backend,
+            "BackendImportExportService",
+            "import_anki_package",
+            &notes,
+        ),
+        "update_notes must be IF_NEWER",
+    );
+
+    let mut notetypes = resident_import(staged.to_string_lossy().into_owned(), true);
+    notetypes.options.as_mut().unwrap().update_notetypes =
+        anki_proto::import_export::ImportAnkiPackageUpdateCondition::IfNewer as i32;
+    assert_denied(
+        &call(
+            &backend,
+            "BackendImportExportService",
+            "import_anki_package",
+            &notetypes,
+        ),
+        "update_notetypes must be NEVER",
+    );
+
+    let mut scheduling = resident_import(staged.to_string_lossy().into_owned(), true);
+    scheduling.options.as_mut().unwrap().with_scheduling = false;
+    assert_denied(
+        &call(
+            &backend,
+            "BackendImportExportService",
+            "import_anki_package",
+            &scheduling,
+        ),
+        "with_scheduling must be true",
+    );
+
+    assert_denied(
+        &call(
+            &backend,
+            "BackendImportExportService",
+            "import_anki_package",
+            &resident_import(format!("import/staged/{BATCH_V4}.apkg"), true),
+        ),
+        "not absolute",
+    );
+    let raw = raw_dir.join(format!("{BATCH_V4}.apkg"));
+    std::fs::copy(&staged, &raw).unwrap();
+    assert_denied(
+        &call(
+            &backend,
+            "BackendImportExportService",
+            "import_anki_package",
+            &resident_import(raw.to_string_lossy().into_owned(), true),
+        ),
+        "import/staged",
+    );
+    let outside = tempfile::TempDir::new_in("/tmp").unwrap();
+    let outside_file = outside.path().join(format!("{BATCH_V4}.apkg"));
+    std::fs::copy(&staged, &outside_file).unwrap();
+    assert_denied(
+        &call(
+            &backend,
+            "BackendImportExportService",
+            "import_anki_package",
+            &resident_import(outside_file.to_string_lossy().into_owned(), true),
+        ),
+        "outside data_dir",
+    );
+    assert_denied(
+        &call(
+            &backend,
+            "BackendImportExportService",
+            "import_anki_package",
+            &resident_import(
+                staged_dir
+                    .join(format!("{BATCH_V5}.apkg"))
+                    .to_string_lossy()
+                    .into_owned(),
+                true,
+            ),
+        ),
+        "uuid v4",
+    );
+    assert_denied(
+        &call(
+            &backend,
+            "BackendImportExportService",
+            "import_anki_package",
+            &resident_import(
+                staged_dir
+                    .join(format!("{}.apkg", BATCH_V4.to_ascii_uppercase()))
+                    .to_string_lossy()
+                    .into_owned(),
+                true,
+            ),
+        ),
+        "uuid v4",
+    );
+
+    let evil = outside.path().join("evil.apkg");
+    std::fs::copy(&staged, &evil).unwrap();
+    let escape_link = staged_dir.join(format!("{OTHER_V4}.apkg"));
+    std::os::unix::fs::symlink(&evil, &escape_link).unwrap();
+    assert_denied(
+        &call(
+            &backend,
+            "BackendImportExportService",
+            "import_anki_package",
+            &resident_import(escape_link.to_string_lossy().into_owned(), true),
+        ),
+        "escapes data_dir",
+    );
+    let raw_target = raw_dir.join(format!("{THIRD_V4}.apkg"));
+    std::fs::copy(&staged, &raw_target).unwrap();
+    let raw_link = staged_dir.join(format!("{THIRD_V4}.apkg"));
+    std::os::unix::fs::symlink(&raw_target, &raw_link).unwrap();
+    assert_denied(
+        &call(
+            &backend,
+            "BackendImportExportService",
+            "import_anki_package",
+            &resident_import(raw_link.to_string_lossy().into_owned(), true),
+        ),
+        "import/staged",
+    );
+}
+
+fn e_root(dir: &tempfile::TempDir) -> crate::api::AnkiBackend {
+    std::fs::create_dir_all(dir.path().join("tmp")).unwrap();
+    crate::api::prepare_runtime(dir.path().join("tmp").to_string_lossy().into_owned());
+    crate::api::open_import_e_backend(init_bytes(), dir.path().to_string_lossy().into_owned())
+        .expect("import-e backend")
+}
+
+fn e_collection_request(root: &Path, id: &str) -> anki_proto::collection::OpenCollectionRequest {
+    let dir = root.join("import").join("e").join(id);
+    std::fs::create_dir_all(dir.join("collection.media")).unwrap();
+    anki_proto::collection::OpenCollectionRequest {
+        collection_path: dir.join("collection.anki2").to_string_lossy().into_owned(),
+        media_folder_path: dir.join("collection.media").to_string_lossy().into_owned(),
+        media_db_path: dir
+            .join("collection.media.db")
+            .to_string_lossy()
+            .into_owned(),
+    }
+}
+
+#[test]
+fn import_e_open_collection_accepts_only_its_directory() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let backend = e_root(&dir);
+    let resident = col_paths(dir.path());
+    assert_denied(
+        &call(
+            &backend,
+            "BackendCollectionService",
+            "open_collection",
+            &open_request(&resident),
+        ),
+        "import/e",
+    );
+    let v5 = e_collection_request(dir.path(), BATCH_V5);
+    assert_denied(
+        &call(&backend, "BackendCollectionService", "open_collection", &v5),
+        "uuid v4",
+    );
+    let relative = anki_proto::collection::OpenCollectionRequest {
+        collection_path: format!("import/e/{BATCH_V4}/collection.anki2"),
+        media_folder_path: format!("import/e/{BATCH_V4}/collection.media"),
+        media_db_path: format!("import/e/{BATCH_V4}/collection.media.db"),
+    };
+    assert_denied(
+        &call(
+            &backend,
+            "BackendCollectionService",
+            "open_collection",
+            &relative,
+        ),
+        "not absolute",
+    );
+
+    std::fs::write(dir.path().join("collection.anki2"), b"resident").unwrap();
+    let linked = e_collection_request(dir.path(), OTHER_V4);
+    std::fs::remove_file(
+        dir.path()
+            .join("import")
+            .join("e")
+            .join(OTHER_V4)
+            .join("collection.anki2"),
+    )
+    .ok();
+    std::os::unix::fs::symlink(
+        dir.path().join("collection.anki2"),
+        dir.path()
+            .join("import")
+            .join("e")
+            .join(OTHER_V4)
+            .join("collection.anki2"),
+    )
+    .unwrap();
+    assert_denied(
+        &call(
+            &backend,
+            "BackendCollectionService",
+            "open_collection",
+            &linked,
+        ),
+        "import/e",
+    );
+
+    let mut media_escapes = e_collection_request(dir.path(), BATCH_V4);
+    media_escapes.media_folder_path = resident.media.to_string_lossy().into_owned();
+    assert_denied(
+        &call(
+            &backend,
+            "BackendCollectionService",
+            "open_collection",
+            &media_escapes,
+        ),
+        "collection.media",
+    );
+
+    let opened = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &e_collection_request(dir.path(), BATCH_V4),
+    );
+    assert!(opened.success, "{}", message_of(&opened));
+    assert!(!fsrs_enabled(&backend));
+    assert!(!marker_path(
+        &dir.path()
+            .join("import")
+            .join("e")
+            .join(BATCH_V4)
+            .join("collection.anki2")
+    )
+    .is_file());
+    let second = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &e_collection_request(dir.path(), OTHER_V4),
+    );
+    assert_denied(&second, "already open");
+
+    for (service, method) in [
+        ("BackendImportExportService", "import_csv"),
+        ("BackendImportExportService", "import_json_file"),
+        ("BackendImportExportService", "import_collection_package"),
+        ("BackendImportExportService", "export_note_csv"),
+        ("BackendNotesService", "update_notes"),
+        ("BackendAnkidroidService", "get_column_names_from_query"),
+    ] {
+        let response = call(&backend, service, method, &anki_proto::generic::Empty {});
+        assert_denied(&response, "not on allowlist");
+    }
+}
+
+#[test]
+fn import_e_import_accepts_only_raw_with_step2_options() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let backend = e_root(&dir);
+    let opened = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &e_collection_request(dir.path(), BATCH_V4),
+    );
+    assert!(opened.success, "{}", message_of(&opened));
+    let raw_dir = dir.path().join("import").join("raw");
+    let staged_dir = dir.path().join("import").join("staged");
+    std::fs::create_dir_all(&raw_dir).unwrap();
+    std::fs::create_dir_all(&staged_dir).unwrap();
+    let raw = raw_dir.join(format!("{BATCH_V4}.apkg"));
+    export_package(&backend, &raw);
+    let imported = call(
+        &backend,
+        "BackendImportExportService",
+        "import_anki_package",
+        &e_import(raw.to_string_lossy().into_owned()),
+    );
+    assert!(imported.success, "{}", message_of(&imported));
+
+    let mut newer = e_import(raw.to_string_lossy().into_owned());
+    newer.options.as_mut().unwrap().update_notes =
+        anki_proto::import_export::ImportAnkiPackageUpdateCondition::IfNewer as i32;
+    assert_denied(
+        &call(
+            &backend,
+            "BackendImportExportService",
+            "import_anki_package",
+            &newer,
+        ),
+        "update_notes must be NEVER",
+    );
+    let mut configs = e_import(raw.to_string_lossy().into_owned());
+    configs.options.as_mut().unwrap().with_deck_configs = false;
+    assert_denied(
+        &call(
+            &backend,
+            "BackendImportExportService",
+            "import_anki_package",
+            &configs,
+        ),
+        "with_deck_configs must be true",
+    );
+    let staged = staged_dir.join(format!("{BATCH_V4}.apkg"));
+    std::fs::copy(&raw, &staged).unwrap();
+    assert_denied(
+        &call(
+            &backend,
+            "BackendImportExportService",
+            "import_anki_package",
+            &e_import(staged.to_string_lossy().into_owned()),
+        ),
+        "import/raw",
+    );
+    let other = raw_dir.join(format!("{OTHER_V4}.apkg"));
+    std::fs::copy(&raw, &other).unwrap();
+    assert_denied(
+        &call(
+            &backend,
+            "BackendImportExportService",
+            "import_anki_package",
+            &e_import(other.to_string_lossy().into_owned()),
+        ),
+        "does not match the open collection",
+    );
+}
+
+#[test]
+fn import_e_export_accepts_only_the_staged_path() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let backend = e_root(&dir);
+    let opened = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &e_collection_request(dir.path(), BATCH_V4),
+    );
+    assert!(opened.success, "{}", message_of(&opened));
+    std::fs::create_dir_all(dir.path().join("import").join("staged")).unwrap();
+    std::fs::create_dir_all(dir.path().join("import").join("raw")).unwrap();
+    let staged = dir
+        .path()
+        .join("import")
+        .join("staged")
+        .join(format!("{BATCH_V4}.apkg"));
+    let exported = call(
+        &backend,
+        "BackendImportExportService",
+        "export_anki_package",
+        &whole_collection_export(staged.to_string_lossy().into_owned(), false),
+    );
+    assert!(exported.success, "{}", message_of(&exported));
+    assert!(staged.is_file());
+
+    let raw = dir
+        .path()
+        .join("import")
+        .join("raw")
+        .join(format!("{BATCH_V4}.apkg"));
+    assert_denied(
+        &call(
+            &backend,
+            "BackendImportExportService",
+            "export_anki_package",
+            &whole_collection_export(raw.to_string_lossy().into_owned(), true),
+        ),
+        "import/staged",
+    );
+    let other = dir
+        .path()
+        .join("import")
+        .join("staged")
+        .join(format!("{OTHER_V4}.apkg"));
+    assert_denied(
+        &call(
+            &backend,
+            "BackendImportExportService",
+            "export_anki_package",
+            &whole_collection_export(other.to_string_lossy().into_owned(), true),
+        ),
+        "does not match the open collection",
+    );
+    let mut legacy = whole_collection_export(staged.to_string_lossy().into_owned(), true);
+    legacy.options.as_mut().unwrap().legacy = true;
+    assert_denied(
+        &call(
+            &backend,
+            "BackendImportExportService",
+            "export_anki_package",
+            &legacy,
+        ),
+        "legacy must be false",
+    );
+    let mut bare = whole_collection_export(staged.to_string_lossy().into_owned(), true);
+    bare.options = None;
+    assert_denied(
+        &call(
+            &backend,
+            "BackendImportExportService",
+            "export_anki_package",
+            &bare,
+        ),
+        "options must be set",
+    );
+    let mut deck_limit = whole_collection_export(staged.to_string_lossy().into_owned(), true);
+    deck_limit.limit = Some(anki_proto::import_export::ExportLimit {
+        limit: Some(anki_proto::import_export::export_limit::Limit::DeckId(1)),
+    });
+    assert_denied(
+        &call(
+            &backend,
+            "BackendImportExportService",
+            "export_anki_package",
+            &deck_limit,
+        ),
+        "whole collection",
+    );
+}
+
+#[test]
+fn import_e_run_db_command_allows_only_the_statement_whitelist() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let backend = e_root(&dir);
+    let opened = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &e_collection_request(dir.path(), BATCH_V4),
+    );
+    assert!(opened.success, "{}", message_of(&opened));
+
+    let begin = db_call(&backend, serde_json::json!({"kind": "begin"}));
+    assert!(begin.success, "{}", message_of(&begin));
+    let updated = db_call(
+        &backend,
+        serde_json::json!({
+            "kind": "executemany",
+            "sql": super::import_e::GUID_UPDATE_SQL,
+            "args": [[BATCH_V4, 1]],
+        }),
+    );
+    assert!(updated.success, "{}", message_of(&updated));
+    let selected = db_call(
+        &backend,
+        serde_json::json!({
+            "kind": "query",
+            "sql": super::import_e::CARDLESS_NOTES_SQL,
+            "args": [],
+            "first_row_only": false,
+        }),
+    );
+    assert!(selected.success, "{}", message_of(&selected));
+    let committed = db_call(&backend, serde_json::json!({"kind": "commit"}));
+    assert!(committed.success, "{}", message_of(&committed));
+    let rolled = db_call(&backend, serde_json::json!({"kind": "rollback"}));
+    assert!(rolled.success, "{}", message_of(&rolled));
+
+    assert_denied(
+        &db_call(
+            &backend,
+            serde_json::json!({
+                "kind": "executemany",
+                "sql": "DELETE FROM notes WHERE id = ?",
+                "args": [[1]],
+            }),
+        ),
+        "whitelist",
+    );
+    assert_denied(
+        &db_call(
+            &backend,
+            serde_json::json!({
+                "kind": "executemany",
+                "sql": "update notes set guid = ? where id = ?",
+                "args": [[BATCH_V4, 1]],
+            }),
+        ),
+        "whitelist",
+    );
+    assert_denied(
+        &db_call(
+            &backend,
+            serde_json::json!({
+                "kind": "query",
+                "sql": super::import_e::GUID_UPDATE_SQL,
+                "args": [],
+                "first_row_only": true,
+            }),
+        ),
+        "whitelist",
+    );
+    assert_denied(
+        &db_call(
+            &backend,
+            serde_json::json!({
+                "kind": "query",
+                "sql": "SELECT id FROM notes",
+                "args": [],
+                "first_row_only": true,
+            }),
+        ),
+        "whitelist",
+    );
+    assert_denied(
+        &db_call(
+            &backend,
+            serde_json::json!({"kind": "begin", "sql": "select 1"}),
+        ),
+        "json fields",
+    );
+    assert_denied(
+        &db_call(
+            &backend,
+            serde_json::json!({
+                "kind": "executemany",
+                "sql": super::import_e::GUID_UPDATE_SQL,
+                "args": [[BATCH_V4]],
+            }),
+        ),
+        "guid string",
+    );
+
+    let desktop_dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let desktop = desktop_backend(desktop_dir.path());
+    assert_denied(
+        &db_call_on(&desktop, serde_json::json!({"kind": "begin"})),
+        "not on allowlist",
+    );
+}
+
+fn db_call(backend: &crate::api::AnkiBackend, value: serde_json::Value) -> ProtoResponse {
+    db_call_on(backend, value)
+}
+
+fn db_call_on(backend: &crate::api::AnkiBackend, value: serde_json::Value) -> ProtoResponse {
+    call(
+        backend,
+        "BackendAnkidroidService",
+        "run_db_command",
+        &anki_proto::generic::Json {
+            json: serde_json::to_vec(&value).unwrap(),
+        },
+    )
+}
+
+#[test]
+fn import_e_search_rejects_a_custom_order() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let backend = e_root(&dir);
+    let opened = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &e_collection_request(dir.path(), BATCH_V4),
+    );
+    assert!(opened.success, "{}", message_of(&opened));
+    let listed = call(
+        &backend,
+        "BackendSearchService",
+        "search_notes",
+        &anki_proto::search::SearchRequest {
+            search: String::new(),
+            order: None,
+        },
+    );
+    assert!(listed.success, "{}", message_of(&listed));
+    let custom = call(
+        &backend,
+        "BackendSearchService",
+        "search_cards",
+        &anki_proto::search::SearchRequest {
+            search: String::new(),
+            order: Some(anki_proto::search::SortOrder {
+                value: Some(anki_proto::search::sort_order::Value::Custom(
+                    "id; drop table notes".into(),
+                )),
+            }),
+        },
+    );
+    assert_denied(&custom, "custom sort order");
+}
+
+#[test]
+fn import_e_name_only_calls_are_forwarded() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let backend = e_root(&dir);
+    let opened = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &e_collection_request(dir.path(), BATCH_V4),
+    );
+    assert!(opened.success, "{}", message_of(&opened));
+    let missing_note = call(
+        &backend,
+        "BackendNotesService",
+        "get_note",
+        &anki_proto::notes::NoteId { nid: 1 },
+    );
+    assert!(
+        !policy_denied(&missing_note),
+        "{}",
+        message_of(&missing_note)
+    );
+    let removed = call(
+        &backend,
+        "BackendNotesService",
+        "remove_notes",
+        &anki_proto::notes::RemoveNotesRequest {
+            note_ids: vec![1],
+            card_ids: Vec::new(),
+        },
+    );
+    assert!(!policy_denied(&removed), "{}", message_of(&removed));
+    let decks = call(
+        &backend,
+        "BackendDecksService",
+        "remove_decks",
+        &anki_proto::decks::DeckIds { dids: vec![] },
+    );
+    assert!(!policy_denied(&decks), "{}", message_of(&decks));
+    let filtered = call(
+        &backend,
+        "BackendSchedulerService",
+        "empty_filtered_deck",
+        &anki_proto::decks::DeckId { did: 1 },
+    );
+    assert!(!policy_denied(&filtered), "{}", message_of(&filtered));
+    let read_deck = call(
+        &backend,
+        "BackendDecksService",
+        "get_deck",
+        &anki_proto::decks::DeckId { did: 1 },
+    );
+    assert_denied(&read_deck, "not on allowlist");
+}
+
+#[test]
+fn import_e_update_deck_clears_only_the_description() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let backend = e_root(&dir);
+    let opened = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &e_collection_request(dir.path(), BATCH_V4),
+    );
+    assert!(opened.success, "{}", message_of(&opened));
+    let original = deck_proto(&backend, 1);
+    let mut described = original.clone();
+    match described.kind.as_mut().unwrap() {
+        anki_proto::decks::deck::Kind::Normal(normal) => {
+            normal.description = "from the file".into();
+        }
+        other => panic!("default deck is not normal: {other:?}"),
+    }
+    dispatch_message(&backend, "BackendDecksService", "update_deck", &described)
+        .expect("set description");
+    let stored = deck_proto(&backend, 1);
+    let mut cleared = stored.clone();
+    match cleared.kind.as_mut().unwrap() {
+        anki_proto::decks::deck::Kind::Normal(normal) => normal.description.clear(),
+        other => panic!("default deck is not normal: {other:?}"),
+    }
+    let updated = call(&backend, "BackendDecksService", "update_deck", &cleared);
+    assert!(updated.success, "{}", message_of(&updated));
+    let after = deck_proto(&backend, 1);
+    match after.kind.unwrap() {
+        anki_proto::decks::deck::Kind::Normal(normal) => assert!(normal.description.is_empty()),
+        other => panic!("default deck is not normal: {other:?}"),
+    }
+
+    let mut renamed = deck_proto(&backend, 1);
+    renamed.name = "Renamed".into();
+    assert_denied(
+        &call(&backend, "BackendDecksService", "update_deck", &renamed),
+        "only the deck description",
+    );
+    let mut nonempty = deck_proto(&backend, 1);
+    match nonempty.kind.as_mut().unwrap() {
+        anki_proto::decks::deck::Kind::Normal(normal) => {
+            normal.description = "still there".into();
+        }
+        other => panic!("default deck is not normal: {other:?}"),
+    }
+    assert_denied(
+        &call(&backend, "BackendDecksService", "update_deck", &nonempty),
+        "description must be empty",
+    );
+}
+
+fn deck_proto(backend: &crate::api::AnkiBackend, id: i64) -> anki_proto::decks::Deck {
+    let bytes = dispatch_message(
+        backend,
+        "BackendDecksService",
+        "get_deck",
+        &anki_proto::decks::DeckId { did: id },
+    )
+    .expect("get deck");
+    anki_proto::decks::Deck::decode(bytes.as_slice()).unwrap()
 }

@@ -2,19 +2,23 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Desktop call policy for one open backend.
+//! Call policy for one open backend.
 //!
 //! Names are `(Backend*Service, snake_case method)`. Numeric indexes are not
 //! an ABI. A call is forwarded only when this table says it is allowed and,
 //! for each checked call, [validators] accepts the request. Calls whose
 //! validator is still not implemented stay on the table and are denied.
 //! `SetActiveBrowserColumns` stays deferred and is not part of the profile.
+//!
+//! [import_e] is a separate profile. It does not share [ALLOWLIST].
 
 mod desktop;
+mod import_e;
 mod validators;
 
 pub(crate) use desktop::enforce;
 pub(crate) use desktop::{prepare_data_dir, DesktopSession};
+pub(crate) use import_e::enforce_import_e;
 
 use std::collections::HashSet;
 
@@ -30,6 +34,7 @@ pub const TAGS: &str = "BackendTagsService";
 pub const MEDIA: &str = "BackendMediaService";
 pub const OCCLUSION: &str = "BackendImageOcclusionService";
 pub const IMPORT_EXPORT: &str = "BackendImportExportService";
+pub const ANKIDROID: &str = "BackendAnkidroidService";
 pub const SCHEDULER: &str = "BackendSchedulerService";
 pub const STATS: &str = "BackendStatsService";
 
@@ -92,7 +97,8 @@ macro_rules! row {
     };
 }
 
-/// Contract 87, in the brief's order, plus the one deferred row.
+/// Resident desktop rows: the contract list, the deferred column row, and
+/// `ImportAnkiPackage`. The import-E profile is [import_e::E_ALLOWLIST].
 pub static ALLOWLIST: &[AllowEntry] = &[
     // Collection (7)
     row!(COLLECTION, "open_collection", Write, Validated, "three paths are absolute, normalized, and inside data_dir; '..' is rejected", "validates_open_collection"),
@@ -176,7 +182,8 @@ pub static ALLOWLIST: &[AllowEntry] = &[
     row!(OCCLUSION, "add_image_occlusion_notetype", Write, Pending, "이미지 가리기 노트타입 UI가 생길 때 연다", PENDING_TEST),
     row!(OCCLUSION, "update_image_occlusion_note", Write, Pending, UNIMPLEMENTED, PENDING_TEST),
     row!(OCCLUSION, "get_image_occlusion_note", Read, Pending, "N1 초크포인트가 없다. 이미지 필드 경로 가드가 생기기 전에는 거부", PENDING_TEST),
-    // Import / export (1)
+    // Import / export (2). Export stays pending. Import is the staged file only.
+    row!(IMPORT_EXPORT, "import_anki_package", Write, Validated, "options is present and fixed: merge_notetypes false, update_notes IF_NEWER, update_notetypes NEVER, with_scheduling true, with_deck_configs true or false; package_path resolves to data_dir/import/staged/<uuid v4>.apkg", "validates_resident_import_anki_package"),
     row!(IMPORT_EXPORT, "export_anki_package", Write, Pending, "내보내는 UI가 없다", PENDING_TEST),
     // Study scheduler (9) plus bury and restore
     row!(SCHEDULER, "get_queued_cards", Read, Validated, "fetch_limit <= 50", "validates_get_queued_cards"),
