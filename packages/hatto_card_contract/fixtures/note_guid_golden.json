@@ -217,6 +217,67 @@
         }
       ],
       "dup": 1
+    },
+    {
+      "label": "empty-raw-collides-with-nid-name",
+      "notes": [
+        {
+          "source_note_id": 5,
+          "raw_guid": ""
+        },
+        {
+          "source_note_id": 7,
+          "raw_guid": "\u001fnid:5"
+        }
+      ],
+      "expect": [
+        {
+          "source_note_id": 5,
+          "guid": "5afa6627-0fd0-52df-a009-b44642ebca12",
+          "dup_index": 0
+        },
+        {
+          "source_note_id": 7,
+          "guid": "23aef8a9-f656-53e4-87d6-6d99b88fab42",
+          "dup_index": 0
+        }
+      ],
+      "dup": 1
+    },
+    {
+      "label": "kth-candidate-claimed-by-pass1",
+      "notes": [
+        {
+          "source_note_id": 20,
+          "raw_guid": "plainGuid3"
+        },
+        {
+          "source_note_id": 30,
+          "raw_guid": "b93f82ab-431c-5b85-ac05-de7c22f288c5"
+        },
+        {
+          "source_note_id": 10,
+          "raw_guid": "plainGuid3"
+        }
+      ],
+      "expect": [
+        {
+          "source_note_id": 10,
+          "guid": "e67308dc-2365-5fc4-900e-4fc19f04c9ab",
+          "dup_index": 0
+        },
+        {
+          "source_note_id": 20,
+          "guid": "0a0f7b13-36eb-54b9-b4a9-f51b0a076e0e",
+          "dup_index": 1
+        },
+        {
+          "source_note_id": 30,
+          "guid": "b93f82ab-431c-5b85-ac05-de7c22f288c5",
+          "dup_index": 0
+        }
+      ],
+      "dup": 1
     }
   ],
   "note_content_hash": [

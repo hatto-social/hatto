@@ -66,6 +66,24 @@ def normalize_import_guid(raw):
     return str(uuid.uuid5(IMPORT_NS, raw))
 
 
+def _guid_text(name):
+    return str(uuid.uuid5(IMPORT_NS, name))
+
+
+def _take_unused(used, candidate_name):
+    candidate = _guid_text(candidate_name)
+    if candidate not in used:
+        used.add(candidate)
+        return candidate, False
+    bump = 1
+    while True:
+        guid = _guid_text(candidate_name + "\x1f#" + str(bump))
+        if guid not in used:
+            used.add(guid)
+            return guid, True
+        bump += 1
+
+
 def assign_import_guids(notes):
     decorated = []
     for note in notes:
@@ -78,20 +96,37 @@ def assign_import_guids(notes):
             continue
         groups.setdefault(key, []).append(index)
     out = [None] * len(decorated)
+    used = set()
+    pass2 = []
     for key, indexes in groups.items():
         indexes = sorted(indexes, key=lambda index: (decorated[index][0], decorated[index][1]))
+        first = indexes[0]
+        nid, _raw, _key = decorated[first]
+        out[first] = {
+            "source_note_id": nid,
+            "guid": key,
+            "dup_index": 0,
+            "reassigned": False,
+        }
+        used.add(key)
         for k, index in enumerate(indexes):
-            nid, raw, _key = decorated[index]
             if k == 0:
-                guid = key
-            else:
-                guid = str(uuid.uuid5(IMPORT_NS, raw + "\x1f" + str(k)))
-            out[index] = {"source_note_id": nid, "guid": guid, "dup_index": k}
-    for index, (nid, _raw, key) in enumerate(decorated):
+                continue
+            nid, raw, _key = decorated[index]
+            pass2.append((nid, raw, k, index, raw + "\x1f" + str(k)))
+    for index, (nid, raw, key) in enumerate(decorated):
         if key is not None:
             continue
-        guid = str(uuid.uuid5(IMPORT_NS, "\x1fnid:" + str(nid)))
-        out[index] = {"source_note_id": nid, "guid": guid, "dup_index": 0}
+        pass2.append((nid, raw, 0, index, "\x1fnid:" + str(nid)))
+    pass2.sort(key=lambda item: (item[0], item[1], item[2]))
+    for nid, _raw, k, index, candidate_name in pass2:
+        guid, reassigned = _take_unused(used, candidate_name)
+        out[index] = {
+            "source_note_id": nid,
+            "guid": guid,
+            "dup_index": k,
+            "reassigned": reassigned,
+        }
     out.sort(key=lambda row: (row["source_note_id"], row["dup_index"], row["guid"]))
     return out
 
@@ -181,11 +216,18 @@ def check(document):
 
     for case in document.get("assign_import_guids", []):
         assigned = assign_import_guids(case["notes"])
-        if assigned != case["expect"]:
-            errors.append(f"{case['label']}: assign mismatch {assigned!r}")
+        public = [
+            {key: row[key] for key in ("source_note_id", "guid", "dup_index")}
+            for row in assigned
+        ]
+        if public != case["expect"]:
+            errors.append(f"{case['label']}: assign mismatch {public!r}")
         if len(assigned) != len(case["notes"]):
             errors.append(f"{case['label']}: note count changed")
-        dup = sum(1 for row in assigned if row["dup_index"] >= 1)
+        guids = [row["guid"] for row in assigned]
+        if len(set(guids)) != len(guids):
+            errors.append(f"{case['label']}: duplicate guid in {guids!r}")
+        dup = sum(1 for row in assigned if row["dup_index"] >= 1 or row["reassigned"])
         if dup != case["dup"]:
             errors.append(f"{case['label']}: dup {case['dup']} counted {dup}")
 

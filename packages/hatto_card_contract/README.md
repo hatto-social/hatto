@@ -102,24 +102,35 @@ The first row is an Anki default base91 guid.
 `assign_import_guids(notes: &[ImportSourceNote]) -> Vec<AssignedImportGuid>`
 
 `ImportSourceNote` is `{ source_note_id: i64, raw_guid: String }`.
-`AssignedImportGuid` is `{ source_note_id, guid, dup_index }`.
+`AssignedImportGuid` is `{ source_note_id, guid, dup_index, reassigned }`.
 `source_note_id` is the original note id. Its decimal form is Rust's
 default integer format.
 
-An empty `raw_guid` is `uuid5(IMPORT_NS, "\x1fnid:" + decimal note id)` with
-`dup_index` 0. It is not passed to `f`.
-
-Every other note is grouped by `f(raw)`, not by the raw string. Two raws
+Non-empty raws are grouped by `f(raw)`, not by the raw string. Two raws
 that normalize to the same guid are one group, including a raw string and
 the canonical text of its own `f` result. Inside a group, notes are ordered
-by `(source_note_id, raw_guid)` as UTF-8 bytes. Index 0 keeps `f(raw)`.
-Index `k` for `k >= 1` is `uuid5(IMPORT_NS, that note's own raw + "\x1f" +
-decimal k)`.
+by `(source_note_id, raw_guid)` as UTF-8 bytes.
 
-Every input note is returned. `import_dup_count` is the number of rows with
-`dup_index >= 1`. The vec is sorted by `(source_note_id, dup_index, guid)`,
-so shuffling the input does not change it. Calling the function twice on the
-same slice returns the same vec.
+Pass 1 gives the 0th note of each group `f(raw)` and `dup_index` 0.
+`reassigned` is false. Those guids are not moved later.
+
+Pass 2 visits empty raws and the notes with group index `k >= 1`, in
+`(source_note_id, raw_guid, k)` order. An empty raw has candidate name
+`"\x1fnid:"` plus the decimal note id and `dup_index` 0. A later note has
+candidate name `that note's own raw + "\x1f" + decimal k` and `dup_index` k.
+The candidate guid is `uuid5(IMPORT_NS, candidate_name)`. If that guid was
+already taken by pass 1 or by an earlier pass-2 note, the note uses the
+first free `uuid5(IMPORT_NS, candidate_name + "\x1f#" + decimal j)` for
+`j = 1, 2, …`, and `reassigned` is true. Otherwise `reassigned` is false and
+the candidate guid is kept.
+
+Every input note is returned, and the guids in one result are distinct.
+`import_dup_count` counts a row when `dup_index >= 1` or `reassigned` is
+true. A row that is both is counted once. The vec is sorted by
+`(source_note_id, dup_index, guid)`, so shuffling the input does not change
+it. Calling the function twice on the same slice returns the same vec. A
+file whose candidates do not collide gets the same guids and `dup_index`
+values as pass 1 plus the unbumped candidates.
 
 ## Content hash
 

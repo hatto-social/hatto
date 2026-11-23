@@ -277,6 +277,7 @@ pub struct AssignedImportGuid {
     pub source_note_id: i64,
     pub guid: String,
     pub dup_index: u32,
+    pub reassigned: bool,
 }
 
 /// Assign canonical import guids. Thin wrapper over `hatto_card_contract`.
@@ -298,6 +299,7 @@ pub fn assign_import_guids(notes: Vec<ImportSourceNote>) -> Vec<AssignedImportGu
             source_note_id: row.source_note_id,
             guid: row.guid,
             dup_index: row.dup_index,
+            reassigned: row.reassigned,
         })
         .collect()
 }

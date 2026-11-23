@@ -6,7 +6,7 @@
 //!
 //! No I/O. [`imported_note_guid`] is called from here only with [`IMPORT_NS`].
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use regex::Regex;
 use sha2::{Digest, Sha256};
@@ -42,27 +42,38 @@ pub struct ImportSourceNote {
 
 /// Assigned guid for one import note.
 ///
-/// `dup_index` is 0 for the first note of a duplicate group and `k` for each
-/// later note. [`import_dup_count`] counts rows with `dup_index >= 1`.
+/// `dup_index` is 0 for the first note of a duplicate group and for an empty
+/// raw, and `k` for each later note. `reassigned` is true when pass 2 moved
+/// off a guid that was already used. [`import_dup_count`] counts a row when
+/// `dup_index >= 1` or `reassigned` is true.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AssignedImportGuid {
     pub source_note_id: i64,
     pub guid: String,
     pub dup_index: u32,
+    pub reassigned: bool,
 }
 
 /// Assign a canonical guid to every note.
 ///
-/// An empty `raw_guid` uses `uuid5(IMPORT_NS, "\x1fnid:" + decimal note id)`.
-/// Other notes are grouped by [`normalize_import_guid`], not by the raw
+/// Non-empty raws are grouped by [`normalize_import_guid`], not by the raw
 /// string. Inside a group, notes are ordered by `(source_note_id, raw_guid)`
-/// as UTF-8 bytes. Index 0 keeps `f(raw)`. Index `k` (`k >= 1`) is
-/// `uuid5(IMPORT_NS, raw_of_that_note + "\x1f" + decimal k)`.
+/// as UTF-8 bytes.
+///
+/// Pass 1 gives the 0th note of each group `f(raw)`. Those guids stay put.
+///
+/// Pass 2 walks empty raws and the `k >= 1` notes in
+/// `(source_note_id, raw_guid, k)` order. The candidate name is
+/// `"\x1fnid:" + decimal id` for an empty raw, and `raw + "\x1f" + decimal k`
+/// otherwise. The candidate guid is `uuid5(IMPORT_NS, candidate_name)`. When
+/// that guid is already used, the note takes the first free
+/// `uuid5(IMPORT_NS, candidate_name + "\x1f#" + decimal j)` for `j = 1, 2, …`
+/// and `reassigned` is set. A file with no such collision keeps the candidate
+/// guids.
 ///
 /// The returned vec has one row per input note. It is sorted by
 /// `(source_note_id, dup_index, guid)`, so a shuffled input returns the same
-/// vec. Equal `(source_note_id, raw_guid)` pairs produce the same multiset of
-/// rows because they share one raw string.
+/// vec.
 pub fn assign_import_guids(notes: &[ImportSourceNote]) -> Vec<AssignedImportGuid> {
     struct Row {
         source_note_id: i64,
@@ -94,6 +105,8 @@ pub fn assign_import_guids(notes: &[ImportSourceNote]) -> Vec<AssignedImportGuid
     }
 
     let mut assigned: Vec<Option<AssignedImportGuid>> = (0..rows.len()).map(|_| None).collect();
+    let mut used: BTreeSet<String> = BTreeSet::new();
+    let mut pass2: Vec<Pass2> = Vec::new();
     for (key, mut indexes) in groups {
         indexes.sort_by(|&left, &right| {
             rows[left]
@@ -101,31 +114,50 @@ pub fn assign_import_guids(notes: &[ImportSourceNote]) -> Vec<AssignedImportGuid
                 .cmp(&rows[right].source_note_id)
                 .then_with(|| rows[left].raw.cmp(&rows[right].raw))
         });
-        for (k, index) in indexes.into_iter().enumerate() {
-            let guid = if k == 0 {
-                key.clone()
-            } else {
-                let name = format!("{}\x1f{k}", rows[index].raw);
-                NoteGuid::from(Uuid::new_v5(&IMPORT_NS, name.as_bytes())).into_string()
-            };
+        let first = indexes[0];
+        assigned[first] = Some(AssignedImportGuid {
+            source_note_id: rows[first].source_note_id,
+            guid: key.clone(),
+            dup_index: 0,
+            reassigned: false,
+        });
+        used.insert(key);
+        for (k, index) in indexes.into_iter().enumerate().skip(1) {
             let dup_index = u32::try_from(k).expect("duplicate index fits in u32");
-            assigned[index] = Some(AssignedImportGuid {
+            pass2.push(Pass2 {
+                index,
                 source_note_id: rows[index].source_note_id,
-                guid,
+                raw: rows[index].raw.clone(),
                 dup_index,
+                candidate_name: format!("{}\x1f{k}", rows[index].raw),
             });
         }
     }
-
     for (index, row) in rows.iter().enumerate() {
         if row.group_key.is_some() {
             continue;
         }
-        let name = format!("\x1fnid:{}", row.source_note_id);
-        assigned[index] = Some(AssignedImportGuid {
+        pass2.push(Pass2 {
+            index,
             source_note_id: row.source_note_id,
-            guid: NoteGuid::from(Uuid::new_v5(&IMPORT_NS, name.as_bytes())).into_string(),
+            raw: row.raw.clone(),
             dup_index: 0,
+            candidate_name: format!("\x1fnid:{}", row.source_note_id),
+        });
+    }
+    pass2.sort_by(|left, right| {
+        left.source_note_id
+            .cmp(&right.source_note_id)
+            .then_with(|| left.raw.cmp(&right.raw))
+            .then_with(|| left.dup_index.cmp(&right.dup_index))
+    });
+    for item in pass2 {
+        let (guid, reassigned) = take_unused_guid(&mut used, &item.candidate_name);
+        assigned[item.index] = Some(AssignedImportGuid {
+            source_note_id: item.source_note_id,
+            guid,
+            dup_index: item.dup_index,
+            reassigned,
         });
     }
 
@@ -142,10 +174,46 @@ pub fn assign_import_guids(notes: &[ImportSourceNote]) -> Vec<AssignedImportGuid
     assigned
 }
 
-/// How many assigned notes are duplicates (`dup_index >= 1`).
+/// How many assigned notes are duplicates.
+///
+/// A row counts when `dup_index >= 1` or pass 2 set `reassigned`. A note that
+/// is both is counted once.
 pub fn import_dup_count(assigned: &[AssignedImportGuid]) -> u32 {
-    let count = assigned.iter().filter(|row| row.dup_index >= 1).count();
+    let count = assigned
+        .iter()
+        .filter(|row| row.dup_index >= 1 || row.reassigned)
+        .count();
     u32::try_from(count).expect("duplicate count fits in u32")
+}
+
+struct Pass2 {
+    index: usize,
+    source_note_id: i64,
+    raw: String,
+    dup_index: u32,
+    candidate_name: String,
+}
+
+fn guid_text(name: &str) -> String {
+    NoteGuid::from(Uuid::new_v5(&IMPORT_NS, name.as_bytes())).into_string()
+}
+
+/// `uuid5(IMPORT_NS, candidate_name)`, or the first free
+/// `uuid5(IMPORT_NS, candidate_name + "\x1f#" + j)` when that guid is taken.
+fn take_unused_guid(used: &mut BTreeSet<String>, candidate_name: &str) -> (String, bool) {
+    let candidate = guid_text(candidate_name);
+    if used.insert(candidate.clone()) {
+        return (candidate, false);
+    }
+    let mut bump = 1u32;
+    loop {
+        let name = format!("{candidate_name}\x1f#{bump}");
+        let guid = guid_text(&name);
+        if used.insert(guid.clone()) {
+            return (guid, true);
+        }
+        bump = bump.checked_add(1).expect("guid collision bump");
+    }
 }
 
 /// SHA-256 of the normalized fields and tags. Media bytes are not an input.
@@ -296,6 +364,8 @@ pub fn summarize_plan(classes: &[Class], dup: u32) -> Plan {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use super::*;
 
     const IMPORT_F: &[(&str, &str, &str)] = &[
@@ -411,6 +481,12 @@ mod tests {
         assert!(assign_cases
             .iter()
             .any(|case| case["label"] == "different-raw-same-f"));
+        assert!(assign_cases
+            .iter()
+            .any(|case| case["label"] == "empty-raw-collides-with-nid-name"));
+        assert!(assign_cases
+            .iter()
+            .any(|case| case["label"] == "kth-candidate-claimed-by-pass1"));
         for case in assign_cases {
             let notes: Vec<ImportSourceNote> = case["notes"]
                 .as_array()
@@ -455,6 +531,8 @@ mod tests {
                 case["label"]
             );
             assert!(assigned.iter().all(|row| is_guid_format(&row.guid)));
+            let mut distinct = BTreeSet::new();
+            assert!(assigned.iter().all(|row| distinct.insert(row.guid.clone())));
             assert_eq!(
                 import_dup_count(&assigned),
                 case["dup"].as_u64().unwrap() as u32,
@@ -637,5 +715,142 @@ mod prop_tests {
                 }
             }
         }
+
+        #[test]
+        fn planted_collisions_stay_unique_and_stable(
+            (notes, keys) in with_shuffle_keys(prop_oneof![
+                planted_empty_collision().boxed(),
+                planted_kth_collision().boxed(),
+            ])
+        ) {
+            let assigned = assign_import_guids(&notes);
+            prop_assert!(assigned.iter().any(|row| row.reassigned));
+            assert_stable_unique(&notes, &keys)?;
+        }
+
+        #[test]
+        fn random_assignment_stays_unique_and_stable(
+            (notes, keys) in with_shuffle_keys(random_notes())
+        ) {
+            assert_stable_unique(&notes, &keys)?;
+        }
+    }
+
+    fn lowercase_uuid(mut bytes: [u8; 16], version: u8) -> String {
+        bytes[6] = (bytes[6] & 0x0f) | (version << 4);
+        bytes[8] = (bytes[8] & 0x3f) | 0x80;
+        Uuid::from_bytes(bytes).as_hyphenated().to_string()
+    }
+
+    fn sixteen_bytes() -> impl Strategy<Value = [u8; 16]> {
+        prop::collection::vec(any::<u8>(), 16).prop_map(|bytes| {
+            let mut out = [0u8; 16];
+            out.copy_from_slice(&bytes);
+            out
+        })
+    }
+
+    fn raw_strategy() -> impl Strategy<Value = String> {
+        prop_oneof![
+            2 => Just(String::new()).boxed(),
+            2 => (1i64..40).prop_map(|id| format!("\x1fnid:{id}")).boxed(),
+            2 => sixteen_bytes().prop_map(|bytes| lowercase_uuid(bytes, 4)).boxed(),
+            1 => sixteen_bytes().prop_map(|bytes| lowercase_uuid(bytes, 5)).boxed(),
+            2 => proptest::string::string_regex("[A-Za-z0-9]{1,10}")
+                .unwrap()
+                .boxed(),
+            2 => proptest::string::string_regex("[A-Za-z0-9]{1,10}")
+                .unwrap()
+                .prop_map(|text| {
+                    Uuid::new_v5(&IMPORT_NS, format!("{text}\x1f1").as_bytes())
+                        .as_hyphenated()
+                        .to_string()
+                })
+                .boxed(),
+        ]
+    }
+
+    fn random_notes() -> impl Strategy<Value = Vec<ImportSourceNote>> {
+        prop::collection::vec((0i64..40, raw_strategy()), 1..8).prop_map(|pairs| {
+            pairs
+                .into_iter()
+                .map(|(id, raw_guid)| ImportSourceNote {
+                    source_note_id: id,
+                    raw_guid,
+                })
+                .collect()
+        })
+    }
+
+    fn planted_empty_collision() -> impl Strategy<Value = Vec<ImportSourceNote>> {
+        (1i64..500, 1i64..500).prop_map(|(empty_id, other_id)| {
+            let other_id = if other_id == empty_id {
+                other_id + 1
+            } else {
+                other_id
+            };
+            vec![
+                ImportSourceNote {
+                    source_note_id: empty_id,
+                    raw_guid: String::new(),
+                },
+                ImportSourceNote {
+                    source_note_id: other_id,
+                    raw_guid: format!("\x1fnid:{empty_id}"),
+                },
+            ]
+        })
+    }
+
+    fn planted_kth_collision() -> impl Strategy<Value = Vec<ImportSourceNote>> {
+        (
+            1i64..400,
+            proptest::string::string_regex("[A-Za-z0-9]{1,12}").unwrap(),
+        )
+            .prop_map(|(id, raw)| {
+                let derived = Uuid::new_v5(&IMPORT_NS, format!("{raw}\x1f1").as_bytes())
+                    .as_hyphenated()
+                    .to_string();
+                vec![
+                    ImportSourceNote {
+                        source_note_id: id,
+                        raw_guid: raw.clone(),
+                    },
+                    ImportSourceNote {
+                        source_note_id: id + 1,
+                        raw_guid: raw,
+                    },
+                    ImportSourceNote {
+                        source_note_id: id + 2,
+                        raw_guid: derived,
+                    },
+                ]
+            })
+    }
+
+    fn with_shuffle_keys(
+        notes: impl Strategy<Value = Vec<ImportSourceNote>>,
+    ) -> impl Strategy<Value = (Vec<ImportSourceNote>, Vec<u64>)> {
+        notes.prop_flat_map(|notes| {
+            let len = notes.len();
+            (Just(notes), prop::collection::vec(any::<u64>(), len))
+        })
+    }
+
+    fn assert_stable_unique(notes: &[ImportSourceNote], keys: &[u64]) -> Result<(), TestCaseError> {
+        let assigned = assign_import_guids(notes);
+        prop_assert_eq!(assigned.len(), notes.len());
+        let mut guids: Vec<&str> = assigned.iter().map(|row| row.guid.as_str()).collect();
+        guids.sort_unstable();
+        let mut distinct = guids.clone();
+        distinct.dedup();
+        prop_assert_eq!(distinct.len(), guids.len());
+        prop_assert!(assigned.iter().all(|row| is_guid_format(&row.guid)));
+        let mut shuffled: Vec<(u64, ImportSourceNote)> =
+            keys.iter().copied().zip(notes.iter().cloned()).collect();
+        shuffled.sort_by_key(|(key, _)| *key);
+        let shuffled: Vec<ImportSourceNote> = shuffled.into_iter().map(|(_, note)| note).collect();
+        prop_assert_eq!(assign_import_guids(&shuffled), assigned);
+        Ok(())
     }
 }
