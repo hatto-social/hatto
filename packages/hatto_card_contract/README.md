@@ -9,11 +9,10 @@ Pure note-guid derivation, import classification, and guid format checks.
 takes a `String` and returns `bool`. `validate_deck_file` is not re-exported.
 
 `assign_import_guids`, `note_content_hash`, `classify`, and `summarize_plan`
-have thin wrappers in `rslib_bridge`'s Rust API, with the same `frb(sync)`
-marker the three functions above use. The generated Dart and Rust bindings
-were not regenerated with them, so those four are not in the Dart API yet.
-Regenerating would rewrite the large generated bridge and change the wire
-content hash the app loads. The wrappers do no I/O and do not call rslib.
+are re-exported by `rslib_bridge` over flutter_rust_bridge, with the same
+`frb(sync)` marker as the three functions above. The generated Dart names are
+`assignImportGuids`, `noteContentHash`, `classify`, and `summarizePlan`.
+The wrappers do no I/O and do not call rslib. The apps do not call them.
 
 `apps/desktop` and `packages/hatto_store` do not call the three re-exported
 functions, and neither does `apps/mobile/lib`. The device smoke
@@ -214,10 +213,11 @@ crate, the Dart test
 
 `imported` and `local` are checked by all four readers. `import_f` is the
 six rows in the table above. Rust, the Python script, and the bridge Dart
-test check it. The Dart test uses the already exported `isGuidFormat` and
-`importedNoteGuid` with `IMPORT_NS`. The mobile test does not read `import_f`.
+test check it. The Dart test uses `isGuidFormat` and `importedNoteGuid` with
+`IMPORT_NS`. The mobile test does not read `import_f`.
 
 `assign_import_guids`, `note_content_hash`, `classify`, and `plans` are
-checked by the Rust tests and the Python script. The Python script
-recomputes with `uuid`, `hashlib`, and `re`. The generated Dart API does not
-export those functions yet, so the Dart test does not call them.
+checked by the Rust tests, the Python script, and the bridge Dart test. The
+Python script recomputes with `uuid`, `hashlib`, and `re`. The Dart test
+calls the generated bridge functions. The mobile test does not read those
+sections.

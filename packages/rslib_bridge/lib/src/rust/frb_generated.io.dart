@@ -47,19 +47,46 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String dco_decode_String(dynamic raw);
 
   @protected
+  AssignedImportGuid dco_decode_assigned_import_guid(dynamic raw);
+
+  @protected
   bool dco_decode_bool(dynamic raw);
+
+  @protected
+  NoteFacts dco_decode_box_autoadd_note_facts(dynamic raw);
 
   @protected
   ServiceMethodIndex dco_decode_box_autoadd_service_method_index(dynamic raw);
 
   @protected
+  Class dco_decode_class(dynamic raw);
+
+  @protected
   DeckConfigRow dco_decode_deck_config_row(dynamic raw);
+
+  @protected
+  int dco_decode_i_32(dynamic raw);
 
   @protected
   PlatformInt64 dco_decode_i_64(dynamic raw);
 
   @protected
+  ImportSourceNote dco_decode_import_source_note(dynamic raw);
+
+  @protected
+  List<String> dco_decode_list_String(dynamic raw);
+
+  @protected
+  List<AssignedImportGuid> dco_decode_list_assigned_import_guid(dynamic raw);
+
+  @protected
+  List<Class> dco_decode_list_class(dynamic raw);
+
+  @protected
   List<DeckConfigRow> dco_decode_list_deck_config_row(dynamic raw);
+
+  @protected
+  List<ImportSourceNote> dco_decode_list_import_source_note(dynamic raw);
 
   @protected
   List<int> dco_decode_list_prim_u_8_loose(dynamic raw);
@@ -68,9 +95,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
 
   @protected
+  NoteFacts dco_decode_note_facts(dynamic raw);
+
+  @protected
+  NoteFacts? dco_decode_opt_box_autoadd_note_facts(dynamic raw);
+
+  @protected
   ServiceMethodIndex? dco_decode_opt_box_autoadd_service_method_index(
     dynamic raw,
   );
+
+  @protected
+  Plan dco_decode_plan(dynamic raw);
 
   @protected
   ProtoResponse dco_decode_proto_response(dynamic raw);
@@ -112,7 +148,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String sse_decode_String(SseDeserializer deserializer);
 
   @protected
+  AssignedImportGuid sse_decode_assigned_import_guid(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   bool sse_decode_bool(SseDeserializer deserializer);
+
+  @protected
+  NoteFacts sse_decode_box_autoadd_note_facts(SseDeserializer deserializer);
 
   @protected
   ServiceMethodIndex sse_decode_box_autoadd_service_method_index(
@@ -120,13 +164,38 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  Class sse_decode_class(SseDeserializer deserializer);
+
+  @protected
   DeckConfigRow sse_decode_deck_config_row(SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
   PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
 
   @protected
+  ImportSourceNote sse_decode_import_source_note(SseDeserializer deserializer);
+
+  @protected
+  List<String> sse_decode_list_String(SseDeserializer deserializer);
+
+  @protected
+  List<AssignedImportGuid> sse_decode_list_assigned_import_guid(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<Class> sse_decode_list_class(SseDeserializer deserializer);
+
+  @protected
   List<DeckConfigRow> sse_decode_list_deck_config_row(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<ImportSourceNote> sse_decode_list_import_source_note(
     SseDeserializer deserializer,
   );
 
@@ -137,9 +206,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
+  NoteFacts sse_decode_note_facts(SseDeserializer deserializer);
+
+  @protected
+  NoteFacts? sse_decode_opt_box_autoadd_note_facts(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   ServiceMethodIndex? sse_decode_opt_box_autoadd_service_method_index(
     SseDeserializer deserializer,
   );
+
+  @protected
+  Plan sse_decode_plan(SseDeserializer deserializer);
 
   @protected
   ProtoResponse sse_decode_proto_response(SseDeserializer deserializer);
@@ -160,9 +240,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   BigInt sse_decode_usize(SseDeserializer deserializer);
-
-  @protected
-  int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
   void
@@ -189,7 +266,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_String(String self, SseSerializer serializer);
 
   @protected
+  void sse_encode_assigned_import_guid(
+    AssignedImportGuid self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_bool(bool self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_note_facts(
+    NoteFacts self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_service_method_index(
@@ -198,14 +287,44 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_class(Class self, SseSerializer serializer);
+
+  @protected
   void sse_encode_deck_config_row(DeckConfigRow self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_i_32(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
 
   @protected
+  void sse_encode_import_source_note(
+    ImportSourceNote self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_String(List<String> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_assigned_import_guid(
+    List<AssignedImportGuid> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_class(List<Class> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_deck_config_row(
     List<DeckConfigRow> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_import_source_note(
+    List<ImportSourceNote> self,
     SseSerializer serializer,
   );
 
@@ -219,10 +338,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_note_facts(NoteFacts self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_note_facts(
+    NoteFacts? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_service_method_index(
     ServiceMethodIndex? self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_plan(Plan self, SseSerializer serializer);
 
   @protected
   void sse_encode_proto_response(ProtoResponse self, SseSerializer serializer);
@@ -244,9 +375,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_usize(BigInt self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_i_32(int self, SseSerializer serializer);
 }
 
 // Section: wire_class

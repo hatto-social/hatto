@@ -7,9 +7,9 @@ import 'frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `backend_error`, `call`, `decode_backend_error`, `dispatch_message`, `dispatch`, `is_unrestricted`, `lock_session`
+// These functions are ignored because they are not marked as `pub`: `backend_error`, `bridge_facts`, `call`, `decode_backend_error`, `dispatch_message`, `dispatch`, `from_contract_class`, `is_unrestricted`, `lock_session`, `to_contract_class`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `BridgeProfile`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `open_backend_with_profile`
 
 /// Point rslib's temp files at an app-writable directory.
@@ -76,7 +76,8 @@ String ankiVersion() => RustLib.instance.api.crateApiAnkiVersion();
 /// `job_id` is a UUID string. `source_guid` is not trimmed or normalized.
 /// The returned text is the canonical lowercase hyphenated form. An empty
 /// `source_guid` is an error. This calls `hatto_card_contract` and does not
-/// reimplement the hash.
+/// reimplement the hash. Import calls this only with `job_id` equal to
+/// `IMPORT_NS`. A per-job namespace is not used for import.
 String importedNoteGuid({required String jobId, required String sourceGuid}) =>
     RustLib.instance.api.crateApiImportedNoteGuid(
       jobId: jobId,
@@ -97,6 +98,31 @@ String localNoteGuid({required String opId, required int k}) =>
 bool isGuidFormat({required String text}) =>
     RustLib.instance.api.crateApiIsGuidFormat(text: text);
 
+/// Assign canonical import guids. Thin wrapper over `hatto_card_contract`.
+///
+/// The contract crate stays free of I/O and rslib. This does not open a
+/// collection.
+List<AssignedImportGuid> assignImportGuids({
+  required List<ImportSourceNote> notes,
+}) => RustLib.instance.api.crateApiAssignImportGuids(notes: notes);
+
+/// SHA-256 of normalized fields and tags. 32 bytes. Media bytes are not hashed.
+Uint8List noteContentHash({
+  required List<String> fields,
+  required List<String> tags,
+}) => RustLib.instance.api.crateApiNoteContentHash(fields: fields, tags: tags);
+
+/// Classify one file note. `content_hash` must be 32 bytes.
+///
+/// The order is the contract order: missing resident, notetype, content
+/// hash, then `mod`.
+Class classify({required NoteFacts file, NoteFacts? resident}) =>
+    RustLib.instance.api.crateApiClassify(file: file, resident: resident);
+
+/// Count classes and keep `dup`. Thin wrapper over `summarize_plan`.
+Plan summarizePlan({required List<Class> classes, required int dup}) =>
+    RustLib.instance.api.crateApiSummarizePlan(classes: classes, dup: dup);
+
 /// Export the collection in `dir` through `run_service_method`, then read the
 /// package offline.
 ///
@@ -115,6 +141,43 @@ Future<String> smokeOpenCollection({required String dir}) =>
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AnkiBackend>>
 abstract class AnkiBackend implements RustOpaqueInterface {}
+
+/// Assigned guid for one import note.
+///
+/// `dup_index >= 1` or `reassigned` marks a duplicate.
+class AssignedImportGuid {
+  final PlatformInt64 sourceNoteId;
+  final String guid;
+  final int dupIndex;
+  final bool reassigned;
+
+  const AssignedImportGuid({
+    required this.sourceNoteId,
+    required this.guid,
+    required this.dupIndex,
+    required this.reassigned,
+  });
+
+  @override
+  int get hashCode =>
+      sourceNoteId.hashCode ^
+      guid.hashCode ^
+      dupIndex.hashCode ^
+      reassigned.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AssignedImportGuid &&
+          runtimeType == other.runtimeType &&
+          sourceNoteId == other.sourceNoteId &&
+          guid == other.guid &&
+          dupIndex == other.dupIndex &&
+          reassigned == other.reassigned;
+}
+
+/// How one file note relates to the resident collection.
+enum Class { new_, same, changed, localNewer, blocked }
 
 /// One row of `deck_config` after prost-decoding the `config` blob.
 ///
@@ -146,6 +209,100 @@ class DeckConfigRow {
           name == other.name &&
           newPerDay == other.newPerDay &&
           reviewsPerDay == other.reviewsPerDay;
+}
+
+/// One note from an import file, before guid assignment.
+class ImportSourceNote {
+  final PlatformInt64 sourceNoteId;
+  final String rawGuid;
+
+  const ImportSourceNote({required this.sourceNoteId, required this.rawGuid});
+
+  @override
+  int get hashCode => sourceNoteId.hashCode ^ rawGuid.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ImportSourceNote &&
+          runtimeType == other.runtimeType &&
+          sourceNoteId == other.sourceNoteId &&
+          rawGuid == other.rawGuid;
+}
+
+/// Facts for one note after guid normalization.
+///
+/// `r#mod` is Anki's `mod` column. `mod` is a Rust keyword.
+class NoteFacts {
+  final String guid;
+  final PlatformInt64 notetypeId;
+  final PlatformInt64 mod;
+  final Uint8List contentHash;
+
+  const NoteFacts({
+    required this.guid,
+    required this.notetypeId,
+    required this.mod,
+    required this.contentHash,
+  });
+
+  @override
+  int get hashCode =>
+      guid.hashCode ^ notetypeId.hashCode ^ mod.hashCode ^ contentHash.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is NoteFacts &&
+          runtimeType == other.runtimeType &&
+          guid == other.guid &&
+          notetypeId == other.notetypeId &&
+          mod == other.mod &&
+          contentHash == other.contentHash;
+}
+
+/// Counts for one file. `no_resident_call` is `new == 0 && changed == 0`.
+class Plan {
+  final int new_;
+  final int same;
+  final int changed;
+  final int localNewer;
+  final int blocked;
+  final int dup;
+  final bool noResidentCall;
+
+  const Plan({
+    required this.new_,
+    required this.same,
+    required this.changed,
+    required this.localNewer,
+    required this.blocked,
+    required this.dup,
+    required this.noResidentCall,
+  });
+
+  @override
+  int get hashCode =>
+      new_.hashCode ^
+      same.hashCode ^
+      changed.hashCode ^
+      localNewer.hashCode ^
+      blocked.hashCode ^
+      dup.hashCode ^
+      noResidentCall.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Plan &&
+          runtimeType == other.runtimeType &&
+          new_ == other.new_ &&
+          same == other.same &&
+          changed == other.changed &&
+          localNewer == other.localNewer &&
+          blocked == other.blocked &&
+          dup == other.dup &&
+          noResidentCall == other.noResidentCall;
 }
 
 /// Bytes returned by `run_service_method`.

@@ -271,7 +271,9 @@ pub struct ImportSourceNote {
     pub raw_guid: String,
 }
 
-/// Assigned guid for one import note. `dup_index >= 1` marks a duplicate.
+/// Assigned guid for one import note.
+///
+/// `dup_index >= 1` or `reassigned` marks a duplicate.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AssignedImportGuid {
     pub source_note_id: i64,
@@ -670,6 +672,15 @@ mod tests {
                 "{}",
                 case["label"]
             );
+            let dup = assigned
+                .iter()
+                .filter(|row| row.dup_index >= 1 || row.reassigned)
+                .count() as u64;
+            assert_eq!(dup, case["dup"].as_u64().unwrap(), "{}", case["label"]);
+            let mut guids: Vec<_> = assigned.iter().map(|row| row.guid.clone()).collect();
+            guids.sort();
+            guids.dedup();
+            assert_eq!(guids.len(), assigned.len(), "{}", case["label"]);
         }
 
         for case in file["note_content_hash"].as_array().unwrap() {
