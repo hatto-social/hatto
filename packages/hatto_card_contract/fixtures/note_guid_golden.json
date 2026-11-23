@@ -1,5 +1,5 @@
 {
-  "description": "Golden note-guid cases for hatto_card_contract. Rust, Dart, and the Python smoke read this file. Expected values are RFC 4122 UUID version 5 from Python's uuid module.",
+  "description": "Golden note-guid and import-classification cases for hatto_card_contract. Rust, Dart, and the Python smoke read this file. Expected uuid values are RFC 4122 UUID version 5 from Python's uuid module, except a lowercase version-4 or version-5 guid, which normalize_import_guid keeps unchanged. Content hashes are lowercase SHA-256 hex.",
   "imported": [
     {
       "label": "rfc4122-dns-python.org",
@@ -80,5 +80,436 @@
     "job1": "6f0c0a1e-7b2d-4c3a-8e91-0a1b2c3d4e5f",
     "job2": "7a1d1b2f-8c3e-4d4b-9f02-1b2c3d4e5f60",
     "job3": "8b2e2c30-9d4f-4e5c-a013-2c3d4e5f6071"
-  }
+  },
+  "import_f": [
+    {
+      "label": "base91-anki-default",
+      "raw": "oxr*zK@INR",
+      "expect": "c15b93d8-6483-5c3c-b94f-1061d53fda92"
+    },
+    {
+      "label": "base91-slash-hash",
+      "raw": "b91/guid#2",
+      "expect": "51aed07c-7668-5726-9830-b3eab77dcb92"
+    },
+    {
+      "label": "plain-text",
+      "raw": "plainGuid3",
+      "expect": "e67308dc-2365-5fc4-900e-4fc19f04c9ab"
+    },
+    {
+      "label": "lowercase-uuid-v4-preserved",
+      "raw": "3f2b8a64-1c0e-4d5a-9b7e-0a1b2c3d4e5f",
+      "expect": "3f2b8a64-1c0e-4d5a-9b7e-0a1b2c3d4e5f"
+    },
+    {
+      "label": "uppercase-uuid-is-not-a-guid",
+      "raw": "3F2B8A64-1C0E-4D5A-9B7E-0A1B2C3D4E5F",
+      "expect": "4b08d171-4bd5-5f1f-8e85-1315a11b82e0"
+    },
+    {
+      "label": "untrimmed-two-trailing-spaces",
+      "raw": "a  ",
+      "expect": "490ca485-3c6e-5cd4-82ab-174a4023134b"
+    }
+  ],
+  "assign_import_guids": [
+    {
+      "label": "empty-raw",
+      "notes": [
+        {
+          "source_note_id": 10,
+          "raw_guid": ""
+        }
+      ],
+      "expect": [
+        {
+          "source_note_id": 10,
+          "guid": "edc46e61-20c1-5e60-a9f4-f290a1df51d6",
+          "dup_index": 0
+        }
+      ],
+      "dup": 0
+    },
+    {
+      "label": "same-raw-three",
+      "notes": [
+        {
+          "source_note_id": 30,
+          "raw_guid": "plainGuid3"
+        },
+        {
+          "source_note_id": 10,
+          "raw_guid": "plainGuid3"
+        },
+        {
+          "source_note_id": 20,
+          "raw_guid": "plainGuid3"
+        }
+      ],
+      "expect": [
+        {
+          "source_note_id": 10,
+          "guid": "e67308dc-2365-5fc4-900e-4fc19f04c9ab",
+          "dup_index": 0
+        },
+        {
+          "source_note_id": 20,
+          "guid": "b93f82ab-431c-5b85-ac05-de7c22f288c5",
+          "dup_index": 1
+        },
+        {
+          "source_note_id": 30,
+          "guid": "f5c53931-f689-5d75-ad5e-41f44a391e84",
+          "dup_index": 2
+        }
+      ],
+      "dup": 2
+    },
+    {
+      "label": "different-raw-same-f",
+      "notes": [
+        {
+          "source_note_id": 2,
+          "raw_guid": "e67308dc-2365-5fc4-900e-4fc19f04c9ab"
+        },
+        {
+          "source_note_id": 1,
+          "raw_guid": "plainGuid3"
+        }
+      ],
+      "expect": [
+        {
+          "source_note_id": 1,
+          "guid": "e67308dc-2365-5fc4-900e-4fc19f04c9ab",
+          "dup_index": 0
+        },
+        {
+          "source_note_id": 2,
+          "guid": "0673a651-39cb-5db8-8779-b3ef8f08add4",
+          "dup_index": 1
+        }
+      ],
+      "dup": 1
+    },
+    {
+      "label": "different-raw-same-f-own-raw",
+      "notes": [
+        {
+          "source_note_id": 1,
+          "raw_guid": "e67308dc-2365-5fc4-900e-4fc19f04c9ab"
+        },
+        {
+          "source_note_id": 2,
+          "raw_guid": "plainGuid3"
+        }
+      ],
+      "expect": [
+        {
+          "source_note_id": 1,
+          "guid": "e67308dc-2365-5fc4-900e-4fc19f04c9ab",
+          "dup_index": 0
+        },
+        {
+          "source_note_id": 2,
+          "guid": "b93f82ab-431c-5b85-ac05-de7c22f288c5",
+          "dup_index": 1
+        }
+      ],
+      "dup": 1
+    }
+  ],
+  "note_content_hash": [
+    {
+      "label": "plain-field",
+      "fields": [
+        "see <img src=\"foo.jpg\">"
+      ],
+      "tags": [
+        "beta",
+        "alpha"
+      ],
+      "expect": "5072419ff6659aa006bd7f55af66658dcdfde052cadbc6a2f7faa2e06ab4cb10"
+    },
+    {
+      "label": "suffix-stripped",
+      "fields": [
+        "see <img src=\"foo-0123456789abcdef0123456789abcdef01234567.jpg\">"
+      ],
+      "tags": [
+        "beta",
+        "alpha"
+      ],
+      "expect": "5072419ff6659aa006bd7f55af66658dcdfde052cadbc6a2f7faa2e06ab4cb10"
+    },
+    {
+      "label": "short-hex",
+      "fields": [
+        "see <img src=\"foo-0123456789abcdef.jpg\">"
+      ],
+      "tags": [
+        "beta",
+        "alpha"
+      ],
+      "expect": "b2f1e2ca0507d06693bb9225d3b41377aec87aae71497baa2dce8fffc0915010"
+    },
+    {
+      "label": "upper-hex",
+      "fields": [
+        "see <img src=\"foo-0123456789ABCDEF0123456789ABCDEF01234567.jpg\">"
+      ],
+      "tags": [
+        "beta",
+        "alpha"
+      ],
+      "expect": "9669fcb50360412d5db99f8a77222d14f44de2b6b40ada397a5baa478b2c922b"
+    },
+    {
+      "label": "no-extension",
+      "fields": [
+        "word-0123456789abcdef0123456789abcdef01234567"
+      ],
+      "tags": [
+        "t"
+      ],
+      "expect": "259230aa3db35b2fe9bc9aaec9cee3353668e9948eebd3624fbf2bf3e66952c2"
+    },
+    {
+      "label": "word",
+      "fields": [
+        "word"
+      ],
+      "tags": [
+        "t"
+      ],
+      "expect": "c13d5a2138b7372ca94dff851fc68518d41672202030de9ff60f86b122d26f38"
+    },
+    {
+      "label": "tags-reordered",
+      "fields": [
+        "front",
+        "back"
+      ],
+      "tags": [
+        "b",
+        "a"
+      ],
+      "expect": "95a5ff6fee13cbe69010b86ab6850618285a3c296c9ae00ace1280ec1de7517d"
+    },
+    {
+      "label": "tags-duplicated",
+      "fields": [
+        "front",
+        "back"
+      ],
+      "tags": [
+        "b",
+        "a",
+        "a"
+      ],
+      "expect": "95a5ff6fee13cbe69010b86ab6850618285a3c296c9ae00ace1280ec1de7517d"
+    },
+    {
+      "label": "tag-uppercase",
+      "fields": [
+        "x"
+      ],
+      "tags": [
+        "A"
+      ],
+      "expect": "378cabf287759291ab16f48079ac75b8441483f7b917f2fafec3a165ab3d6ba2"
+    },
+    {
+      "label": "tag-lowercase",
+      "fields": [
+        "x"
+      ],
+      "tags": [
+        "a"
+      ],
+      "expect": "bccdbd705e78408f76f37621b617ee6b254c3a57100cdf1162220ad4c04d6160"
+    },
+    {
+      "label": "nfc-field",
+      "fields": [
+        "\u00e9"
+      ],
+      "tags": [],
+      "expect": "cd6cf1865a798fc9e8ab92c4ab8868ab28bec9c0cd7b9c66bbdadb56247361c6"
+    },
+    {
+      "label": "nfd-field",
+      "fields": [
+        "e\u0301"
+      ],
+      "tags": [],
+      "expect": "961ce78a694c6029e52a5e03539bba1d3b3fcedc6d3ad8f707bb9e80e798efe6"
+    },
+    {
+      "label": "untrimmed-field",
+      "fields": [
+        " a "
+      ],
+      "tags": [],
+      "expect": "187bd1b32d664e2943358943d78ee615f88f4a1489752ee07acf19a29b34b238"
+    },
+    {
+      "label": "trimmed-field",
+      "fields": [
+        "a"
+      ],
+      "tags": [],
+      "expect": "dd547044bac1572a1df2028932d8f20c7e790e55e3a8e5f7727e453bc03ebba3"
+    },
+    {
+      "label": "double-suffix",
+      "fields": [
+        "a-0123456789abcdef0123456789abcdef01234567.png and b-0123456789abcdef0123456789abcdef01234567.jpg"
+      ],
+      "tags": [],
+      "expect": "b0d8b85d4b92bf5d579a2c9dec2a4dc03b4143400468f7d2408f8ecfe912d6d0"
+    },
+    {
+      "label": "double-plain",
+      "fields": [
+        "a.png and b.jpg"
+      ],
+      "tags": [],
+      "expect": "b0d8b85d4b92bf5d579a2c9dec2a4dc03b4143400468f7d2408f8ecfe912d6d0"
+    }
+  ],
+  "classify": [
+    {
+      "label": "no-resident",
+      "file": {
+        "guid": "3f2b8a64-1c0e-4d5a-9b7e-0a1b2c3d4e5f",
+        "notetype_id": 1,
+        "mod": 10,
+        "content_hash": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "resident": null,
+      "expect": "NEW"
+    },
+    {
+      "label": "notetype-differs-same-content",
+      "file": {
+        "guid": "3f2b8a64-1c0e-4d5a-9b7e-0a1b2c3d4e5f",
+        "notetype_id": 2,
+        "mod": 50,
+        "content_hash": "1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      "resident": {
+        "guid": "3f2b8a64-1c0e-4d5a-9b7e-0a1b2c3d4e5f",
+        "notetype_id": 1,
+        "mod": 10,
+        "content_hash": "1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      "expect": "BLOCKED"
+    },
+    {
+      "label": "same-content",
+      "file": {
+        "guid": "3f2b8a64-1c0e-4d5a-9b7e-0a1b2c3d4e5f",
+        "notetype_id": 1,
+        "mod": 50,
+        "content_hash": "1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      "resident": {
+        "guid": "3f2b8a64-1c0e-4d5a-9b7e-0a1b2c3d4e5f",
+        "notetype_id": 1,
+        "mod": 10,
+        "content_hash": "1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      "expect": "SAME"
+    },
+    {
+      "label": "file-mod-newer",
+      "file": {
+        "guid": "3f2b8a64-1c0e-4d5a-9b7e-0a1b2c3d4e5f",
+        "notetype_id": 1,
+        "mod": 50,
+        "content_hash": "2222222222222222222222222222222222222222222222222222222222222222"
+      },
+      "resident": {
+        "guid": "3f2b8a64-1c0e-4d5a-9b7e-0a1b2c3d4e5f",
+        "notetype_id": 1,
+        "mod": 10,
+        "content_hash": "1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      "expect": "CHANGED"
+    },
+    {
+      "label": "resident-mod-newer",
+      "file": {
+        "guid": "3f2b8a64-1c0e-4d5a-9b7e-0a1b2c3d4e5f",
+        "notetype_id": 1,
+        "mod": 10,
+        "content_hash": "2222222222222222222222222222222222222222222222222222222222222222"
+      },
+      "resident": {
+        "guid": "3f2b8a64-1c0e-4d5a-9b7e-0a1b2c3d4e5f",
+        "notetype_id": 1,
+        "mod": 50,
+        "content_hash": "1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      "expect": "LOCAL_NEWER"
+    },
+    {
+      "label": "same-mod-different-content",
+      "file": {
+        "guid": "3f2b8a64-1c0e-4d5a-9b7e-0a1b2c3d4e5f",
+        "notetype_id": 1,
+        "mod": 10,
+        "content_hash": "2222222222222222222222222222222222222222222222222222222222222222"
+      },
+      "resident": {
+        "guid": "3f2b8a64-1c0e-4d5a-9b7e-0a1b2c3d4e5f",
+        "notetype_id": 1,
+        "mod": 10,
+        "content_hash": "1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      "expect": "LOCAL_NEWER"
+    }
+  ],
+  "plans": [
+    {
+      "label": "one-of-each",
+      "classes": [
+        "NEW",
+        "SAME",
+        "CHANGED",
+        "LOCAL_NEWER",
+        "BLOCKED"
+      ],
+      "dup": 2,
+      "expect": {
+        "new": 1,
+        "same": 1,
+        "changed": 1,
+        "local_newer": 1,
+        "blocked": 1,
+        "dup": 2,
+        "no_resident_call": false
+      }
+    },
+    {
+      "label": "no-resident-call",
+      "classes": [
+        "SAME",
+        "BLOCKED",
+        "LOCAL_NEWER",
+        "SAME"
+      ],
+      "dup": 0,
+      "expect": {
+        "new": 0,
+        "same": 2,
+        "changed": 0,
+        "local_newer": 1,
+        "blocked": 1,
+        "dup": 0,
+        "no_resident_call": true
+      }
+    }
+  ]
 }

@@ -65,6 +65,33 @@ void main() {
     expect(isGuidFormat(text: '886313e1-3b8a-5372-9b90-0c9aee199e5d'), isTrue);
     expect(isGuidFormat(text: 'hattoDummy'), isFalse);
     expect(isGuidFormat(text: '886313E1-3B8A-5372-9B90-0C9AEE199E5D'), isFalse);
+
+    const importNs = 'ec425e06-0eeb-5cbc-b4c8-3818366d46e9';
+    final importF = document['import_f'] as List<dynamic>;
+    expect(
+      importF.map((raw) => (raw as Map<String, dynamic>)['raw'] as String),
+      containsAll(<String>[
+        'oxr*zK@INR',
+        'b91/guid#2',
+        'plainGuid3',
+        '3f2b8a64-1c0e-4d5a-9b7e-0a1b2c3d4e5f',
+        '3F2B8A64-1C0E-4D5A-9B7E-0A1B2C3D4E5F',
+        'a  ',
+      ]),
+    );
+    for (final raw in importF) {
+      final item = raw as Map<String, dynamic>;
+      final source = item['raw'] as String;
+      final once = isGuidFormat(text: source)
+          ? source
+          : importedNoteGuid(jobId: importNs, sourceGuid: source);
+      expect(once, item['expect'], reason: item['label'] as String);
+      expect(isGuidFormat(text: once), isTrue, reason: item['label'] as String);
+      final twice = isGuidFormat(text: once)
+          ? once
+          : importedNoteGuid(jobId: importNs, sourceGuid: once);
+      expect(twice, once, reason: item['label'] as String);
+    }
   });
 }
 
