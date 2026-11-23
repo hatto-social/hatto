@@ -2,17 +2,17 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Note-guid derivation and guid format checks.
+//! Note-guid derivation, import classification, and guid format checks.
 //!
 //! This crate is pure. It does no I/O, has no global state, and does not
 //! depend on rslib or protobuf. Desktop and mobile call it through
 //! `rslib_bridge`. The `hatto-card` CLI calls it directly.
 //!
-//! Agreed rules (do not extend them here):
-//! - Imported notes: `uuid5(namespace = job_id, name = source_guid UTF-8 bytes)`.
-//!   No trim and no Unicode normalization. An empty `source_guid` is rejected.
-//!   `job_id` is an app-issued UUID. There is no second hash and no constant
-//!   namespace string.
+//! Agreed rules:
+//! - [`imported_note_guid`] is `uuid5(namespace = job_id, name = source_guid
+//!   UTF-8 bytes)`. No trim and no Unicode normalization. An empty
+//!   `source_guid` is rejected. Import calls it only with `job_id` equal to
+//!   [`IMPORT_NS`]. A per-job namespace is not used for import.
 //! - Local notes: `uuid5(namespace = op_id, name = "note:" + k)` where `k` is
 //!   the zero-based index inside one write. `op_id` is a CSPRNG UUIDv4 stored
 //!   on the intent before the write.
@@ -26,13 +26,20 @@
 //!   `hatto_store`'s job. This crate does not know `note_map`.
 //!
 //! Sources: proposal 개정 2 and 개정 3 (2026-11-20), Gina desktop contract
-//! §1.3 (op_id and the AddNote validator row), ADR 2026-11-18 (note guid is
-//! uuid5 of the job and the original guid; the server does not reissue it).
+//! §1.3 (op_id and the AddNote validator row). Import guids, content hashes,
+//! and note classification follow the desktop import contract slice I1.
+//! [`imported_note_guid`] is called from import only with [`IMPORT_NS`].
 
 use std::collections::BTreeMap;
 use std::fmt;
 
 pub use uuid::Uuid;
+
+mod import_plan;
+pub use import_plan::{
+    assign_import_guids, classify, import_dup_count, normalize_import_guid, note_content_hash,
+    summarize_plan, AssignedImportGuid, Class, ImportSourceNote, NoteFacts, Plan, IMPORT_NS,
+};
 
 /// Canonical Anki guid text: lowercase, hyphenated, 36 characters.
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
@@ -244,18 +251,19 @@ mod tests {
         let file: serde_json::Value = serde_json::from_str(&text).unwrap();
         let imported = file["imported"].as_array().unwrap();
         assert!(
-            imported.iter().any(|case| case["source_guid"] == "한글"
-                || case["label"] == "non-ascii-hangul"),
+            imported
+                .iter()
+                .any(|case| case["source_guid"] == "한글" || case["label"] == "non-ascii-hangul"),
             "non-ascii case missing"
         );
         assert!(
             imported.iter().any(|case| {
-                case["source_guid"]
-                    .as_str()
-                    .is_some_and(|text| text.contains('\'')
+                case["source_guid"].as_str().is_some_and(|text| {
+                    text.contains('\'')
                         && text.contains('"')
                         && text.contains('`')
-                        && text.contains('\\'))
+                        && text.contains('\\')
+                })
             }),
             "base91 specials missing"
         );
