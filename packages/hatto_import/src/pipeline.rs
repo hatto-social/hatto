@@ -1,0 +1,500 @@
+// SPDX-FileCopyrightText: 2026 Hatto Social contributors
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! Steps 1–7 of the import contract §7.1.
+//!
+//! The resident collection is not opened here. Note and deck facts come from
+//! [`ResidentLookup`]. When the plan's `no_resident_call` is true, the raw,
+//! E, and staged files are removed before this function returns.
+
+use std::fs;
+use std::io::Read;
+use std::path::{Path, PathBuf};
+
+use hatto_card_contract::{
+    assign_import_guids, classify, import_dup_count, note_content_hash, summarize_plan, Class,
+    ImportSourceNote, NoteFacts, Plan,
+};
+use sha2::{Digest, Sha256};
+use uuid::Uuid;
+
+use crate::channel::ESession;
+use crate::cleanup::remove_import_batch;
+use crate::error::ImportError;
+use crate::paths::{e_dir, raw_dir, staged_dir};
+use crate::preset::{self, clear_deck_description};
+
+const ZIP_LOCAL_MAGIC: [u8; 4] = [0x50, 0x4b, 0x03, 0x04];
+const DEFAULT_DECK_ID: i64 = 1;
+
+/// Size ceiling for one package. The number is the caller's (O4). This crate
+/// does not pick one.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ImportLimits {
+    pub max_bytes: u64,
+}
+
+/// What the caller can read about the resident collection.
+///
+/// `note_facts` is the note with that normalized guid, or `None` when the
+/// resident collection has no such note. `deck_id_by_name` is the same
+/// comparison as `GetDeckIdByName`: `None` means that call's NotFound.
+pub trait ResidentLookup {
+    fn note_facts(&mut self, guid: &str) -> Result<Option<NoteFacts>, ImportError>;
+    fn deck_id_by_name(&mut self, name: &str) -> Result<Option<i64>, ImportError>;
+}
+
+/// E pipeline output. `staged_path` is where the export was written.
+///
+/// On a no-op (`plan.no_resident_call`) the file is deleted before return.
+/// `staged_sha256` is still the digest of the bytes that were written.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PreparedImport {
+    pub import_batch_id: Uuid,
+    pub plan: Plan,
+    pub staged_path: PathBuf,
+    pub staged_sha256: String,
+    pub first_import: bool,
+    pub cardless_notes: u32,
+}
+
+/// Run §7.1 steps 1–7 for `source` under `data_dir`.
+pub fn prepare_import(
+    data_dir: &Path,
+    source: &Path,
+    limits: ImportLimits,
+    lookup: &mut dyn ResidentLookup,
+) -> Result<PreparedImport, ImportError> {
+    crate::paths::check_data_dir(data_dir)?;
+    if !data_dir.is_dir() {
+        return Err(ImportError::new("data_dir is not a directory"));
+    }
+    validate_source(source, limits)?;
+    let batch_id = Uuid::new_v4();
+    let guard = BatchGuard {
+        data_dir: data_dir.to_path_buf(),
+        batch_id,
+        armed: true,
+    };
+    let prepared = prepare_with_id(data_dir, source, limits, batch_id, lookup)?;
+    if prepared.plan.no_resident_call {
+        // §15.5: a no-op deletes raw, e, and staged. The guard does that.
+        Ok(prepared)
+    } else {
+        guard.disarm();
+        Ok(prepared)
+    }
+}
+
+fn prepare_with_id(
+    data_dir: &Path,
+    source: &Path,
+    limits: ImportLimits,
+    batch_id: Uuid,
+    lookup: &mut dyn ResidentLookup,
+) -> Result<PreparedImport, ImportError> {
+    fs::create_dir_all(raw_dir(data_dir)?).map_err(|err| ImportError::new(err.to_string()))?;
+    fs::create_dir_all(e_dir(data_dir)?).map_err(|err| ImportError::new(err.to_string()))?;
+    fs::create_dir_all(staged_dir(data_dir)?).map_err(|err| ImportError::new(err.to_string()))?;
+
+    let raw = crate::paths::raw_apkg_path(data_dir, batch_id)?;
+    fs::copy(source, &raw).map_err(|err| ImportError::new(format!("copy source: {err}")))?;
+    validate_source(&raw, limits)?;
+
+    let cardless_notes = {
+        let session = ESession::open(data_dir, batch_id)?;
+        session.import_source_package(data_dir, batch_id)?;
+        let assigned = rewrite_guids(&session)?;
+        let cardless_notes = delete_cardless_notes(&session)?;
+        delete_filtered_decks(&session)?;
+        let pairs = classify_notes(&session, lookup)?;
+        let dup = import_dup_count(&assigned);
+        let class_list: Vec<Class> = pairs.iter().map(|(_, class)| *class).collect();
+        let plan = summarize_plan(&class_list, dup);
+        remove_skipped_notes(&session, &pairs)?;
+        remove_empty_decks(&session)?;
+        let names = deck_names_except_default(&session)?;
+        let first_import = judge_first_import(lookup, &names)?;
+        if !first_import {
+            clear_matched_descriptions(&session, lookup, &names)?;
+        } else {
+            preset::restore_original_default_preset(&session, data_dir, batch_id)?;
+        }
+        let names_after = deck_names_except_default(&session)?;
+        let first_import = judge_first_import(lookup, &names_after)?;
+        session.export_staged(data_dir, batch_id, first_import)?;
+        let staged = crate::paths::staged_apkg_path(data_dir, batch_id)?;
+        let staged_sha256 = sha256_file(&staged)?;
+        Ok(PreparedImport {
+            import_batch_id: batch_id,
+            plan,
+            staged_path: staged,
+            staged_sha256,
+            first_import,
+            cardless_notes,
+        })
+    }?;
+    Ok(cardless_notes)
+}
+
+struct BatchGuard {
+    data_dir: PathBuf,
+    batch_id: Uuid,
+    armed: bool,
+}
+
+impl BatchGuard {
+    fn disarm(mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for BatchGuard {
+    fn drop(&mut self) {
+        if self.armed {
+            let _ = remove_import_batch(&self.data_dir, self.batch_id);
+        }
+    }
+}
+
+fn validate_source(path: &Path, limits: ImportLimits) -> Result<(), ImportError> {
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("");
+    if !name.ends_with(".apkg") || path.extension().and_then(|ext| ext.to_str()) != Some("apkg") {
+        return Err(ImportError::new("package extension is not .apkg"));
+    }
+    let meta =
+        fs::metadata(path).map_err(|err| ImportError::new(format!("{}: {err}", path.display())))?;
+    if !meta.is_file() {
+        return Err(ImportError::new("package path is not a file"));
+    }
+    if meta.len() > limits.max_bytes {
+        return Err(ImportError::new("package exceeds max_bytes"));
+    }
+    let mut file = fs::File::open(path)
+        .map_err(|err| ImportError::new(format!("{}: {err}", path.display())))?;
+    let mut magic = [0u8; 4];
+    file.read_exact(&mut magic)
+        .map_err(|_| ImportError::new("package is shorter than a zip local header"))?;
+    if magic != ZIP_LOCAL_MAGIC {
+        return Err(ImportError::new(
+            "package does not start with a zip local header",
+        ));
+    }
+    Ok(())
+}
+
+fn rewrite_guids(
+    session: &ESession,
+) -> Result<Vec<hatto_card_contract::AssignedImportGuid>, ImportError> {
+    let rows = session.db_json(&serde_json::json!({
+        "kind": "query",
+        "sql": "SELECT id, guid FROM notes ORDER BY id",
+        "args": [],
+        "first_row_only": false,
+    }))?;
+    let mut sources = Vec::new();
+    for row in rows.as_array().unwrap_or(&Vec::new()) {
+        let cells = row
+            .as_array()
+            .ok_or_else(|| ImportError::new("notes row is not an array"))?;
+        let id = cell_i64(&cells[0], "notes.id")?;
+        let guid = cell_string(&cells[1], "notes.guid")?;
+        sources.push(ImportSourceNote {
+            source_note_id: id,
+            raw_guid: guid,
+        });
+    }
+    let assigned = assign_import_guids(&sources);
+    if assigned.is_empty() {
+        return Ok(assigned);
+    }
+    let args: Vec<Vec<serde_json::Value>> = assigned
+        .iter()
+        .map(|row| {
+            vec![
+                serde_json::Value::String(row.guid.clone()),
+                serde_json::json!(row.source_note_id),
+            ]
+        })
+        .collect();
+    session.db_json(&serde_json::json!({"kind": "begin"}))?;
+    let updated = session.db_json(&serde_json::json!({
+        "kind": "executemany",
+        "sql": "UPDATE notes SET guid = ? WHERE id = ?",
+        "args": args,
+    }));
+    if let Err(err) = updated {
+        let _ = session.db_json(&serde_json::json!({"kind": "rollback"}));
+        return Err(err);
+    }
+    session.db_json(&serde_json::json!({"kind": "commit"}))?;
+    Ok(assigned)
+}
+
+fn delete_cardless_notes(session: &ESession) -> Result<u32, ImportError> {
+    let rows = session.db_json(&serde_json::json!({
+        "kind": "query",
+        "sql": "SELECT id FROM notes WHERE id NOT IN (SELECT nid FROM cards) ORDER BY id",
+        "args": [],
+        "first_row_only": false,
+    }))?;
+    let mut ids = Vec::new();
+    for row in rows.as_array().unwrap_or(&Vec::new()) {
+        let cells = row
+            .as_array()
+            .ok_or_else(|| ImportError::new("cardless row is not an array"))?;
+        ids.push(cell_i64(&cells[0], "notes.id")?);
+    }
+    let count = u32::try_from(ids.len())
+        .map_err(|_| ImportError::new("cardless note count does not fit in u32"))?;
+    if ids.is_empty() {
+        return Ok(0);
+    }
+    let _changes: anki_proto::collection::OpChangesWithCount = session.call(
+        "BackendNotesService",
+        "remove_notes",
+        &anki_proto::notes::RemoveNotesRequest {
+            note_ids: ids,
+            card_ids: Vec::new(),
+        },
+    )?;
+    Ok(count)
+}
+
+fn delete_filtered_decks(session: &ESession) -> Result<(), ImportError> {
+    let mut filtered = Vec::new();
+    for (deck_id, name) in deck_entries(session)? {
+        let deck = preset::get_deck(session, deck_id)?;
+        if matches!(deck.kind, Some(anki_proto::decks::deck::Kind::Filtered(_))) {
+            filtered.push((name.matches("::").count(), deck_id));
+        }
+    }
+    filtered.sort_by(|left, right| right.0.cmp(&left.0).then(left.1.cmp(&right.1)));
+    for (_depth, deck_id) in filtered {
+        let _empty: anki_proto::collection::OpChanges = session.call(
+            "BackendSchedulerService",
+            "empty_filtered_deck",
+            &anki_proto::decks::DeckId { did: deck_id },
+        )?;
+        let _removed: anki_proto::collection::OpChangesWithCount = session.call(
+            "BackendDecksService",
+            "remove_decks",
+            &anki_proto::decks::DeckIds {
+                dids: vec![deck_id],
+            },
+        )?;
+    }
+    Ok(())
+}
+
+fn classify_notes(
+    session: &ESession,
+    lookup: &mut dyn ResidentLookup,
+) -> Result<Vec<(i64, Class)>, ImportError> {
+    let rows = session.db_json(&serde_json::json!({
+        "kind": "query",
+        "sql": "SELECT id, guid, mid, \"mod\", flds, tags FROM notes ORDER BY id",
+        "args": [],
+        "first_row_only": false,
+    }))?;
+    let mut classes = Vec::new();
+    for row in rows.as_array().unwrap_or(&Vec::new()) {
+        let cells = row
+            .as_array()
+            .ok_or_else(|| ImportError::new("note row is not an array"))?;
+        let id = cell_i64(&cells[0], "notes.id")?;
+        let guid = cell_string(&cells[1], "notes.guid")?;
+        let notetype_id = cell_i64(&cells[2], "notes.mid")?;
+        let mod_secs = cell_i64(&cells[3], "notes.mod")?;
+        let flds = cell_string(&cells[4], "notes.flds")?;
+        let tags = cell_string(&cells[5], "notes.tags")?;
+        let file = facts_from_stored_note(&guid, notetype_id, mod_secs, &flds, &tags);
+        let resident = lookup.note_facts(&guid)?;
+        let class = classify(&file, resident.as_ref());
+        classes.push((id, class));
+    }
+    Ok(classes)
+}
+
+fn remove_skipped_notes(session: &ESession, classes: &[(i64, Class)]) -> Result<(), ImportError> {
+    let ids: Vec<i64> = classes
+        .iter()
+        .filter(|(_, class)| matches!(class, Class::Same | Class::LocalNewer | Class::Blocked))
+        .map(|(id, _)| *id)
+        .collect();
+    if ids.is_empty() {
+        return Ok(());
+    }
+    let _changes: anki_proto::collection::OpChangesWithCount = session.call(
+        "BackendNotesService",
+        "remove_notes",
+        &anki_proto::notes::RemoveNotesRequest {
+            note_ids: ids,
+            card_ids: Vec::new(),
+        },
+    )?;
+    Ok(())
+}
+
+fn remove_empty_decks(session: &ESession) -> Result<(), ImportError> {
+    loop {
+        let decks = deck_entries(session)?;
+        let counts = card_counts_by_deck(session)?;
+        let names: Vec<String> = decks.iter().map(|(_, name)| name.clone()).collect();
+        let mut leaves = Vec::new();
+        for (deck_id, name) in &decks {
+            if *deck_id == DEFAULT_DECK_ID {
+                continue;
+            }
+            if counts.get(deck_id).copied().unwrap_or(0) > 0 {
+                continue;
+            }
+            let prefix = format!("{name}::");
+            if names.iter().any(|other| other.starts_with(&prefix)) {
+                continue;
+            }
+            leaves.push(*deck_id);
+        }
+        if leaves.is_empty() {
+            break;
+        }
+        let _removed: anki_proto::collection::OpChangesWithCount = session.call(
+            "BackendDecksService",
+            "remove_decks",
+            &anki_proto::decks::DeckIds { dids: leaves },
+        )?;
+    }
+    Ok(())
+}
+
+pub(crate) fn deck_entries(session: &ESession) -> Result<Vec<(i64, String)>, ImportError> {
+    let names: anki_proto::decks::DeckNames = session.call(
+        "BackendDecksService",
+        "get_deck_names",
+        &anki_proto::decks::GetDeckNamesRequest {
+            skip_empty_default: false,
+            include_filtered: true,
+        },
+    )?;
+    let mut entries = Vec::new();
+    for entry in names.entries {
+        entries.push((entry.id, entry.name));
+    }
+    Ok(entries)
+}
+
+fn deck_names_except_default(session: &ESession) -> Result<Vec<String>, ImportError> {
+    let mut names = Vec::new();
+    for (deck_id, name) in deck_entries(session)? {
+        if deck_id != DEFAULT_DECK_ID {
+            names.push(name);
+        }
+    }
+    Ok(names)
+}
+
+fn judge_first_import(
+    lookup: &mut dyn ResidentLookup,
+    names: &[String],
+) -> Result<bool, ImportError> {
+    for name in names {
+        if lookup.deck_id_by_name(name)?.is_some() {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+fn clear_matched_descriptions(
+    session: &ESession,
+    lookup: &mut dyn ResidentLookup,
+    names: &[String],
+) -> Result<(), ImportError> {
+    let decks = deck_entries(session)?;
+    for name in names {
+        if lookup.deck_id_by_name(name)?.is_none() {
+            continue;
+        }
+        let Some((deck_id, _)) = decks.iter().find(|(_, deck_name)| deck_name == name) else {
+            continue;
+        };
+        clear_deck_description(session, *deck_id)?;
+    }
+    Ok(())
+}
+
+fn card_counts_by_deck(
+    session: &ESession,
+) -> Result<std::collections::BTreeMap<i64, i64>, ImportError> {
+    let rows = session.db_json(&serde_json::json!({
+        "kind": "query",
+        "sql": "SELECT did, count(*) FROM cards GROUP BY did",
+        "args": [],
+        "first_row_only": false,
+    }))?;
+    let mut counts = std::collections::BTreeMap::new();
+    for row in rows.as_array().unwrap_or(&Vec::new()) {
+        let cells = row
+            .as_array()
+            .ok_or_else(|| ImportError::new("card count row is not an array"))?;
+        counts.insert(
+            cell_i64(&cells[0], "cards.did")?,
+            cell_i64(&cells[1], "count")?,
+        );
+    }
+    Ok(counts)
+}
+
+/// Facts for one stored note. Fields are split on `\\x1f` and empty fields are
+/// kept. Tags are split on ASCII spaces and empty pieces are dropped.
+pub fn facts_from_stored_note(
+    guid: &str,
+    notetype_id: i64,
+    mod_secs: i64,
+    flds: &str,
+    tags: &str,
+) -> NoteFacts {
+    let fields: Vec<&str> = flds.split('\u{1f}').collect();
+    let tag_list: Vec<&str> = tags.split(' ').filter(|tag| !tag.is_empty()).collect();
+    NoteFacts {
+        guid: guid.to_string(),
+        notetype_id,
+        r#mod: mod_secs,
+        content_hash: note_content_hash(&fields, &tag_list),
+    }
+}
+
+fn sha256_file(path: &Path) -> Result<String, ImportError> {
+    let bytes =
+        fs::read(path).map_err(|err| ImportError::new(format!("{}: {err}", path.display())))?;
+    let digest = Sha256::digest(&bytes);
+    Ok(hex_encode(&digest))
+}
+
+fn hex_encode(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        out.push(HEX[(byte >> 4) as usize] as char);
+        out.push(HEX[(byte & 0x0f) as usize] as char);
+    }
+    out
+}
+
+fn cell_i64(value: &serde_json::Value, label: &str) -> Result<i64, ImportError> {
+    value
+        .as_i64()
+        .or_else(|| value.as_u64().and_then(|number| i64::try_from(number).ok()))
+        .ok_or_else(|| ImportError::new(format!("{label} is not an integer")))
+}
+
+fn cell_string(value: &serde_json::Value, label: &str) -> Result<String, ImportError> {
+    value
+        .as_str()
+        .map(str::to_string)
+        .ok_or_else(|| ImportError::new(format!("{label} is not a string")))
+}
