@@ -238,18 +238,41 @@ fn rewrite_guids(
     Ok(assigned)
 }
 
-/// I3 rejects one `run_db_command` body at 4 MiB. Each chunk stays under that.
-const MAX_DB_REQUEST_BYTES: usize = 4 * 1024 * 1024;
 const GUID_UPDATE_SQL: &str = "UPDATE notes SET guid = ? WHERE id = ?";
 
+/// Empty executemany body: the prefix
+/// `{"kind":"executemany","sql":"UPDATE notes SET guid = ? WHERE id = ?","args":[`
+/// plus `]}`. serde_json sorts object keys, so the bytes on the wire are
+/// `{"args":[],"kind":…,"sql":…}`, which is the same length.
+const GUID_UPDATE_ENVELOPE: &str =
+    r#"{"kind":"executemany","sql":"UPDATE notes SET guid = ? WHERE id = ?","args":[]}"#;
+const GUID_UPDATE_OUTER_BYTES: usize = GUID_UPDATE_ENVELOPE.len();
+
+/// I3's 4 MiB cap is the protobuf `run_db_command` request. The protobuf
+/// wrapper is at most 5 bytes. The JSON body stays at or under 4 MiB - 16.
+const GUID_UPDATE_LIMIT: usize = 4 * 1024 * 1024 - 16;
+
 fn guid_update_chunks(args: &[Vec<serde_json::Value>]) -> Vec<&[Vec<serde_json::Value>]> {
+    let row_lens: Vec<usize> = args.iter().map(|row| json_row_len(row)).collect();
     let mut chunks = Vec::new();
     let mut start = 0;
-    while start < args.len() {
-        let mut end = start + 1;
-        while end < args.len() && guid_update_body_len(&args[start..end + 1]) < MAX_DB_REQUEST_BYTES
-        {
+    while start < row_lens.len() {
+        let mut end = start;
+        let mut wire = GUID_UPDATE_OUTER_BYTES;
+        while end < row_lens.len() {
+            // A comma sits between rows. The first row has no comma, which is
+            // the same as counting `len + 1` for every row and then dropping
+            // the comma after the last one.
+            let add = row_lens[end] + usize::from(end != start);
+            let next = wire.saturating_add(add);
+            if end > start && next > GUID_UPDATE_LIMIT {
+                break;
+            }
+            wire = next;
             end += 1;
+            if wire > GUID_UPDATE_LIMIT {
+                break;
+            }
         }
         chunks.push(&args[start..end]);
         start = end;
@@ -257,14 +280,22 @@ fn guid_update_chunks(args: &[Vec<serde_json::Value>]) -> Vec<&[Vec<serde_json::
     chunks
 }
 
-fn guid_update_body_len(args: &[Vec<serde_json::Value>]) -> usize {
-    serde_json::to_vec(&serde_json::json!({
-        "kind": "executemany",
-        "sql": GUID_UPDATE_SQL,
-        "args": args,
-    }))
-    .map(|body| body.len())
-    .unwrap_or(usize::MAX)
+fn json_row_len(row: &[serde_json::Value]) -> usize {
+    serde_json::to_vec(row)
+        .map(|bytes| bytes.len())
+        .unwrap_or(usize::MAX)
+}
+
+/// Byte length of one executemany body. One pass over the rows.
+fn guid_update_wire_len(args: &[Vec<serde_json::Value>]) -> usize {
+    if args.is_empty() {
+        return GUID_UPDATE_OUTER_BYTES;
+    }
+    let mut wire = GUID_UPDATE_OUTER_BYTES;
+    for (index, row) in args.iter().enumerate() {
+        wire = wire.saturating_add(json_row_len(row) + usize::from(index != 0));
+    }
+    wire
 }
 
 fn delete_cardless_notes(session: &ESession) -> Result<u32, ImportError> {
@@ -540,7 +571,46 @@ fn cell_string(value: &serde_json::Value, label: &str) -> Result<String, ImportE
 
 #[cfg(test)]
 mod chunk_tests {
-    use super::{guid_update_body_len, guid_update_chunks, MAX_DB_REQUEST_BYTES};
+    use super::{
+        guid_update_chunks, guid_update_wire_len, GUID_UPDATE_ENVELOPE, GUID_UPDATE_LIMIT,
+        GUID_UPDATE_OUTER_BYTES, GUID_UPDATE_SQL,
+    };
+
+    fn serialized_len(args: &[Vec<serde_json::Value>]) -> usize {
+        serde_json::to_vec(&serde_json::json!({
+            "kind": "executemany",
+            "sql": GUID_UPDATE_SQL,
+            "args": args,
+        }))
+        .unwrap()
+        .len()
+    }
+
+    fn string_row(chars: usize) -> Vec<serde_json::Value> {
+        vec![serde_json::Value::String("x".repeat(chars))]
+    }
+
+    fn assert_chunks_match_wire(args: &[Vec<serde_json::Value>]) {
+        let chunks = guid_update_chunks(args);
+        let mut rows = 0;
+        for chunk in &chunks {
+            let wire = guid_update_wire_len(chunk);
+            assert_eq!(wire, serialized_len(chunk), "chunk of {}", chunk.len());
+            assert!(wire <= GUID_UPDATE_LIMIT || chunk.len() == 1);
+            rows += chunk.len();
+        }
+        assert_eq!(rows, args.len());
+    }
+
+    #[test]
+    fn envelope_is_the_empty_executemany_body() {
+        assert_eq!(
+            GUID_UPDATE_ENVELOPE,
+            format!(r#"{{"kind":"executemany","sql":"{GUID_UPDATE_SQL}","args":[]}}"#)
+        );
+        assert_eq!(GUID_UPDATE_OUTER_BYTES, serialized_len(&[]));
+        assert_eq!(guid_update_wire_len(&[]), serialized_len(&[]));
+    }
 
     #[test]
     fn guid_updates_are_split_under_the_db_request_cap() {
@@ -551,11 +621,51 @@ mod chunk_tests {
         let args = vec![row; 5];
         let chunks = guid_update_chunks(&args);
         assert!(chunks.len() > 1);
-        let mut rows = 0;
-        for chunk in &chunks {
-            assert!(guid_update_body_len(chunk) < MAX_DB_REQUEST_BYTES);
-            rows += chunk.len();
+        assert_chunks_match_wire(&args);
+    }
+
+    #[test]
+    fn chunks_split_on_either_side_of_the_limit() {
+        let filler = string_row(996);
+        let filler_len = serde_json::to_vec(&filler).unwrap().len();
+        assert_eq!(filler_len, 1000);
+        let mut count = 0;
+        let mut wire = GUID_UPDATE_OUTER_BYTES + filler_len;
+        while wire + filler_len + 1 + 64 <= GUID_UPDATE_LIMIT {
+            count += 1;
+            wire += filler_len + 1;
         }
-        assert_eq!(rows, args.len());
+        count += 1;
+        assert_eq!(guid_update_wire_len(&vec![filler.clone(); count]), wire);
+
+        let tail_for = |total: usize| -> usize {
+            let need = total - wire - 1;
+            assert!(need >= 4, "tail {need} cannot be a one-string row");
+            need - 4
+        };
+        let mut under = vec![filler.clone(); count];
+        under.push(string_row(tail_for(GUID_UPDATE_LIMIT - 1)));
+        let mut exact = vec![filler.clone(); count];
+        exact.push(string_row(tail_for(GUID_UPDATE_LIMIT)));
+        let mut over = vec![filler; count];
+        over.push(string_row(tail_for(GUID_UPDATE_LIMIT + 1)));
+
+        assert_eq!(serialized_len(&under), GUID_UPDATE_LIMIT - 1);
+        assert_eq!(guid_update_wire_len(&under), GUID_UPDATE_LIMIT - 1);
+        assert_eq!(guid_update_chunks(&under).len(), 1);
+
+        assert_eq!(serialized_len(&exact), GUID_UPDATE_LIMIT);
+        assert_eq!(guid_update_wire_len(&exact), GUID_UPDATE_LIMIT);
+        assert_eq!(guid_update_chunks(&exact).len(), 1);
+
+        assert_eq!(serialized_len(&over), GUID_UPDATE_LIMIT + 1);
+        assert_eq!(guid_update_wire_len(&over), GUID_UPDATE_LIMIT + 1);
+        let chunks = guid_update_chunks(&over);
+        assert_eq!(chunks.len(), 2);
+        assert_eq!(chunks[0].len(), count);
+        assert_eq!(chunks[1].len(), 1);
+        assert_chunks_match_wire(&under);
+        assert_chunks_match_wire(&exact);
+        assert_chunks_match_wire(&over);
     }
 }
