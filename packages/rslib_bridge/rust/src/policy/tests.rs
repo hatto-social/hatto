@@ -256,15 +256,15 @@ fn allowlist_names_resolve_and_counts_match() {
             Status::Pending | Status::Deferred => panic!("import-e has no pending row"),
         }
     }
-    // Import-E adds 11 rows (7 validated, 4 name-only), all forwarded.
-    // Combined rows: 89 + 11 = 100. Combined forwarded: 72 + 11 = 83.
-    assert_eq!(e_validated, 7);
-    assert_eq!(e_name_only, 4);
-    assert_eq!(super::import_e::E_ALLOWLIST.len(), 11);
-    assert_eq!(ALLOWLIST.len() + super::import_e::E_ALLOWLIST.len(), 100);
+    // Import-E is 16 rows (9 validated, 7 name-only), all forwarded.
+    // Combined rows: 89 + 16 = 105. Combined forwarded: 72 + 16 = 88.
+    assert_eq!(e_validated, 9);
+    assert_eq!(e_name_only, 7);
+    assert_eq!(super::import_e::E_ALLOWLIST.len(), 16);
+    assert_eq!(ALLOWLIST.len() + super::import_e::E_ALLOWLIST.len(), 105);
     assert_eq!(
         forwarded_names().len() + super::import_e::E_ALLOWLIST.len(),
-        83
+        88
     );
 
     let pending_methods: std::collections::HashSet<_> = ALLOWLIST
@@ -2519,16 +2519,35 @@ fn import_e_run_db_command_allows_only_the_statement_whitelist() {
         }),
     );
     assert!(updated.success, "{}", message_of(&updated));
-    let selected = db_call(
-        &backend,
-        serde_json::json!({
-            "kind": "query",
-            "sql": super::import_e::CARDLESS_NOTES_SQL,
-            "args": [],
-            "first_row_only": false,
-        }),
+    for sql in [
+        super::import_e::SELECT_NOTES_ID_GUID_SQL,
+        super::import_e::SELECT_CARDLESS_NOTES_SQL,
+        super::import_e::SELECT_NOTE_FACTS_SQL,
+        super::import_e::SELECT_CARD_COUNTS_SQL,
+    ] {
+        let selected = db_call(
+            &backend,
+            serde_json::json!({
+                "kind": "query",
+                "sql": sql,
+                "args": [],
+                "first_row_only": false,
+            }),
+        );
+        assert!(selected.success, "{sql}: {}", message_of(&selected));
+    }
+    assert_denied(
+        &db_call(
+            &backend,
+            serde_json::json!({
+                "kind": "query",
+                "sql": "SELECT id FROM notes WHERE id NOT IN (SELECT nid FROM cards)",
+                "args": [],
+                "first_row_only": false,
+            }),
+        ),
+        "whitelist",
     );
-    assert!(selected.success, "{}", message_of(&selected));
     let committed = db_call(&backend, serde_json::json!({"kind": "commit"}));
     assert!(committed.success, "{}", message_of(&committed));
     let rolled = db_call(&backend, serde_json::json!({"kind": "rollback"}));
@@ -2711,11 +2730,28 @@ fn import_e_name_only_calls_are_forwarded() {
         "get_deck",
         &anki_proto::decks::DeckId { did: 1 },
     );
-    assert_denied(&read_deck, "not on allowlist");
+    assert!(read_deck.success, "{}", message_of(&read_deck));
+    let names = call(
+        &backend,
+        "BackendDecksService",
+        "get_deck_names",
+        &anki_proto::decks::GetDeckNamesRequest {
+            skip_empty_default: false,
+            include_filtered: true,
+        },
+    );
+    assert!(names.success, "{}", message_of(&names));
+    let configs = call(
+        &backend,
+        "BackendDeckConfigService",
+        "get_deck_configs_for_update",
+        &anki_proto::decks::DeckId { did: 1 },
+    );
+    assert!(configs.success, "{}", message_of(&configs));
 }
 
 #[test]
-fn import_e_update_deck_clears_only_the_description() {
+fn import_e_update_deck_allows_one_field() {
     let dir = tempfile::TempDir::new_in("/tmp").unwrap();
     let backend = e_root(&dir);
     let opened = call(
@@ -2749,11 +2785,19 @@ fn import_e_update_deck_clears_only_the_description() {
         other => panic!("default deck is not normal: {other:?}"),
     }
 
+    let mut config_only = deck_proto(&backend, 1);
+    match config_only.kind.as_mut().unwrap() {
+        anki_proto::decks::deck::Kind::Normal(normal) => normal.config_id = 2,
+        other => panic!("default deck is not normal: {other:?}"),
+    }
+    let config_updated = call(&backend, "BackendDecksService", "update_deck", &config_only);
+    assert!(config_updated.success, "{}", message_of(&config_updated));
+
     let mut renamed = deck_proto(&backend, 1);
     renamed.name = "Renamed".into();
     assert_denied(
         &call(&backend, "BackendDecksService", "update_deck", &renamed),
-        "only the deck description",
+        "clear the description or change only config_id",
     );
     let mut nonempty = deck_proto(&backend, 1);
     match nonempty.kind.as_mut().unwrap() {
@@ -2764,7 +2808,62 @@ fn import_e_update_deck_clears_only_the_description() {
     }
     assert_denied(
         &call(&backend, "BackendDecksService", "update_deck", &nonempty),
-        "description must be empty",
+        "clear the description or change only config_id",
+    );
+    let mut markdown = deck_proto(&backend, 1);
+    match markdown.kind.as_mut().unwrap() {
+        anki_proto::decks::deck::Kind::Normal(normal) => {
+            normal.markdown_description = !normal.markdown_description;
+        }
+        other => panic!("default deck is not normal: {other:?}"),
+    }
+    assert_denied(
+        &call(&backend, "BackendDecksService", "update_deck", &markdown),
+        "clear the description or change only config_id",
+    );
+    let mut limited = deck_proto(&backend, 1);
+    match limited.kind.as_mut().unwrap() {
+        anki_proto::decks::deck::Kind::Normal(normal) => normal.review_limit = Some(5),
+        other => panic!("default deck is not normal: {other:?}"),
+    }
+    assert_denied(
+        &call(&backend, "BackendDecksService", "update_deck", &limited),
+        "clear the description or change only config_id",
+    );
+    dispatch_message(&backend, "BackendDecksService", "update_deck", &described)
+        .expect("set description again");
+    let stored = deck_proto(&backend, 1);
+    let mut cleared_and_renamed = stored.clone();
+    cleared_and_renamed.name = "Also renamed".into();
+    match cleared_and_renamed.kind.as_mut().unwrap() {
+        anki_proto::decks::deck::Kind::Normal(normal) => normal.description.clear(),
+        other => panic!("default deck is not normal: {other:?}"),
+    }
+    assert_denied(
+        &call(
+            &backend,
+            "BackendDecksService",
+            "update_deck",
+            &cleared_and_renamed,
+        ),
+        "other deck fields",
+    );
+    let mut both = stored.clone();
+    match both.kind.as_mut().unwrap() {
+        anki_proto::decks::deck::Kind::Normal(normal) => {
+            normal.description.clear();
+            normal.config_id = 3;
+        }
+        other => panic!("default deck is not normal: {other:?}"),
+    }
+    assert_denied(
+        &call(&backend, "BackendDecksService", "update_deck", &both),
+        "clear the description or change only config_id",
+    );
+    let unchanged = deck_proto(&backend, 1);
+    assert_denied(
+        &call(&backend, "BackendDecksService", "update_deck", &unchanged),
+        "clear the description or change only config_id",
     );
 }
 
@@ -2777,4 +2876,199 @@ fn deck_proto(backend: &crate::api::AnkiBackend, id: i64) -> anki_proto::decks::
     )
     .expect("get deck");
     anki_proto::decks::Deck::decode(bytes.as_slice()).unwrap()
+}
+
+#[test]
+fn import_e_close_collection_rejects_downgrade() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let backend = e_root(&dir);
+    let opened = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &e_collection_request(dir.path(), BATCH_V4),
+    );
+    assert!(opened.success, "{}", message_of(&opened));
+    assert_denied(
+        &call(
+            &backend,
+            "BackendCollectionService",
+            "close_collection",
+            &anki_proto::collection::CloseCollectionRequest {
+                downgrade_to_schema11: true,
+            },
+        ),
+        "downgrade_to_schema11",
+    );
+    let still_open = call(
+        &backend,
+        "BackendNotesService",
+        "get_note",
+        &anki_proto::notes::NoteId { nid: 1 },
+    );
+    assert!(!policy_denied(&still_open), "{}", message_of(&still_open));
+    let closed = call(
+        &backend,
+        "BackendCollectionService",
+        "close_collection",
+        &anki_proto::collection::CloseCollectionRequest {
+            downgrade_to_schema11: false,
+        },
+    );
+    assert!(closed.success, "{}", message_of(&closed));
+    assert_denied(
+        &call(
+            &backend,
+            "BackendNotesService",
+            "get_note",
+            &anki_proto::notes::NoteId { nid: 1 },
+        ),
+        "collection is not open",
+    );
+    let reopened = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &e_collection_request(dir.path(), BATCH_V4),
+    );
+    assert!(reopened.success, "{}", message_of(&reopened));
+}
+
+#[test]
+fn import_e_update_deck_configs_accepts_only_a_new_config() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let backend = e_root(&dir);
+    let opened = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &e_collection_request(dir.path(), BATCH_V4),
+    );
+    assert!(opened.success, "{}", message_of(&opened));
+    let deck_id = add_named_deck(&backend, "Source");
+    let allowed = new_config_request(&backend, deck_id);
+    let updated = call(
+        &backend,
+        "BackendDeckConfigService",
+        "update_deck_configs",
+        &allowed,
+    );
+    assert!(updated.success, "{}", message_of(&updated));
+
+    let mut default_deck = allowed.clone();
+    default_deck.target_deck_id = 1;
+    assert_denied(
+        &call(
+            &backend,
+            "BackendDeckConfigService",
+            "update_deck_configs",
+            &default_deck,
+        ),
+        "target_deck_id must not be 1",
+    );
+    let mut existing = allowed.clone();
+    existing.configs[0].id = 1;
+    assert_denied(
+        &call(
+            &backend,
+            "BackendDeckConfigService",
+            "update_deck_configs",
+            &existing,
+        ),
+        "one new config",
+    );
+    let mut two = allowed.clone();
+    two.configs.push(allowed.configs[0].clone());
+    assert_denied(
+        &call(
+            &backend,
+            "BackendDeckConfigService",
+            "update_deck_configs",
+            &two,
+        ),
+        "one new config",
+    );
+    let mut removed = allowed.clone();
+    removed.removed_config_ids = vec![1];
+    assert_denied(
+        &call(
+            &backend,
+            "BackendDeckConfigService",
+            "update_deck_configs",
+            &removed,
+        ),
+        "removed_config_ids must be empty",
+    );
+    let mut children = allowed.clone();
+    children.mode = anki_proto::deck_config::UpdateDeckConfigsMode::ApplyToChildren as i32;
+    assert_denied(
+        &call(
+            &backend,
+            "BackendDeckConfigService",
+            "update_deck_configs",
+            &children,
+        ),
+        "mode must be NORMAL",
+    );
+    let mut reschedule = allowed.clone();
+    reschedule.fsrs_reschedule = true;
+    assert_denied(
+        &call(
+            &backend,
+            "BackendDeckConfigService",
+            "update_deck_configs",
+            &reschedule,
+        ),
+        "fsrs_reschedule must be false",
+    );
+}
+
+fn add_named_deck(backend: &crate::api::AnkiBackend, name: &str) -> i64 {
+    let bytes = dispatch_message(
+        backend,
+        "BackendDecksService",
+        "new_deck",
+        &anki_proto::generic::Empty {},
+    )
+    .expect("new deck");
+    let mut deck = anki_proto::decks::Deck::decode(bytes.as_slice()).unwrap();
+    deck.name = name.into();
+    let saved =
+        dispatch_message(backend, "BackendDecksService", "add_deck", &deck).expect("add deck");
+    anki_proto::collection::OpChangesWithId::decode(saved.as_slice())
+        .unwrap()
+        .id
+}
+
+fn new_config_request(
+    backend: &crate::api::AnkiBackend,
+    target_deck_id: i64,
+) -> anki_proto::deck_config::UpdateDeckConfigsRequest {
+    let bytes = dispatch_message(
+        backend,
+        "BackendDeckConfigService",
+        "get_deck_configs_for_update",
+        &anki_proto::decks::DeckId { did: 1 },
+    )
+    .expect("deck configs");
+    let update = anki_proto::deck_config::DeckConfigsForUpdate::decode(bytes.as_slice()).unwrap();
+    let mut config = update
+        .defaults
+        .or_else(|| update.all_config.first().and_then(|row| row.config.clone()))
+        .expect("a deck config to copy");
+    config.id = 0;
+    config.name = format!("Restored {target_deck_id}");
+    anki_proto::deck_config::UpdateDeckConfigsRequest {
+        target_deck_id,
+        configs: vec![config],
+        removed_config_ids: Vec::new(),
+        mode: anki_proto::deck_config::UpdateDeckConfigsMode::Normal as i32,
+        card_state_customizer: String::new(),
+        limits: None,
+        new_cards_ignore_review_limit: false,
+        fsrs: false,
+        apply_all_parent_limits: false,
+        fsrs_reschedule: false,
+        fsrs_health_check: false,
+    }
 }

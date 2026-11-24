@@ -66,7 +66,7 @@ fn validate_undo(input: &[u8]) -> Result<Vec<u8>, String> {
     Ok(input.to_vec())
 }
 
-fn validate_close(input: &[u8]) -> Result<Vec<u8>, String> {
+pub(crate) fn validate_close(input: &[u8]) -> Result<Vec<u8>, String> {
     let request = decode::<anki_proto::collection::CloseCollectionRequest>(input)?;
     if request.downgrade_to_schema11 {
         return Err("downgrade_to_schema11 must be false".into());

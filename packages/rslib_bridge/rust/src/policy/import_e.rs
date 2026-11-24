@@ -12,6 +12,7 @@ use std::path::Path;
 use prost::Message;
 
 use super::desktop::MAX_REQUEST_BYTES;
+use super::validators::validate_close;
 use super::validators::{
     check_import_options, check_search_order, data_dir, decode, e_collection_batch_id,
     expect_e_sibling, resolve_under_data_dir, uuid_v4_apkg_id, ImportOptionRule,
@@ -20,12 +21,25 @@ use super::{Access, AllowEntry, Status};
 use super::{ANKIDROID, COLLECTION, DECKS, IMPORT_EXPORT, NOTES, SCHEDULER, SEARCH};
 use crate::api::{backend_error, dispatch, AnkiBackend, ProtoResponse};
 
+const DECK_CONFIG: &str = "BackendDeckConfigService";
+
 /// `UPDATE notes SET guid = ? WHERE id = ?`, including `executemany`.
 pub(crate) const GUID_UPDATE_SQL: &str = "UPDATE notes SET guid = ? WHERE id = ?";
 
-/// The one fixed `SELECT`: notes that have no card row.
-pub(crate) const CARDLESS_NOTES_SQL: &str =
-    "SELECT id FROM notes WHERE id NOT IN (SELECT nid FROM cards)";
+/// Fixed `SELECT`s. Compared exactly, with no case, space, or semicolon folding.
+pub(crate) const SELECT_NOTES_ID_GUID_SQL: &str = "SELECT id, guid FROM notes ORDER BY id";
+pub(crate) const SELECT_CARDLESS_NOTES_SQL: &str =
+    "SELECT id FROM notes WHERE id NOT IN (SELECT nid FROM cards) ORDER BY id";
+pub(crate) const SELECT_NOTE_FACTS_SQL: &str =
+    "SELECT id, guid, mid, \"mod\", flds, tags FROM notes ORDER BY id";
+pub(crate) const SELECT_CARD_COUNTS_SQL: &str = "SELECT did, count(*) FROM cards GROUP BY did";
+
+const ALLOWED_SELECTS: &[&str] = &[
+    SELECT_NOTES_ID_GUID_SQL,
+    SELECT_CARDLESS_NOTES_SQL,
+    SELECT_NOTE_FACTS_SQL,
+    SELECT_CARD_COUNTS_SQL,
+];
 
 const E_IMPORT_OPTIONS: ImportOptionRule = ImportOptionRule {
     update_notes: anki_proto::import_export::ImportAnkiPackageUpdateCondition::Never as i32,
@@ -48,16 +62,21 @@ macro_rules! e_row {
 /// Calls the import pipeline may make on an E collection.
 pub(crate) static E_ALLOWLIST: &[AllowEntry] = &[
     e_row!(COLLECTION, "open_collection", Write, Validated, "collection_path resolves to data_dir/import/e/<uuid v4>/collection.anki2; media folder is collection.media and media db is collection.media.db in that directory", "import_e_open_collection_accepts_only_its_directory"),
+    e_row!(COLLECTION, "close_collection", Write, Validated, "downgrade_to_schema11 is false", "import_e_close_collection_rejects_downgrade"),
     e_row!(IMPORT_EXPORT, "import_anki_package", Write, Validated, "options is present and fixed: merge_notetypes false, update_notes NEVER, update_notetypes NEVER, with_scheduling true, with_deck_configs true; package_path resolves to data_dir/import/raw/<same uuid v4>.apkg", "import_e_import_accepts_only_raw_with_step2_options"),
     e_row!(IMPORT_EXPORT, "export_anki_package", Write, Validated, "options is present: with_scheduling true, with_media true, legacy false, with_deck_configs true or false, limit is the whole collection; out_path resolves to data_dir/import/staged/<same uuid v4>.apkg", "import_e_export_accepts_only_the_staged_path"),
     e_row!(NOTES, "get_note", Read, NameOnly, "없음", "import_e_name_only_calls_are_forwarded"),
     e_row!(SEARCH, "search_notes", Read, Validated, "order is absent, none, or an allowlisted builtin column; a custom order is rejected", "import_e_search_rejects_a_custom_order"),
     e_row!(SEARCH, "search_cards", Read, Validated, "order is absent, none, or an allowlisted builtin column; a custom order is rejected", "import_e_search_rejects_a_custom_order"),
     e_row!(NOTES, "remove_notes", Write, NameOnly, "없음", "import_e_name_only_calls_are_forwarded"),
+    e_row!(DECKS, "get_deck", Read, NameOnly, "없음", "import_e_name_only_calls_are_forwarded"),
+    e_row!(DECKS, "get_deck_names", Read, NameOnly, "없음", "import_e_name_only_calls_are_forwarded"),
     e_row!(DECKS, "remove_decks", Write, NameOnly, "없음", "import_e_name_only_calls_are_forwarded"),
     e_row!(SCHEDULER, "empty_filtered_deck", Write, NameOnly, "없음", "import_e_name_only_calls_are_forwarded"),
-    e_row!(DECKS, "update_deck", Write, Validated, "normal deck only; description is empty and every other field matches the stored deck", "import_e_update_deck_clears_only_the_description"),
-    e_row!(ANKIDROID, "run_db_command", Write, Validated, "executemany UPDATE notes SET guid = ? WHERE id = ?; SELECT id FROM notes WHERE id NOT IN (SELECT nid FROM cards); begin, commit, rollback", "import_e_run_db_command_allows_only_the_statement_whitelist"),
+    e_row!(DECKS, "update_deck", Write, Validated, "normal deck; exactly one change: clear description to empty, or change config_id alone", "import_e_update_deck_allows_one_field"),
+    e_row!(DECK_CONFIG, "get_deck_configs_for_update", Read, NameOnly, "없음", "import_e_name_only_calls_are_forwarded"),
+    e_row!(DECK_CONFIG, "update_deck_configs", Write, Validated, "target_deck_id is not 1; configs is one element with id 0; removed_config_ids is empty; mode is NORMAL; fsrs_reschedule is false", "import_e_update_deck_configs_accepts_only_a_new_config"),
+    e_row!(ANKIDROID, "run_db_command", Write, Validated, "executemany UPDATE notes SET guid = ? WHERE id = ?; four fixed SELECTs; begin, commit, rollback", "import_e_run_db_command_allows_only_the_statement_whitelist"),
 ];
 
 pub(crate) fn entry(service: &str, method: &str) -> Option<&'static AllowEntry> {
@@ -116,6 +135,11 @@ pub(crate) fn enforce_import_e(
             return backend_error(format!("denied: {full} ({err})"));
         }
     }
+    if service == COLLECTION && method == "close_collection" {
+        let mut session = backend.lock_session();
+        session.collection_open = false;
+        session.import_batch_id = None;
+    }
     response
 }
 
@@ -137,13 +161,16 @@ fn prepare(
 ) -> Result<Vec<u8>, String> {
     match (service, method) {
         (COLLECTION, "open_collection") => validate_open(backend, input),
+        (COLLECTION, "close_collection") => validate_close(input),
         (IMPORT_EXPORT, "import_anki_package") => validate_import(backend, input),
         (IMPORT_EXPORT, "export_anki_package") => validate_export(backend, input),
         (SEARCH, "search_notes" | "search_cards") => validate_search(input),
         (DECKS, "update_deck") => validate_update_deck(backend, input),
+        (DECK_CONFIG, "update_deck_configs") => validate_update_deck_configs(input),
         (ANKIDROID, "run_db_command") => validate_run_db_command(input),
         (NOTES, "get_note" | "remove_notes")
-        | (DECKS, "remove_decks")
+        | (DECKS, "get_deck" | "get_deck_names" | "remove_decks")
+        | (DECK_CONFIG, "get_deck_configs_for_update")
         | (SCHEDULER, "empty_filtered_deck") => Ok(input.to_vec()),
         _ => Err("no import-e validator".into()),
     }
@@ -233,15 +260,13 @@ fn validate_search(input: &[u8]) -> Result<Vec<u8>, String> {
     Ok(input.to_vec())
 }
 
-/// `UpdateDeck` may clear `Deck.Normal.description` and change nothing else.
+/// A normal deck may change in exactly one way: clear `description`, or
+/// change `config_id` alone.
 fn validate_update_deck(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String> {
     let request = decode::<anki_proto::decks::Deck>(input)?;
-    let Some(anki_proto::decks::deck::Kind::Normal(normal)) = request.kind.as_ref() else {
+    let Some(anki_proto::decks::deck::Kind::Normal(requested)) = request.kind.as_ref() else {
         return Err("deck is not a normal deck".into());
     };
-    if !normal.description.is_empty() {
-        return Err("description must be empty".into());
-    }
     let bytes = crate::api::dispatch_message(
         backend,
         DECKS,
@@ -250,14 +275,63 @@ fn validate_update_deck(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, 
     )
     .map_err(|_| format!("deck {} does not exist", request.id))?;
     let stored = decode::<anki_proto::decks::Deck>(&bytes)?;
-    let expected = description_cleared(&stored)?;
+    let Some(anki_proto::decks::deck::Kind::Normal(current)) = stored.kind.as_ref() else {
+        return Err("deck is not a normal deck".into());
+    };
+    let description_cleared =
+        requested.description.is_empty() && requested.description != current.description;
+    let config_changed = requested.config_id != current.config_id;
+    let expected = if description_cleared && !config_changed {
+        description_cleared_deck(&stored)?
+    } else if config_changed && requested.description == current.description {
+        with_config_id(&stored, requested.config_id)?
+    } else {
+        return Err("update_deck must clear the description or change only config_id".into());
+    };
     if request.encode_to_vec() != expected.encode_to_vec() {
-        return Err("only the deck description may change, and it must be empty".into());
+        return Err("other deck fields must stay unchanged".into());
     }
     Ok(input.to_vec())
 }
 
-fn description_cleared(deck: &anki_proto::decks::Deck) -> Result<anki_proto::decks::Deck, String> {
+fn validate_update_deck_configs(input: &[u8]) -> Result<Vec<u8>, String> {
+    let request = decode::<anki_proto::deck_config::UpdateDeckConfigsRequest>(input)?;
+    if request.target_deck_id == 1 {
+        return Err("target_deck_id must not be 1".into());
+    }
+    let normal = anki_proto::deck_config::UpdateDeckConfigsMode::Normal as i32;
+    if request.mode != normal {
+        return Err("mode must be NORMAL".into());
+    }
+    if request.fsrs_reschedule {
+        return Err("fsrs_reschedule must be false".into());
+    }
+    if !request.removed_config_ids.is_empty() {
+        return Err("removed_config_ids must be empty".into());
+    }
+    if request.configs.len() != 1 || request.configs[0].id != 0 {
+        return Err("configs must be one new config".into());
+    }
+    Ok(input.to_vec())
+}
+
+fn with_config_id(
+    deck: &anki_proto::decks::Deck,
+    config_id: i64,
+) -> Result<anki_proto::decks::Deck, String> {
+    let mut updated = deck.clone();
+    match updated.kind.as_mut() {
+        Some(anki_proto::decks::deck::Kind::Normal(normal)) => {
+            normal.config_id = config_id;
+            Ok(updated)
+        }
+        _ => Err("deck is not a normal deck".into()),
+    }
+}
+
+fn description_cleared_deck(
+    deck: &anki_proto::decks::Deck,
+) -> Result<anki_proto::decks::Deck, String> {
     let mut cleared = deck.clone();
     match cleared.kind.as_mut() {
         Some(anki_proto::decks::deck::Kind::Normal(normal)) => {
@@ -310,7 +384,7 @@ fn validate_run_db_command(input: &[u8]) -> Result<Vec<u8>, String> {
                 .get("sql")
                 .and_then(|sql| sql.as_str())
                 .ok_or("sql is missing")?;
-            if sql != CARDLESS_NOTES_SQL {
+            if !ALLOWED_SELECTS.contains(&sql) {
                 return Err("sql is not on the statement whitelist".into());
             }
             let args = obj
@@ -318,7 +392,7 @@ fn validate_run_db_command(input: &[u8]) -> Result<Vec<u8>, String> {
                 .and_then(|args| args.as_array())
                 .ok_or("args must be an array")?;
             if !args.is_empty() {
-                return Err("cardless-note select takes no parameters".into());
+                return Err("select takes no parameters".into());
             }
             if obj
                 .get("first_row_only")
