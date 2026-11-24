@@ -209,6 +209,20 @@ impl TestCol {
         with_scheduling: bool,
         with_deck_configs: bool,
     ) -> Result<(), ImportError> {
+        self.export_package(path, with_scheduling, with_deck_configs, false)
+    }
+
+    pub(crate) fn export_legacy(&self, path: &Path) -> Result<(), ImportError> {
+        self.export_package(path, true, true, true)
+    }
+
+    fn export_package(
+        &self,
+        path: &Path,
+        with_scheduling: bool,
+        with_deck_configs: bool,
+        legacy: bool,
+    ) -> Result<(), ImportError> {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).map_err(|err| ImportError::new(err.to_string()))?;
         }
@@ -218,7 +232,7 @@ impl TestCol {
                 with_scheduling,
                 with_deck_configs,
                 with_media: true,
-                legacy: false,
+                legacy,
             }),
             limit: Some(anki_proto::import_export::ExportLimit {
                 limit: Some(
@@ -313,17 +327,60 @@ impl TestCol {
         }))
     }
 
-    pub(crate) fn facts_for_guid(&self, guid: &str) -> Result<Option<NoteFacts>, ImportError> {
-        let Some(row) = self.note_row(guid)? else {
-            return Ok(None);
-        };
-        Ok(Some(facts_from_stored_note(
-            guid,
-            row.notetype_id,
-            row.mod_secs,
-            &row.flds,
-            &row.tags,
-        )))
+    pub(crate) fn facts_for_guids(
+        &self,
+        guids: &[String],
+    ) -> Result<BTreeMap<String, NoteFacts>, ImportError> {
+        let mut found = BTreeMap::new();
+        if guids.is_empty() {
+            return Ok(found);
+        }
+        for chunk in guids.chunks(400) {
+            let marks = vec!["?"; chunk.len()].join(", ");
+            let sql = format!(
+                "SELECT guid, mid, \"mod\", flds, tags FROM notes WHERE guid IN ({marks}) ORDER BY id"
+            );
+            let args = chunk
+                .iter()
+                .cloned()
+                .map(serde_json::Value::String)
+                .collect();
+            let rows = self.sql(&sql, args)?;
+            let rows = rows
+                .as_array()
+                .ok_or_else(|| ImportError::new("note facts are not rows"))?;
+            for row in rows {
+                let cells = row
+                    .as_array()
+                    .ok_or_else(|| ImportError::new("note facts row"))?;
+                let guid = cells[0]
+                    .as_str()
+                    .ok_or_else(|| ImportError::new("note guid is not a string"))?
+                    .to_string();
+                if found.contains_key(&guid) {
+                    return Err(ImportError::new(format!(
+                        "guid {guid} has more than one resident note"
+                    )));
+                }
+                let notetype_id = cells[1]
+                    .as_i64()
+                    .ok_or_else(|| ImportError::new("note mid is not an integer"))?;
+                let mod_secs = cells[2]
+                    .as_i64()
+                    .ok_or_else(|| ImportError::new("note mod is not an integer"))?;
+                let flds = cells[3]
+                    .as_str()
+                    .ok_or_else(|| ImportError::new("note flds is not a string"))?;
+                let tags = cells[4]
+                    .as_str()
+                    .ok_or_else(|| ImportError::new("note tags is not a string"))?;
+                found.insert(
+                    guid.clone(),
+                    facts_from_stored_note(&guid, notetype_id, mod_secs, flds, tags),
+                );
+            }
+        }
+        Ok(found)
     }
 
     pub(crate) fn deck_id_by_name(&self, name: &str) -> Result<Option<i64>, ImportError> {
@@ -661,6 +718,7 @@ impl TestCol {
 }
 
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 pub(crate) struct NoteRow {
     pub id: i64,
     pub notetype_id: i64,
@@ -675,8 +733,8 @@ pub(crate) struct ColLookup<'a> {
 }
 
 impl ResidentLookup for ColLookup<'_> {
-    fn note_facts(&mut self, guid: &str) -> Result<Option<NoteFacts>, ImportError> {
-        self.col.facts_for_guid(guid)
+    fn note_facts(&mut self, guids: &[String]) -> Result<BTreeMap<String, NoteFacts>, ImportError> {
+        self.col.facts_for_guids(guids)
     }
 
     fn deck_id_by_name(&mut self, name: &str) -> Result<Option<i64>, ImportError> {

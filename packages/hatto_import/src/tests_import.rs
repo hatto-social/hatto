@@ -834,6 +834,31 @@ fn sp5_fullwidth_and_turkish_i_do_not_match() {
     assert!(names.len() >= 4, "{names:?}");
 }
 
+#[test]
+fn legacy_package_without_protobuf_default_keeps_config_id_1() {
+    let _lock = lock_collections();
+    let (root, data) = fresh();
+    let file = root.path().join("legacy.apkg");
+    {
+        let source = TestCol::open(&root.path().join("source")).unwrap();
+        let (deck, nt) = basic_deck(&source, "Words");
+        source.set_description(deck, "hello").unwrap();
+        source.set_new_per_day(deck, 7).unwrap();
+        let note = source
+            .add_note(nt, deck, &["hola", "hello"], &g(1))
+            .unwrap();
+        source.set_mod(note, MOD).unwrap();
+        source.export_legacy(&file).unwrap();
+    }
+    let mut resident = TestCol::open(&root.path().join("resident")).unwrap();
+    let prepared = commit_import(&data, &file, &mut resident).unwrap();
+    assert!(prepared.first_import, "{:?}", prepared.plan);
+    let deck_id = resident.deck_id_by_name("Words").unwrap().unwrap();
+    assert_eq!(resident.config_id(deck_id).unwrap(), 1);
+    assert_eq!(resident.description(deck_id).unwrap(), "hello");
+    assert!(resident.note_row(&g(1)).unwrap().is_some());
+}
+
 fn corrupt_notetype(src: &Path, dest: &Path) {
     let file = fs::File::open(src).unwrap();
     let mut archive = zip::ZipArchive::new(file).unwrap();

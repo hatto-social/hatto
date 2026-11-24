@@ -4,6 +4,7 @@
 
 #![cfg(test)]
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
@@ -23,7 +24,7 @@ use crate::ResidentLookup;
 struct DenyLookup;
 
 impl ResidentLookup for DenyLookup {
-    fn note_facts(&mut self, _: &str) -> Result<Option<NoteFacts>, ImportError> {
+    fn note_facts(&mut self, _: &[String]) -> Result<BTreeMap<String, NoteFacts>, ImportError> {
         Err(ImportError::new("resident lookup was called"))
     }
 

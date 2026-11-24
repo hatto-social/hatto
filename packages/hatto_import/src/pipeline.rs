@@ -8,6 +8,7 @@
 //! [`ResidentLookup`]. When the plan's `no_resident_call` is true, the raw,
 //! E, and staged files are removed before this function returns.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -37,11 +38,11 @@ pub struct ImportLimits {
 
 /// What the caller can read about the resident collection.
 ///
-/// `note_facts` is the note with that normalized guid, or `None` when the
-/// resident collection has no such note. `deck_id_by_name` is the same
-/// comparison as `GetDeckIdByName`: `None` means that call's NotFound.
+/// [`ResidentLookup::note_facts`] is one batch for every guid in the file.
+/// A guid with no resident note is absent from the map. `deck_id_by_name` is
+/// the same comparison as `GetDeckIdByName`: `None` means that call's NotFound.
 pub trait ResidentLookup {
-    fn note_facts(&mut self, guid: &str) -> Result<Option<NoteFacts>, ImportError>;
+    fn note_facts(&mut self, guids: &[String]) -> Result<BTreeMap<String, NoteFacts>, ImportError>;
     fn deck_id_by_name(&mut self, name: &str) -> Result<Option<i64>, ImportError>;
 }
 
@@ -222,17 +223,48 @@ fn rewrite_guids(
         })
         .collect();
     session.db_json(&serde_json::json!({"kind": "begin"}))?;
-    let updated = session.db_json(&serde_json::json!({
-        "kind": "executemany",
-        "sql": "UPDATE notes SET guid = ? WHERE id = ?",
-        "args": args,
-    }));
-    if let Err(err) = updated {
-        let _ = session.db_json(&serde_json::json!({"kind": "rollback"}));
-        return Err(err);
+    for chunk in guid_update_chunks(&args) {
+        let updated = session.db_json(&serde_json::json!({
+            "kind": "executemany",
+            "sql": GUID_UPDATE_SQL,
+            "args": chunk,
+        }));
+        if let Err(err) = updated {
+            let _ = session.db_json(&serde_json::json!({"kind": "rollback"}));
+            return Err(err);
+        }
     }
     session.db_json(&serde_json::json!({"kind": "commit"}))?;
     Ok(assigned)
+}
+
+/// I3 rejects one `run_db_command` body at 4 MiB. Each chunk stays under that.
+const MAX_DB_REQUEST_BYTES: usize = 4 * 1024 * 1024;
+const GUID_UPDATE_SQL: &str = "UPDATE notes SET guid = ? WHERE id = ?";
+
+fn guid_update_chunks(args: &[Vec<serde_json::Value>]) -> Vec<&[Vec<serde_json::Value>]> {
+    let mut chunks = Vec::new();
+    let mut start = 0;
+    while start < args.len() {
+        let mut end = start + 1;
+        while end < args.len() && guid_update_body_len(&args[start..end + 1]) < MAX_DB_REQUEST_BYTES
+        {
+            end += 1;
+        }
+        chunks.push(&args[start..end]);
+        start = end;
+    }
+    chunks
+}
+
+fn guid_update_body_len(args: &[Vec<serde_json::Value>]) -> usize {
+    serde_json::to_vec(&serde_json::json!({
+        "kind": "executemany",
+        "sql": GUID_UPDATE_SQL,
+        "args": args,
+    }))
+    .map(|body| body.len())
+    .unwrap_or(usize::MAX)
 }
 
 fn delete_cardless_notes(session: &ESession) -> Result<u32, ImportError> {
@@ -301,7 +333,8 @@ fn classify_notes(
         "args": [],
         "first_row_only": false,
     }))?;
-    let mut classes = Vec::new();
+    let mut pending = Vec::new();
+    let mut guids = Vec::new();
     for row in rows.as_array().unwrap_or(&Vec::new()) {
         let cells = row
             .as_array()
@@ -312,9 +345,15 @@ fn classify_notes(
         let mod_secs = cell_i64(&cells[3], "notes.mod")?;
         let flds = cell_string(&cells[4], "notes.flds")?;
         let tags = cell_string(&cells[5], "notes.tags")?;
-        let file = facts_from_stored_note(&guid, notetype_id, mod_secs, &flds, &tags);
-        let resident = lookup.note_facts(&guid)?;
-        let class = classify(&file, resident.as_ref());
+        guids.push(guid);
+        pending.push((id, notetype_id, mod_secs, flds, tags));
+    }
+    let resident = lookup.note_facts(&guids)?;
+    let mut classes = Vec::new();
+    for (index, (id, notetype_id, mod_secs, flds, tags)) in pending.into_iter().enumerate() {
+        let guid = &guids[index];
+        let file = facts_from_stored_note(guid, notetype_id, mod_secs, &flds, &tags);
+        let class = classify(&file, resident.get(guid));
         classes.push((id, class));
     }
     Ok(classes)
@@ -497,4 +536,26 @@ fn cell_string(value: &serde_json::Value, label: &str) -> Result<String, ImportE
         .as_str()
         .map(str::to_string)
         .ok_or_else(|| ImportError::new(format!("{label} is not a string")))
+}
+
+#[cfg(test)]
+mod chunk_tests {
+    use super::{guid_update_body_len, guid_update_chunks, MAX_DB_REQUEST_BYTES};
+
+    #[test]
+    fn guid_updates_are_split_under_the_db_request_cap() {
+        let row = vec![
+            serde_json::Value::String("g".repeat(1_000_000)),
+            serde_json::json!(1),
+        ];
+        let args = vec![row; 5];
+        let chunks = guid_update_chunks(&args);
+        assert!(chunks.len() > 1);
+        let mut rows = 0;
+        for chunk in &chunks {
+            assert!(guid_update_body_len(chunk) < MAX_DB_REQUEST_BYTES);
+            rows += chunk.len();
+        }
+        assert_eq!(rows, args.len());
+    }
 }

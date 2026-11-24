@@ -37,10 +37,15 @@ pub(crate) fn restore_original_default_preset(
     if targets.is_empty() {
         return Ok(());
     }
-    let (name, inner) = read_default_preset(
+    let Some((name, inner)) = read_default_preset(
         &crate::paths::raw_apkg_path(data_dir, batch_id)?,
         &e_directory_path(data_dir, batch_id)?,
-    )?;
+    )?
+    else {
+        // Schema 11 (no deck_config, no id 1 row, or a JSON blob) has nothing
+        // to copy. Decks that still point at config id 1 stay on E's Default.
+        return Ok(());
+    };
     let new_id = add_preset(session, targets[0], &name, inner)?;
     if new_id == DEFAULT_CONFIG_ID {
         return Err(ImportError::new("restored default preset kept config id 1"));
@@ -170,7 +175,7 @@ pub(crate) fn clear_deck_description(session: &ESession, deck_id: i64) -> Result
 fn read_default_preset(
     apkg: &Path,
     scratch_dir: &Path,
-) -> Result<(String, DeckConfigInner), ImportError> {
+) -> Result<Option<(String, DeckConfigInner)>, ImportError> {
     let sqlite = read_package_sqlite(apkg)?;
     if !sqlite.starts_with(SQLITE_MAGIC) {
         return Err(ImportError::new(
@@ -183,9 +188,14 @@ fn read_default_preset(
     let read = (|| {
         let conn = Connection::open(&scratch)
             .map_err(|err| ImportError::new(format!("open package collection: {err}")))?;
-        let mut stmt = conn
-            .prepare("SELECT name, config FROM deck_config WHERE id = 1")
-            .map_err(|err| ImportError::new(format!("deck_config id 1: {err}")))?;
+        let prepared = conn.prepare("SELECT name, config FROM deck_config WHERE id = 1");
+        let mut stmt = match prepared {
+            Ok(stmt) => stmt,
+            Err(err) if missing_deck_config_table(&err) => return Ok(None),
+            Err(err) => {
+                return Err(ImportError::new(format!("deck_config id 1: {err}")));
+            }
+        };
         let mut rows = stmt
             .query([])
             .map_err(|err| ImportError::new(format!("deck_config id 1: {err}")))?;
@@ -193,9 +203,7 @@ fn read_default_preset(
             .next()
             .map_err(|err| ImportError::new(format!("deck_config id 1: {err}")))?
         else {
-            return Err(ImportError::new(
-                "package collection has no deck_config id 1",
-            ));
+            return Ok(None);
         };
         let name: String = row
             .get(0)
@@ -204,16 +212,18 @@ fn read_default_preset(
             .get(1)
             .map_err(|err| ImportError::new(format!("deck_config config: {err}")))?;
         if config.first() == Some(&b'{') {
-            return Err(ImportError::new(
-                "package deck_config id 1 is JSON, not a protobuf Config",
-            ));
+            return Ok(None);
         }
         let inner = DeckConfigInner::decode(config.as_slice())
             .map_err(|err| ImportError::new(format!("decode package default preset: {err}")))?;
-        Ok((name, inner))
+        Ok(Some((name, inner)))
     })();
     let _ = fs::remove_file(&scratch);
     read
+}
+
+fn missing_deck_config_table(err: &rusqlite::Error) -> bool {
+    err.to_string().contains("no such table")
 }
 
 fn read_package_sqlite(apkg: &Path) -> Result<Vec<u8>, ImportError> {
@@ -247,4 +257,77 @@ fn read_package_sqlite(apkg: &Path) -> Result<Vec<u8>, ImportError> {
     Err(ImportError::new(
         "apkg has no collection.anki21b, collection.anki21, or collection.anki2",
     ))
+}
+
+#[cfg(test)]
+mod preset_reader_tests {
+    use std::io::Write;
+
+    use rusqlite::Connection;
+
+    use super::read_default_preset;
+
+    fn package(setup: impl FnOnce(&Connection)) -> tempfile::TempDir {
+        let dir = tempfile::TempDir::new().unwrap();
+        let db_path = dir.path().join("col.sqlite");
+        {
+            let conn = Connection::open(&db_path).unwrap();
+            conn.execute_batch("CREATE TABLE IF NOT EXISTS hatto_touch (id integer)")
+                .unwrap();
+            setup(&conn);
+        }
+        let sqlite = std::fs::read(&db_path).unwrap();
+        assert!(
+            sqlite.starts_with(b"SQLite format 3"),
+            "sqlite header missing, {} bytes",
+            sqlite.len()
+        );
+        let apkg_path = dir.path().join("in.apkg");
+        let file = std::fs::File::create(&apkg_path).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
+        zip.start_file("collection.anki2", options).unwrap();
+        zip.write_all(&sqlite).unwrap();
+        zip.finish().unwrap();
+        dir
+    }
+
+    #[test]
+    fn missing_table_missing_row_and_json_skip_and_bad_protobuf_fails() {
+        let no_table = package(|_| {});
+        let read = read_default_preset(&no_table.path().join("in.apkg"), no_table.path()).unwrap();
+        assert!(read.is_none());
+
+        let no_row = package(|conn| {
+            conn.execute_batch("CREATE TABLE deck_config (id integer, name text, config blob)")
+                .unwrap();
+        });
+        let read = read_default_preset(&no_row.path().join("in.apkg"), no_row.path()).unwrap();
+        assert!(read.is_none());
+
+        let json = package(|conn| {
+            conn.execute_batch("CREATE TABLE deck_config (id integer, name text, config blob)")
+                .unwrap();
+            conn.execute(
+                "INSERT INTO deck_config (id, name, config) VALUES (1, 'Default', ?1)",
+                [br#"{"name":"Default"}"#.as_slice()],
+            )
+            .unwrap();
+        });
+        let read = read_default_preset(&json.path().join("in.apkg"), json.path()).unwrap();
+        assert!(read.is_none());
+
+        let garbage = package(|conn| {
+            conn.execute_batch("CREATE TABLE deck_config (id integer, name text, config blob)")
+                .unwrap();
+            conn.execute(
+                "INSERT INTO deck_config (id, name, config) VALUES (1, 'Default', ?1)",
+                [b"not-protobuf".as_slice()],
+            )
+            .unwrap();
+        });
+        let err = read_default_preset(&garbage.path().join("in.apkg"), garbage.path()).unwrap_err();
+        assert!(err.to_string().contains("decode"), "{err}");
+    }
 }
