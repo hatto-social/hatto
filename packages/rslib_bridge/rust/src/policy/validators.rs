@@ -15,7 +15,7 @@ use prost::Message;
 use super::desktop::{require_inside_data_dir, PresentedStates};
 use super::{
     ANSWER_TAKEN_MAX_MILLIS, CARDS, COLLECTION, CONFIG, DECKS, FETCH_LIMIT_MAX, GRAPHS_DAYS_MAX,
-    NOTETYPES, SCHEDULER, SEARCH, STATS,
+    IMPORT_EXPORT, NOTETYPES, SCHEDULER, SEARCH, STATS,
 };
 use crate::api::{dispatch_message, AnkiBackend};
 
@@ -39,6 +39,7 @@ pub(crate) fn prepare(
         (NOTETYPES, "get_cloze_field_ords") => validate_cloze_field_ords(backend, input),
         (DECKS, "rename_deck") => validate_rename_deck(backend, input),
         (SEARCH, "search_notes" | "search_cards") => validate_search(backend, input),
+        (IMPORT_EXPORT, "import_anki_package") => validate_resident_import(backend, input),
         _ => Ok(input.to_vec()),
     }
 }
@@ -65,7 +66,7 @@ fn validate_undo(input: &[u8]) -> Result<Vec<u8>, String> {
     Ok(input.to_vec())
 }
 
-fn validate_close(input: &[u8]) -> Result<Vec<u8>, String> {
+pub(crate) fn validate_close(input: &[u8]) -> Result<Vec<u8>, String> {
     let request = decode::<anki_proto::collection::CloseCollectionRequest>(input)?;
     if request.downgrade_to_schema11 {
         return Err("downgrade_to_schema11 must be false".into());
@@ -224,7 +225,9 @@ fn validate_search(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, Strin
     Ok(input.to_vec())
 }
 
-fn check_search_order(order: Option<&anki_proto::search::SortOrder>) -> Result<(), String> {
+pub(crate) fn check_search_order(
+    order: Option<&anki_proto::search::SortOrder>,
+) -> Result<(), String> {
     let Some(order) = order else {
         return Ok(());
     };
@@ -337,7 +340,7 @@ fn load_card(backend: &AnkiBackend, card_id: i64) -> Result<anki_proto::cards::C
     decode(&bytes)
 }
 
-fn data_dir(backend: &AnkiBackend) -> Result<std::path::PathBuf, String> {
+pub(crate) fn data_dir(backend: &AnkiBackend) -> Result<std::path::PathBuf, String> {
     backend
         .lock_session()
         .data_dir
@@ -345,8 +348,151 @@ fn data_dir(backend: &AnkiBackend) -> Result<std::path::PathBuf, String> {
         .ok_or_else(|| "desktop profile has no data_dir".to_string())
 }
 
-fn decode<T: Message + Default>(bytes: &[u8]) -> Result<T, String> {
+pub(crate) fn decode<T: Message + Default>(bytes: &[u8]) -> Result<T, String> {
     T::decode(bytes).map_err(|err| format!("invalid protobuf: {err}"))
+}
+
+/// Resident `ImportAnkiPackage`. `options` must be present. `with_deck_configs`
+/// is the caller's choice. The path is checked after symlink resolution.
+fn validate_resident_import(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String> {
+    let mut request = decode::<anki_proto::import_export::ImportAnkiPackageRequest>(input)?;
+    let Some(options) = request.options.as_ref() else {
+        return Err("options must be set".into());
+    };
+    check_import_options(options, &RESIDENT_IMPORT_OPTIONS)?;
+    let data_dir = data_dir(backend)?;
+    let resolved = resolve_under_data_dir(&request.package_path, &data_dir)
+        .map_err(|err| format!("package_path: {err}"))?;
+    uuid_v4_apkg_id(&resolved, &data_dir, "staged")?;
+    request.package_path = resolved.to_string_lossy().into_owned();
+    Ok(request.encode_to_vec())
+}
+
+/// Fixed import options shared by the resident row and the import-E row.
+///
+/// `with_deck_configs` is `None` when either boolean is accepted.
+pub(crate) struct ImportOptionRule {
+    pub update_notes: i32,
+    pub with_deck_configs: Option<bool>,
+}
+
+pub(crate) const RESIDENT_IMPORT_OPTIONS: ImportOptionRule = ImportOptionRule {
+    update_notes: anki_proto::import_export::ImportAnkiPackageUpdateCondition::IfNewer as i32,
+    with_deck_configs: None,
+};
+
+pub(crate) fn check_import_options(
+    options: &anki_proto::import_export::ImportAnkiPackageOptions,
+    rule: &ImportOptionRule,
+) -> Result<(), String> {
+    if options.merge_notetypes {
+        return Err("merge_notetypes must be false".into());
+    }
+    if options.update_notes != rule.update_notes {
+        return Err(update_notes_reason(rule.update_notes));
+    }
+    let never = anki_proto::import_export::ImportAnkiPackageUpdateCondition::Never as i32;
+    if options.update_notetypes != never {
+        return Err("update_notetypes must be NEVER".into());
+    }
+    if !options.with_scheduling {
+        return Err("with_scheduling must be true".into());
+    }
+    if let Some(expected) = rule.with_deck_configs {
+        if options.with_deck_configs != expected {
+            return Err(format!("with_deck_configs must be {expected}"));
+        }
+    }
+    Ok(())
+}
+
+fn update_notes_reason(expected: i32) -> String {
+    let if_newer = anki_proto::import_export::ImportAnkiPackageUpdateCondition::IfNewer as i32;
+    let never = anki_proto::import_export::ImportAnkiPackageUpdateCondition::Never as i32;
+    if expected == if_newer {
+        "update_notes must be IF_NEWER".into()
+    } else if expected == never {
+        "update_notes must be NEVER".into()
+    } else {
+        format!("update_notes must be {expected}")
+    }
+}
+
+/// Resolve `path` the way [super::desktop::require_inside_data_dir] does,
+/// then the caller matches the resolved path against one import shape.
+pub(crate) fn resolve_under_data_dir(
+    path: &str,
+    data_dir: &std::path::Path,
+) -> Result<std::path::PathBuf, String> {
+    super::desktop::require_inside_data_dir(path, data_dir)
+}
+
+/// `<data_dir>/import/<folder>/<uuid v4>.apkg` after symlink resolution.
+pub(crate) fn uuid_v4_apkg_id(
+    resolved: &std::path::Path,
+    data_dir: &std::path::Path,
+    folder: &str,
+) -> Result<String, String> {
+    let parent = data_dir.join("import").join(folder);
+    if resolved.parent() != Some(parent.as_path()) {
+        return Err(format!("path is not import/{folder}/<uuid v4>.apkg"));
+    }
+    let Some(name) = resolved.file_name().and_then(|name| name.to_str()) else {
+        return Err("path has no utf-8 file name".into());
+    };
+    let Some(id) = name.strip_suffix(".apkg") else {
+        return Err("path is not an .apkg file".into());
+    };
+    if !is_import_batch_id(id) {
+        return Err("import_batch_id is not a lowercase uuid v4".into());
+    }
+    Ok(id.to_string())
+}
+
+/// `<data_dir>/import/e/<uuid v4>/collection.anki2` after symlink resolution.
+pub(crate) fn e_collection_batch_id(
+    resolved: &std::path::Path,
+    data_dir: &std::path::Path,
+) -> Result<String, String> {
+    let Some(name) = resolved.file_name().and_then(|name| name.to_str()) else {
+        return Err("collection path has no utf-8 file name".into());
+    };
+    if name != "collection.anki2" {
+        return Err("collection file must be collection.anki2".into());
+    }
+    let Some(batch_dir) = resolved.parent() else {
+        return Err("collection path has no directory".into());
+    };
+    let e_dir = data_dir.join("import").join("e");
+    if batch_dir.parent() != Some(e_dir.as_path()) {
+        return Err("collection path is not import/e/<uuid v4>/collection.anki2".into());
+    }
+    let Some(id) = batch_dir.file_name().and_then(|name| name.to_str()) else {
+        return Err("import batch directory is not utf-8".into());
+    };
+    if !is_import_batch_id(id) {
+        return Err("import_batch_id is not a lowercase uuid v4".into());
+    }
+    Ok(id.to_string())
+}
+
+/// `import/e/<id>/<name>` after symlink resolution. `name` is one path segment.
+pub(crate) fn expect_e_sibling(
+    resolved: &std::path::Path,
+    data_dir: &std::path::Path,
+    id: &str,
+    name: &str,
+) -> Result<(), String> {
+    let expected = data_dir.join("import").join("e").join(id).join(name);
+    if resolved != expected {
+        return Err(format!("path must be import/e/<id>/{name}"));
+    }
+    Ok(())
+}
+
+/// Lowercase hyphenated UUID with version nibble 4 and the RFC 4122 variant.
+pub(crate) fn is_import_batch_id(text: &str) -> bool {
+    hatto_card_contract::is_guid_format(text) && text.as_bytes().get(14) == Some(&b'4')
 }
 
 pub(crate) fn now_millis() -> i64 {

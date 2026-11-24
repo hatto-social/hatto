@@ -28,6 +28,9 @@ pub enum BridgeProfile {
     /// Desktop v0. Calls are checked against the name table. A call with no
     /// implemented validator is denied and is not sent to rslib.
     Desktop { data_dir: String },
+    /// Temporary import collection. Its allowlist is not the desktop table.
+    /// `data_dir` is the same directory the desktop profile uses.
+    ImportE { data_dir: String },
 }
 
 /// One rslib backend. Open at most one of these against a given collection file;
@@ -42,6 +45,10 @@ pub struct AnkiBackend {
 impl AnkiBackend {
     pub(crate) fn is_unrestricted(&self) -> bool {
         matches!(self.profile, BridgeProfile::MobileUnrestricted)
+    }
+
+    pub(crate) fn is_import_e(&self) -> bool {
+        matches!(self.profile, BridgeProfile::ImportE { .. })
     }
 
     pub(crate) fn lock_session(&self) -> MutexGuard<'_, DesktopSession> {
@@ -108,7 +115,9 @@ pub fn open_backend_with_profile(
 ) -> Result<AnkiBackend, String> {
     let data_dir = match &profile {
         BridgeProfile::MobileUnrestricted => None,
-        BridgeProfile::Desktop { data_dir } => Some(prepare_data_dir(data_dir)?),
+        BridgeProfile::Desktop { data_dir } | BridgeProfile::ImportE { data_dir } => {
+            Some(prepare_data_dir(data_dir)?)
+        }
     };
     let inner = init_backend(&init_msg).map_err(|err| err)?;
     Ok(AnkiBackend {
@@ -126,6 +135,15 @@ pub fn open_desktop_backend(init_msg: Vec<u8>, data_dir: String) -> Result<AnkiB
     open_backend_with_profile(init_msg, BridgeProfile::Desktop { data_dir })
 }
 
+/// Open an import-E backend.
+///
+/// `data_dir` is the collection directory, the same value a desktop backend
+/// uses. This handle cannot open the resident collection. App call sites are
+/// a later slice; this signature is the Rust entry.
+pub fn open_import_e_backend(init_msg: Vec<u8>, data_dir: String) -> Result<AnkiBackend, String> {
+    open_backend_with_profile(init_msg, BridgeProfile::ImportE { data_dir })
+}
+
 /// One protobuf backend call. `service` and `method` come from [service_method_index].
 ///
 /// An unrestricted backend forwards the bytes. A desktop backend denies the
@@ -134,6 +152,9 @@ pub fn open_desktop_backend(init_msg: Vec<u8>, data_dir: String) -> Result<AnkiB
 pub fn command(backend: &AnkiBackend, service: u32, method: u32, input: Vec<u8>) -> ProtoResponse {
     if backend.is_unrestricted() {
         return dispatch(backend, service, method, &input);
+    }
+    if backend.is_import_e() {
+        return crate::policy::enforce_import_e(backend, service, method, input);
     }
     crate::policy::enforce(backend, service, method, input)
 }
@@ -252,7 +273,10 @@ pub fn imported_note_guid(job_id: String, source_guid: String) -> Result<String,
 #[flutter_rust_bridge::frb(sync)]
 pub fn local_note_guid(op_id: String, k: u32) -> Result<String, String> {
     let op = hatto_card_contract::parse_uuid(&op_id).map_err(|err| err.to_string())?;
-    Ok(hatto_card_contract::NoteGuid::from(hatto_card_contract::local_note_guid(op, k)).to_string())
+    Ok(
+        hatto_card_contract::NoteGuid::from(hatto_card_contract::local_note_guid(op, k))
+            .to_string(),
+    )
 }
 
 /// Canonical lowercase hyphenated UUID with version nibble 4 or 5
