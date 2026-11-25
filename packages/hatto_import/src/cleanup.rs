@@ -23,6 +23,7 @@ use crate::paths::{
 /// What the caller knows about one batch's intent row.
 ///
 /// `None` from the scan callback means there is no intent row.
+/// With the v1 side DB, a present row means `Prepared` (`NotPrepared` is not used by Dart).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BatchIntent {
     /// Side-database row is still `prepared`. The files stay.
@@ -144,11 +145,10 @@ fn read_children(dir: &Path) -> Result<Option<Vec<String>>, ImportError> {
     for entry in entries {
         let entry = entry.map_err(|err| ImportError::new(err.to_string()))?;
         let name = entry.file_name();
+        // §15.5 item 3: a name outside the grammar is ignored. Non-UTF-8
+        // cannot be a batch id, so the scan skips it instead of failing.
         let Some(name) = name.to_str() else {
-            return Err(ImportError::new(format!(
-                "{} has a non-utf8 name",
-                dir.display()
-            )));
+            continue;
         };
         names.push(name.to_string());
     }
@@ -156,21 +156,21 @@ fn read_children(dir: &Path) -> Result<Option<Vec<String>>, ImportError> {
 }
 
 fn remove_path(path: &Path) -> Result<(), ImportError> {
-    if !path.exists() {
-        return Ok(());
-    }
-    // A symlink is not followed. remove_dir_all on a symlink fails; remove the
-    // link itself instead of the target.
-    if path
-        .symlink_metadata()
-        .map(|meta| meta.file_type().is_symlink())
-        .unwrap_or(false)
-    {
+    // `exists` follows links and is false for a dangling symlink, so it would
+    // leave the link in place. `symlink_metadata` sees the link itself.
+    let meta = match fs::symlink_metadata(path) {
+        Ok(meta) => meta,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(err) => return Err(ImportError::new(format!("{}: {err}", path.display()))),
+    };
+    // Never follow a symlink. `remove_dir_all` can remove the target; remove
+    // the link itself.
+    if meta.file_type().is_symlink() {
         fs::remove_file(path)
             .map_err(|err| ImportError::new(format!("{}: {err}", path.display())))?;
         return Ok(());
     }
-    if path.is_dir() {
+    if meta.is_dir() {
         fs::remove_dir_all(path)
             .map_err(|err| ImportError::new(format!("{}: {err}", path.display())))?;
     } else {
