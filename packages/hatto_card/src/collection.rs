@@ -184,14 +184,7 @@ impl Session {
             "new_note",
             &anki_proto::notetypes::NotetypeId { ntid: notetype },
         )?;
-        if fresh.fields.len() != note.fields.len() {
-            return Err(format!(
-                "{} has {} fields and the notetype has {}",
-                note.location,
-                note.fields.len(),
-                fresh.fields.len()
-            ));
-        }
+        field_count_matches(note, fresh.fields.len())?;
         // Replace the random guid before insert so the collection never stores it.
         fresh.guid = note.guid.clone();
         fresh.fields = note.fields.clone();
@@ -208,6 +201,23 @@ impl Session {
             return Err(format!("add_note {} returned id 0", note.guid));
         }
         Ok(added.note_id)
+    }
+
+    /// Rejects notes whose field count is not the one rslib builds for `notetype`.
+    pub(crate) fn check_note_fields(
+        &self,
+        notetype: i64,
+        notes: &[DerivedNote],
+    ) -> Result<(), String> {
+        let fresh: anki_proto::notes::Note = self.call(
+            "BackendNotesService",
+            "new_note",
+            &anki_proto::notetypes::NotetypeId { ntid: notetype },
+        )?;
+        for note in notes {
+            field_count_matches(note, fresh.fields.len())?;
+        }
+        Ok(())
     }
 
     pub(crate) fn add_media_file(&self, name: &str, data: &[u8]) -> Result<(), String> {
@@ -281,6 +291,18 @@ impl Drop for Session {
         };
         let _ = self.call_raw("BackendCollectionService", "close_collection", &close);
     }
+}
+
+fn field_count_matches(note: &DerivedNote, count: usize) -> Result<(), String> {
+    if note.fields.len() == count {
+        return Ok(());
+    }
+    Err(format!(
+        "{} has {} fields and the notetype has {}",
+        note.location,
+        note.fields.len(),
+        count
+    ))
 }
 
 fn decode_backend_error(bytes: &[u8]) -> String {
