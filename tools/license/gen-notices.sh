@@ -75,6 +75,7 @@ trap 'rm -rf "$WORK"' EXIT
 echo "cargo-deny check licenses"
 for manifest in \
   packages/rslib_bridge/rust/Cargo.toml \
+  packages/rslib_core/Cargo.toml \
   packages/hatto_card_contract/Cargo.toml \
   packages/hatto_card/Cargo.toml
 do

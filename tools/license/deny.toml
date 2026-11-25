@@ -1,5 +1,5 @@
 # cargo-deny 0.21.0 license policy for packages/rslib_bridge/rust,
-# packages/hatto_card_contract, and packages/hatto_card.
+# packages/rslib_core, packages/hatto_card_contract, and packages/hatto_card.
 # gen-notices.sh runs this file against each of those manifests.
 #
 # `cargo deny check licenses` fails when a crate in the Android graph uses a
@@ -38,8 +38,9 @@ allow = [
 exceptions = []
 
 [licenses.private]
-# rslib_bridge is unpublished. Anki path crates are not workspace members;
-# this flag does not skip them, and their license field is AGPL-3.0-or-later.
+# rslib_bridge and rslib_core are unpublished. Anki path crates are not
+# workspace members; this flag does not skip them, and their license field
+# is AGPL-3.0-or-later.
 ignore = true
 registries = []
 

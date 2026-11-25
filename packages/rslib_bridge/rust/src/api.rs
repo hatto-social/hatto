@@ -2,59 +2,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::path::PathBuf;
-use std::sync::{Mutex, MutexGuard};
+//! flutter_rust_bridge surface. The channel and the call policy live in
+//! `rslib_core`. These functions keep the names and signatures the Dart
+//! bindings and `hatto_card` already call.
 
-use anki::backend::init_backend;
 use prost::Message;
 
-use crate::index;
-use crate::policy::{prepare_data_dir, DesktopSession};
-
-/// Which calls an open backend will forward.
-///
-/// The profile is fixed for the life of the backend.
-///
-/// Not exported to Dart: flutter_rust_bridge 2.13 emits a freezed enum for
-/// a variant that carries data, and this package does not take that
-/// dependency. Dart opens a desktop backend through [open_desktop_backend].
-#[flutter_rust_bridge::frb(ignore)]
-#[derive(Debug, Clone)]
-pub enum BridgeProfile {
-    /// No allowlist yet. Every `(service, method)` is forwarded to rslib,
-    /// which is the behavior `open_backend` has always had. The mobile
-    /// allowlist is a later PR, before the mobile v0 release.
-    MobileUnrestricted,
-    /// Desktop v0. Calls are checked against the name table. A call with no
-    /// implemented validator is denied and is not sent to rslib.
-    Desktop { data_dir: String },
-    /// Temporary import collection. Its allowlist is not the desktop table.
-    /// `data_dir` is the same directory the desktop profile uses.
-    ImportE { data_dir: String },
-}
-
-/// One rslib backend. Open at most one of these against a given collection file;
-/// a second open fails with `DB_ERROR` (kind 5) because rslib takes an exclusive lock.
-#[flutter_rust_bridge::frb(opaque)]
-pub struct AnkiBackend {
-    inner: anki::backend::Backend,
-    profile: BridgeProfile,
-    session: Mutex<DesktopSession>,
-}
-
-impl AnkiBackend {
-    pub(crate) fn is_unrestricted(&self) -> bool {
-        matches!(self.profile, BridgeProfile::MobileUnrestricted)
-    }
-
-    pub(crate) fn is_import_e(&self) -> bool {
-        matches!(self.profile, BridgeProfile::ImportE { .. })
-    }
-
-    pub(crate) fn lock_session(&self) -> MutexGuard<'_, DesktopSession> {
-        self.session.lock().unwrap_or_else(|err| err.into_inner())
-    }
-}
+pub use rslib_core::api::BridgeProfile;
+pub use rslib_core::AnkiBackend;
 
 /// Bytes returned by `run_service_method`.
 ///
@@ -70,12 +25,26 @@ pub struct ServiceMethodIndex {
     pub method: u32,
 }
 
+fn bridge_response(response: rslib_core::ProtoResponse) -> ProtoResponse {
+    ProtoResponse {
+        success: response.success,
+        payload: response.payload,
+    }
+}
+
+fn bridge_index(index: rslib_core::ServiceMethodIndex) -> ServiceMethodIndex {
+    ServiceMethodIndex {
+        service: index.service,
+        method: index.method,
+    }
+}
+
 /// Called by the generated bridge when the Dart library loads.
 #[flutter_rust_bridge::frb(init)]
 pub fn init_app() {
     flutter_rust_bridge::setup_default_user_utils();
     // Logging is process setup, not a collection call. Ignore a second init.
-    let _ = anki::log::set_global_logger(None);
+    rslib_core::api::install_anki_logger();
 }
 
 /// Point rslib's temp files at an app-writable directory.
@@ -84,13 +53,7 @@ pub fn init_app() {
 /// import call `std::env::temp_dir()`, which is not usable on Android.
 /// Call this before other bridge functions, and not concurrently with them.
 pub fn prepare_runtime(tmp_dir: String) {
-    // SAFETY: the environment is process-global and not synchronized. The app
-    // calls this once at startup, before rslib creates temp files.
-    unsafe {
-        std::env::set_var("TMPDIR", &tmp_dir);
-        std::env::set_var("TMP", &tmp_dir);
-        std::env::set_var("TEMP", &tmp_dir);
-    }
+    rslib_core::api::prepare_runtime(tmp_dir);
 }
 
 /// `init_msg` is an encoded `anki.backend.BackendInit`. v0 passes `server = false`.
@@ -98,7 +61,7 @@ pub fn prepare_runtime(tmp_dir: String) {
 /// This stays unrestricted: it opens a [BridgeProfile::MobileUnrestricted]
 /// backend. Existing mobile and `hatto_store` callers keep that behavior.
 pub fn open_backend(init_msg: Vec<u8>) -> Result<AnkiBackend, String> {
-    open_backend_with_profile(init_msg, BridgeProfile::MobileUnrestricted)
+    rslib_core::api::open_backend(init_msg)
 }
 
 /// Open a backend and fix its call profile.
@@ -113,18 +76,7 @@ pub fn open_backend_with_profile(
     init_msg: Vec<u8>,
     profile: BridgeProfile,
 ) -> Result<AnkiBackend, String> {
-    let data_dir = match &profile {
-        BridgeProfile::MobileUnrestricted => None,
-        BridgeProfile::Desktop { data_dir } | BridgeProfile::ImportE { data_dir } => {
-            Some(prepare_data_dir(data_dir)?)
-        }
-    };
-    let inner = init_backend(&init_msg).map_err(|err| err)?;
-    Ok(AnkiBackend {
-        inner,
-        profile,
-        session: Mutex::new(DesktopSession::new(data_dir)),
-    })
+    rslib_core::api::open_backend_with_profile(init_msg, profile)
 }
 
 /// Open a desktop-profile backend.
@@ -132,7 +84,7 @@ pub fn open_backend_with_profile(
 /// `data_dir` is the collection directory. This calls
 /// [open_backend_with_profile] with [BridgeProfile::Desktop].
 pub fn open_desktop_backend(init_msg: Vec<u8>, data_dir: String) -> Result<AnkiBackend, String> {
-    open_backend_with_profile(init_msg, BridgeProfile::Desktop { data_dir })
+    rslib_core::api::open_desktop_backend(init_msg, data_dir)
 }
 
 /// Open an import-E backend.
@@ -140,8 +92,9 @@ pub fn open_desktop_backend(init_msg: Vec<u8>, data_dir: String) -> Result<AnkiB
 /// `data_dir` is the collection directory, the same value a desktop backend
 /// uses. This handle cannot open the resident collection. App call sites are
 /// a later slice; this signature is the Rust entry.
+#[flutter_rust_bridge::frb(ignore)]
 pub fn open_import_e_backend(init_msg: Vec<u8>, data_dir: String) -> Result<AnkiBackend, String> {
-    open_backend_with_profile(init_msg, BridgeProfile::ImportE { data_dir })
+    rslib_core::api::open_import_e_backend(init_msg, data_dir)
 }
 
 /// One protobuf backend call. `service` and `method` come from [service_method_index].
@@ -150,90 +103,7 @@ pub fn open_import_e_backend(init_msg: Vec<u8>, data_dir: String) -> Result<Anki
 /// call, without sending it to rslib, when the name is not allowed or its
 /// validator is not implemented.
 pub fn command(backend: &AnkiBackend, service: u32, method: u32, input: Vec<u8>) -> ProtoResponse {
-    if backend.is_unrestricted() {
-        return dispatch(backend, service, method, &input);
-    }
-    if backend.is_import_e() {
-        return crate::policy::enforce_import_e(backend, service, method, input);
-    }
-    crate::policy::enforce(backend, service, method, input)
-}
-
-#[cfg(test)]
-pub(crate) static LAST_OPEN_COLLECTION_INPUT: std::sync::Mutex<Option<Vec<u8>>> =
-    std::sync::Mutex::new(None);
-
-pub(crate) fn dispatch(
-    backend: &AnkiBackend,
-    service: u32,
-    method: u32,
-    input: &[u8],
-) -> ProtoResponse {
-    #[cfg(test)]
-    if crate::index::reverse(service, method).is_some_and(|(_, method)| method == "open_collection")
-    {
-        *LAST_OPEN_COLLECTION_INPUT.lock().unwrap() = Some(input.to_vec());
-    }
-    // rslib can panic on a missing notetype (`GetClozeFieldOrds`). Catch that
-    // here so the panic becomes a BackendError instead of killing the process.
-    // A panic while rslib holds its collection mutex can still poison that
-    // mutex; callers that can check the input first should do so.
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        backend.inner.run_service_method(service, method, input)
-    }));
-    match result {
-        Ok(Ok(payload)) => ProtoResponse {
-            success: true,
-            payload,
-        },
-        Ok(Err(payload)) => ProtoResponse {
-            success: false,
-            payload,
-        },
-        Err(_) => {
-            backend.lock_session().poisoned = true;
-            backend_error("rslib panicked")
-        }
-    }
-}
-
-pub(crate) fn dispatch_message(
-    backend: &AnkiBackend,
-    service: &str,
-    method: &str,
-    message: &impl Message,
-) -> Result<Vec<u8>, String> {
-    let Some((service_index, method_index)) = index::lookup(service, method) else {
-        return Err(format!(
-            "no index for {service}.{method}; {}",
-            index::describe_service(service)
-        ));
-    };
-    let response = dispatch(
-        backend,
-        service_index,
-        method_index,
-        &message.encode_to_vec(),
-    );
-    if response.success {
-        Ok(response.payload)
-    } else {
-        Err(decode_backend_error(&response.payload))
-    }
-}
-
-pub(crate) fn backend_error(message: impl Into<String>) -> ProtoResponse {
-    let err = anki_proto::backend::BackendError {
-        message: message.into(),
-        kind: anki_proto::backend::backend_error::Kind::InvalidInput as i32,
-        help_page: None,
-        context: String::new(),
-        backtrace: String::new(),
-    };
-    ProtoResponse {
-        success: false,
-        payload: err.encode_to_vec(),
-    }
+    bridge_response(rslib_core::api::command(backend, service, method, input))
 }
 
 /// Look up the dispatcher index for this pinned rslib tag.
@@ -242,13 +112,13 @@ pub(crate) fn backend_error(message: impl Into<String>) -> ProtoResponse {
 /// snake_case method name (`open_collection`).
 #[flutter_rust_bridge::frb(sync)]
 pub fn service_method_index(service: String, method: String) -> Option<ServiceMethodIndex> {
-    index::lookup(&service, &method).map(|(service, method)| ServiceMethodIndex { service, method })
+    rslib_core::api::service_method_index(service, method).map(bridge_index)
 }
 
 /// The rslib version string compiled into this binary (`26.09.3` for the pin).
 #[flutter_rust_bridge::frb(sync)]
 pub fn anki_version() -> String {
-    anki::version::version().to_string()
+    rslib_core::api::anki_version()
 }
 
 /// `uuid5(namespace = job_id, name = source_guid UTF-8)`.
@@ -461,69 +331,7 @@ pub fn inspect_exported_deck_configs(dir: String) -> Result<Vec<DeckConfigRow>, 
 /// through the protobuf channel, then `GetDeckNames` confirms the collection is open.
 /// `server` is false. Returns `anki <version>; server=false; decks=<names>`.
 pub fn smoke_open_collection(dir: String) -> Result<String, String> {
-    let root = PathBuf::from(&dir);
-    std::fs::create_dir_all(&root).map_err(|err| err.to_string())?;
-    let tmp = root.join("tmp");
-    std::fs::create_dir_all(&tmp).map_err(|err| err.to_string())?;
-    prepare_runtime(tmp.to_string_lossy().into_owned());
-
-    let media = root.join("collection.media");
-    std::fs::create_dir_all(&media).map_err(|err| err.to_string())?;
-    let collection = root.join("collection.anki2");
-    let media_db = root.join("collection.media.db");
-
-    let init = anki_proto::backend::BackendInit {
-        preferred_langs: vec!["en".into()],
-        locale_folder_path: String::new(),
-        server: false,
-    };
-    let backend = open_backend(init.encode_to_vec())?;
-
-    let open = anki_proto::collection::OpenCollectionRequest {
-        collection_path: collection.to_string_lossy().into_owned(),
-        media_folder_path: media.to_string_lossy().into_owned(),
-        media_db_path: media_db.to_string_lossy().into_owned(),
-    };
-    call(
-        &backend,
-        "BackendCollectionService",
-        "open_collection",
-        &open,
-    )?;
-
-    let names_req = anki_proto::decks::GetDeckNamesRequest {
-        skip_empty_default: false,
-        include_filtered: true,
-    };
-    let name_bytes = call(
-        &backend,
-        "BackendDecksService",
-        "get_deck_names",
-        &names_req,
-    )?;
-    let decoded = anki_proto::decks::DeckNames::decode(name_bytes.as_slice())
-        .map_err(|err| err.to_string())?;
-    let deck_names: Vec<String> = decoded
-        .entries
-        .into_iter()
-        .map(|entry| entry.name)
-        .collect();
-
-    let close = anki_proto::collection::CloseCollectionRequest {
-        downgrade_to_schema11: false,
-    };
-    call(
-        &backend,
-        "BackendCollectionService",
-        "close_collection",
-        &close,
-    )?;
-
-    Ok(format!(
-        "anki {}; server=false; decks={}",
-        anki::version::version(),
-        deck_names.join(",")
-    ))
+    rslib_core::api::smoke_open_collection(dir)
 }
 
 pub(crate) fn call(
@@ -532,31 +340,11 @@ pub(crate) fn call(
     method: &str,
     message: &impl Message,
 ) -> Result<Vec<u8>, String> {
-    let Some((service_index, method_index)) = index::lookup(service, method) else {
-        return Err(format!(
-            "no index for {service}.{method}; {}",
-            index::describe_service(service)
-        ));
-    };
-    let response = command(
-        backend,
-        service_index,
-        method_index,
-        message.encode_to_vec(),
-    );
-    if response.success {
-        Ok(response.payload)
-    } else {
-        Err(decode_backend_error(&response.payload))
-    }
+    rslib_core::api::call(backend, service, method, message)
 }
 
-pub(crate) fn decode_backend_error(bytes: &[u8]) -> String {
-    match anki_proto::backend::BackendError::decode(bytes) {
-        Ok(err) => format!("{} (kind={:?})", err.message, err.kind),
-        Err(_) => format!("undecodable backend error ({} bytes)", bytes.len()),
-    }
-}
+#[cfg(test)]
+pub(crate) use rslib_core::api::decode_backend_error;
 
 #[cfg(test)]
 mod tests {
