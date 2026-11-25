@@ -254,15 +254,15 @@ fn check_export_options(
     Ok(())
 }
 
-fn validate_search(input: &[u8]) -> Result<Vec<u8>, String> {
+pub(super) fn validate_search(input: &[u8]) -> Result<Vec<u8>, String> {
     let request = decode::<anki_proto::search::SearchRequest>(input)?;
     check_search_order(request.order.as_ref())?;
-    Ok(input.to_vec())
+    Ok(request.encode_to_vec())
 }
 
 /// A normal deck may change in exactly one way: clear `description`, or
 /// change `config_id` alone.
-fn validate_update_deck(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String> {
+pub(super) fn validate_update_deck(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String> {
     let request = decode::<anki_proto::decks::Deck>(input)?;
     let Some(anki_proto::decks::deck::Kind::Normal(requested)) = request.kind.as_ref() else {
         return Err("deck is not a normal deck".into());
@@ -288,13 +288,14 @@ fn validate_update_deck(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, 
     } else {
         return Err("update_deck must clear the description or change only config_id".into());
     };
-    if request.encode_to_vec() != expected.encode_to_vec() {
+    let encoded = request.encode_to_vec();
+    if encoded != expected.encode_to_vec() {
         return Err("other deck fields must stay unchanged".into());
     }
-    Ok(input.to_vec())
+    Ok(encoded)
 }
 
-fn validate_update_deck_configs(input: &[u8]) -> Result<Vec<u8>, String> {
+pub(super) fn validate_update_deck_configs(input: &[u8]) -> Result<Vec<u8>, String> {
     let request = decode::<anki_proto::deck_config::UpdateDeckConfigsRequest>(input)?;
     if request.target_deck_id == 1 {
         return Err("target_deck_id must not be 1".into());
@@ -312,7 +313,7 @@ fn validate_update_deck_configs(input: &[u8]) -> Result<Vec<u8>, String> {
     if request.configs.len() != 1 || request.configs[0].id != 0 {
         return Err("configs must be one new config".into());
     }
-    Ok(input.to_vec())
+    Ok(request.encode_to_vec())
 }
 
 fn with_config_id(
@@ -344,8 +345,7 @@ fn description_cleared_deck(
 
 fn validate_run_db_command(input: &[u8]) -> Result<Vec<u8>, String> {
     let request = decode::<anki_proto::generic::Json>(input)?;
-    let value: serde_json::Value = serde_json::from_slice(&request.json)
-        .map_err(|err| format!("run_db_command json: {err}"))?;
+    let value = parse_db_json(&request.json)?;
     let Some(obj) = value.as_object() else {
         return Err("run_db_command json must be an object".into());
     };
@@ -409,6 +409,235 @@ fn validate_run_db_command(input: &[u8]) -> Result<Vec<u8>, String> {
         }
     }
     Ok(input.to_vec())
+}
+
+/// `serde_json::Value` keeps the last copy of a duplicate key. rslib
+/// deserializes this object into a struct and rejects the repeat, so the
+/// policy rejects a duplicate key at every object before it looks at `sql`.
+fn parse_db_json(bytes: &[u8]) -> Result<serde_json::Value, String> {
+    let mut cursor = 0;
+    skip_json_ws(bytes, &mut cursor);
+    parse_json_value(bytes, &mut cursor).map_err(|err| format!("run_db_command json: {err}"))?;
+    skip_json_ws(bytes, &mut cursor);
+    if cursor != bytes.len() {
+        return Err("run_db_command json: trailing characters".into());
+    }
+    serde_json::from_slice(bytes).map_err(|err| format!("run_db_command json: {err}"))
+}
+
+fn parse_json_value(bytes: &[u8], i: &mut usize) -> Result<(), String> {
+    skip_json_ws(bytes, i);
+    match bytes.get(*i).copied() {
+        Some(b'n') => consume_literal(bytes, i, b"null"),
+        Some(b't') => consume_literal(bytes, i, b"true"),
+        Some(b'f') => consume_literal(bytes, i, b"false"),
+        Some(b'"') => {
+            parse_json_string(bytes, i)?;
+            Ok(())
+        }
+        Some(b'[') => parse_json_array(bytes, i),
+        Some(b'{') => parse_json_object(bytes, i),
+        Some(b'-' | b'0'..=b'9') => parse_json_number(bytes, i),
+        _ => Err("invalid json".into()),
+    }
+}
+
+fn parse_json_object(bytes: &[u8], i: &mut usize) -> Result<(), String> {
+    *i += 1;
+    skip_json_ws(bytes, i);
+    if bytes.get(*i) == Some(&b'}') {
+        *i += 1;
+        return Ok(());
+    }
+    let mut keys = Vec::new();
+    loop {
+        skip_json_ws(bytes, i);
+        let key = parse_json_string(bytes, i)?;
+        if keys.contains(&key) {
+            return Err(format!("duplicate key '{key}'"));
+        }
+        keys.push(key);
+        skip_json_ws(bytes, i);
+        if bytes.get(*i) != Some(&b':') {
+            return Err("expected ':'".into());
+        }
+        *i += 1;
+        parse_json_value(bytes, i)?;
+        skip_json_ws(bytes, i);
+        match bytes.get(*i).copied() {
+            Some(b',') => *i += 1,
+            Some(b'}') => {
+                *i += 1;
+                return Ok(());
+            }
+            _ => return Err("expected ',' or '}'".into()),
+        }
+    }
+}
+
+fn parse_json_array(bytes: &[u8], i: &mut usize) -> Result<(), String> {
+    *i += 1;
+    skip_json_ws(bytes, i);
+    if bytes.get(*i) == Some(&b']') {
+        *i += 1;
+        return Ok(());
+    }
+    loop {
+        parse_json_value(bytes, i)?;
+        skip_json_ws(bytes, i);
+        match bytes.get(*i).copied() {
+            Some(b',') => *i += 1,
+            Some(b']') => {
+                *i += 1;
+                return Ok(());
+            }
+            _ => return Err("expected ',' or ']'".into()),
+        }
+    }
+}
+
+fn parse_json_string(bytes: &[u8], i: &mut usize) -> Result<String, String> {
+    if bytes.get(*i) != Some(&b'"') {
+        return Err("expected a string".into());
+    }
+    *i += 1;
+    let mut out = String::new();
+    loop {
+        let (ch, size) = json_char_at(bytes, *i)?;
+        *i += size;
+        match ch {
+            '"' => return Ok(out),
+            '\\' => out.push(json_escape(bytes, i)?),
+            ch if (ch as u32) < 0x20 => return Err("unescaped control character".into()),
+            ch => out.push(ch),
+        }
+    }
+}
+
+fn json_escape(bytes: &[u8], i: &mut usize) -> Result<char, String> {
+    let (ch, size) = json_char_at(bytes, *i)?;
+    *i += size;
+    match ch {
+        '"' | '\\' | '/' => Ok(ch),
+        'b' => Ok('\u{0008}'),
+        'f' => Ok('\u{000c}'),
+        'n' => Ok('\n'),
+        'r' => Ok('\r'),
+        't' => Ok('\t'),
+        'u' => json_u_escape(bytes, i),
+        _ => Err("invalid escape".into()),
+    }
+}
+
+fn json_u_escape(bytes: &[u8], i: &mut usize) -> Result<char, String> {
+    let unit = json_hex4(bytes, i)?;
+    if (0xDC00..=0xDFFF).contains(&unit) {
+        return Err("lone surrogate".into());
+    }
+    if !(0xD800..=0xDBFF).contains(&unit) {
+        return char::from_u32(unit).ok_or_else(|| "invalid unicode escape".into());
+    }
+    let (slash, slash_size) = json_char_at(bytes, *i)?;
+    if slash != '\\' {
+        return Err("lone surrogate".into());
+    }
+    *i += slash_size;
+    let (marker, marker_size) = json_char_at(bytes, *i)?;
+    if marker != 'u' {
+        return Err("lone surrogate".into());
+    }
+    *i += marker_size;
+    let low = json_hex4(bytes, i)?;
+    if !(0xDC00..=0xDFFF).contains(&low) {
+        return Err("invalid surrogate pair".into());
+    }
+    let point = 0x10000 + (((unit - 0xD800) << 10) | (low - 0xDC00));
+    char::from_u32(point).ok_or_else(|| "invalid unicode escape".into())
+}
+
+fn json_hex4(bytes: &[u8], i: &mut usize) -> Result<u32, String> {
+    let end = i.checked_add(4).ok_or("short unicode escape")?;
+    let digits = bytes.get(*i..end).ok_or("short unicode escape")?;
+    let text = std::str::from_utf8(digits).map_err(|_| "invalid unicode escape")?;
+    let value = u32::from_str_radix(text, 16).map_err(|_| "invalid unicode escape")?;
+    *i = end;
+    Ok(value)
+}
+
+fn json_char_at(bytes: &[u8], index: usize) -> Result<(char, usize), String> {
+    let rest = bytes.get(index..).ok_or("unexpected end of json")?;
+    let width = match rest.first().copied() {
+        Some(byte) if byte < 0x80 => 1,
+        Some(byte) if byte & 0xE0 == 0xC0 => 2,
+        Some(byte) if byte & 0xF0 == 0xE0 => 3,
+        Some(byte) if byte & 0xF8 == 0xF0 => 4,
+        _ => return Err("invalid utf-8".into()),
+    };
+    let slice = rest.get(..width).ok_or("invalid utf-8")?;
+    let text = std::str::from_utf8(slice).map_err(|_| "invalid utf-8")?;
+    let ch = text.chars().next().ok_or("invalid utf-8")?;
+    Ok((ch, ch.len_utf8()))
+}
+
+fn parse_json_number(bytes: &[u8], i: &mut usize) -> Result<(), String> {
+    if bytes.get(*i) == Some(&b'-') {
+        *i += 1;
+    }
+    let start = *i;
+    if bytes.get(*i) == Some(&b'0') {
+        *i += 1;
+    } else if bytes.get(*i).is_some_and(|byte| byte.is_ascii_digit()) {
+        while bytes.get(*i).is_some_and(|byte| byte.is_ascii_digit()) {
+            *i += 1;
+        }
+    } else {
+        return Err("invalid number".into());
+    }
+    if bytes.get(*i) == Some(&b'.') {
+        *i += 1;
+        let fraction = *i;
+        while bytes.get(*i).is_some_and(|byte| byte.is_ascii_digit()) {
+            *i += 1;
+        }
+        if *i == fraction {
+            return Err("invalid number".into());
+        }
+    }
+    if matches!(bytes.get(*i), Some(b'e' | b'E')) {
+        *i += 1;
+        if matches!(bytes.get(*i), Some(b'+' | b'-')) {
+            *i += 1;
+        }
+        let exponent = *i;
+        while bytes.get(*i).is_some_and(|byte| byte.is_ascii_digit()) {
+            *i += 1;
+        }
+        if *i == exponent {
+            return Err("invalid number".into());
+        }
+    }
+    if *i == start {
+        return Err("invalid number".into());
+    }
+    Ok(())
+}
+
+fn consume_literal(bytes: &[u8], i: &mut usize, literal: &[u8]) -> Result<(), String> {
+    if bytes
+        .get(*i..)
+        .is_some_and(|rest| rest.starts_with(literal))
+    {
+        *i += literal.len();
+        Ok(())
+    } else {
+        Err("invalid json".into())
+    }
+}
+
+fn skip_json_ws(bytes: &[u8], i: &mut usize) {
+    while matches!(bytes.get(*i), Some(b' ' | b'\t' | b'\n' | b'\r')) {
+        *i += 1;
+    }
 }
 
 fn exact_keys(
