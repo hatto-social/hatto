@@ -61,8 +61,12 @@ each command (`hatto-card new --help`, and the same for `validate`, `export`,
 and `add-note`). A missing or unknown command still exits 2.
 
 `export` validates, writes the notes into a temporary collection, and exports
-that one deck. `--json` prints one JSON object. Exit status is non-zero when
-the deck JSON is invalid, a guid check fails, or a media file is missing.
+that one deck. `validate` runs the same notetype gate first: it opens a
+temporary collection, checks that the notetype exists, and checks that each
+note has one field per notetype field. It does not write an apkg. `--json`
+prints one JSON object. Exit status is non-zero when the deck JSON is invalid,
+a guid check fails, a media file is missing, a note's field count does not
+match the notetype, or `notetype_legacy.id` is present and is not 0.
 
 `add-note` appends one note. There is no add-card command; Anki builds the
 cards from the note and the notetype. `--notetype` must name the same notetype as the deck's
@@ -81,11 +85,14 @@ flags cannot be combined with `--op-id` or `--k`. The id is stored on the
 new note, so the deck-level `op_id` or `job_id` of the other notes stays
 as it was.
 
-The file is written only after the same checks as `validate`. A failure
-leaves every deck file unchanged.
+The file is written only after the guid checks and the media-directory check.
+A failure leaves every deck file unchanged. `add-note` does not open a
+collection, so it does not apply the notetype field-count or
+`notetype_legacy.id` checks; `validate` and `export` do.
 
 Checks kept here are the deck JSON shape, `GUID_FORMAT`, `NOTE_GUID_DUPLICATE`
-inside this file, and a missing media path. Media bytes are copied as-is.
+inside this file, a missing media path, the notetype's field count, and a
+`notetype_legacy.id` other than 0. Media bytes are copied as-is.
 
 ## Notetypes and the seed
 
@@ -124,11 +131,14 @@ compares the file's size and SHA-256 with constants in `src/seed.rs`.
 Limits:
 
 - **`notetype_legacy` is not fixed.** A notetype the deck defines itself is
-  created by `add_notetype_legacy`, which gets a new id on every export (the
-  protobuf call rejects an id other than 0). Exporting the same deck twice and
-  importing both gives `conflicting` for the second (contract section 4.4-3
-  reports that case as BLOCKED). A deck with `notetype_legacy` does not load the
-  seed and behaves as before. `Image Occlusion` and any other name the table does
+  created by `add_notetype_legacy`, which assigns a new id on every export.
+  The legacy object's `id`, when present, must be 0. `validate` and `export`
+  reject any other value before calling rslib, because `add_notetype` asserts
+  the id is 0. A missing `id` still fails in rslib's decoder. Exporting the
+  same deck twice and importing both gives `conflicting` for the second
+  (contract section 4.4-3 reports that case as BLOCKED). A deck with
+  `notetype_legacy` does not load the seed and behaves as before. `Image Occlusion`
+  and any other name the table does
   not list are looked up in the temporary collection and are not fixed either.
 - **Apkg files from before the seed are not migrated.** They carry a `Basic`
   with a random id. A collection that already imported one and then imports the

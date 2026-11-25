@@ -161,6 +161,12 @@ enum AddedNote {
 pub fn validate_path(deck_path: &Path) -> Result<Value, ToolFailure> {
     let (deck, derived) = load(deck_path)?;
     require_media(deck_path, &deck)?;
+    // The same notetype gate as export, so a deck that cannot be built does
+    // not pass here. An empty `notes` array already failed in `load`.
+    let (_root, session, notetype) = open_for_notetype(&deck)?;
+    session
+        .check_note_fields(notetype, &derived)
+        .map_err(ToolFailure::message)?;
     Ok(json!({
         "ok": true,
         "notes": note_outs(&derived),
@@ -201,14 +207,10 @@ pub fn add_note_path(
 pub fn export_path(deck_path: &Path, out_path: &Path) -> Result<Value, ToolFailure> {
     let (deck, derived) = load(deck_path)?;
     let media_dir = require_media(deck_path, &deck)?;
-    let tmp = tempfile::TempDir::new().map_err(|err| ToolFailure::message(err.to_string()))?;
-    let session = Session::open(tmp.path()).map_err(ToolFailure::message)?;
-    if deck.notetype_legacy.is_none() {
-        session
-            .load_seed(seed::SEED)
-            .map_err(ToolFailure::message)?;
-    }
-    let notetype = resolve_notetype(&session, &deck)?;
+    let (_root, session, notetype) = open_for_notetype(&deck)?;
+    session
+        .check_note_fields(notetype, &derived)
+        .map_err(ToolFailure::message)?;
     let deck_id = session
         .add_deck(&deck.deck_name)
         .map_err(ToolFailure::message)?;
@@ -333,6 +335,48 @@ fn note_outs(notes: &[DerivedNote]) -> Vec<NoteOut> {
             guid: note.guid.clone(),
         })
         .collect()
+}
+
+/// Opens the temporary collection `export` builds into and resolves the
+/// deck's notetype. A `notetype_legacy.id` other than 0 is rejected before
+/// that collection exists: rslib's `add_notetype` asserts the id is 0 and
+/// the failure otherwise surfaces as `rslib panicked`.
+fn open_for_notetype(deck: &DeckFile) -> Result<(tempfile::TempDir, Session, i64), ToolFailure> {
+    reject_nonzero_legacy_id(deck)?;
+    let tmp = tempfile::TempDir::new().map_err(|err| ToolFailure::message(err.to_string()))?;
+    let session = Session::open(tmp.path()).map_err(ToolFailure::message)?;
+    if deck.notetype_legacy.is_none() {
+        session
+            .load_seed(seed::SEED)
+            .map_err(ToolFailure::message)?;
+    }
+    let notetype = resolve_notetype(&session, deck)?;
+    Ok((tmp, session, notetype))
+}
+
+/// `id` may be a JSON number or a decimal string. Only 0 may be passed to
+/// `add_notetype_legacy`. A missing `id` is left for rslib's own decode.
+fn reject_nonzero_legacy_id(deck: &DeckFile) -> Result<(), ToolFailure> {
+    let Some(model) = deck.notetype_legacy.as_ref() else {
+        return Ok(());
+    };
+    let Some(id) = model.get("id") else {
+        return Ok(());
+    };
+    if legacy_id_is_zero(id) {
+        return Ok(());
+    }
+    Err(ToolFailure::message(format!(
+        "notetype_legacy.id is {id}; add_notetype_legacy requires 0"
+    )))
+}
+
+fn legacy_id_is_zero(id: &Value) -> bool {
+    match id {
+        Value::Number(number) => number.as_i64() == Some(0),
+        Value::String(text) => text.parse::<i64>().ok() == Some(0),
+        _ => false,
+    }
 }
 
 fn resolve_notetype(session: &Session, deck: &DeckFile) -> Result<i64, ToolFailure> {
@@ -624,6 +668,116 @@ mod tests {
         assert_eq!(note["tags"], json!(["one", "two"]));
         assert_eq!(note["k"], 0);
         assert_eq!(copy["notes"].as_array().unwrap().len(), 4);
+    }
+
+    #[test]
+    fn empty_notes_are_still_rejected_before_the_notetype_gate() {
+        let root = tempfile::tempdir().unwrap();
+        let mut deck = bare_skeleton();
+        deck["notes"] = json!([]);
+        let path = write_deck(root.path(), &deck);
+        let err = validate_path(&path).unwrap_err();
+        assert!(err
+            .errors
+            .iter()
+            .any(|error| { error.location == "notes" && error.message == "notes is empty" }));
+        assert!(err.message.is_none());
+        let err = export_path(&path, &root.path().join("out.apkg")).unwrap_err();
+        assert!(err
+            .errors
+            .iter()
+            .any(|error| error.message == "notes is empty"));
+        assert!(!root.path().join("out.apkg").exists());
+    }
+
+    #[test]
+    fn legacy_id_zero_is_an_integer_zero_only() {
+        assert!(legacy_id_is_zero(&json!(0)));
+        assert!(legacy_id_is_zero(&json!("0")));
+        assert!(!legacy_id_is_zero(&json!(1)));
+        assert!(!legacy_id_is_zero(&json!("1")));
+        assert!(!legacy_id_is_zero(&json!(-1)));
+        assert!(!legacy_id_is_zero(&json!(null)));
+        assert!(!legacy_id_is_zero(&json!(true)));
+        assert!(!legacy_id_is_zero(&json!(1.5)));
+    }
+
+    #[test]
+    fn nonzero_legacy_id_is_rejected_before_a_collection_exists() {
+        let root = tempfile::tempdir().unwrap();
+        let mut deck = bare_skeleton();
+        deck.as_object_mut().unwrap().remove("notetype");
+        deck["notetype_legacy"] = json!({"id": 1, "name": "Basic"});
+        let path = write_deck(root.path(), &deck);
+        let message = "notetype_legacy.id is 1; add_notetype_legacy requires 0";
+        let err = validate_path(&path).unwrap_err();
+        assert_eq!(err.message.as_deref(), Some(message));
+        assert!(err.errors.is_empty());
+        let err = export_path(&path, &root.path().join("out.apkg")).unwrap_err();
+        assert_eq!(err.message.as_deref(), Some(message));
+        assert!(!root.path().join("out.apkg").exists());
+
+        deck["notetype_legacy"] = json!({"id": "1", "name": "Basic"});
+        let path = write_deck(root.path(), &deck);
+        let err = validate_path(&path).unwrap_err();
+        assert_eq!(
+            err.message.as_deref(),
+            Some("notetype_legacy.id is \"1\"; add_notetype_legacy requires 0")
+        );
+    }
+
+    #[test]
+    fn legacy_id_zero_is_not_the_nonzero_id_error() {
+        let root = tempfile::tempdir().unwrap();
+        let mut deck = bare_skeleton();
+        deck.as_object_mut().unwrap().remove("notetype");
+        deck["notetype_legacy"] = json!({"id": 0, "name": "Basic"});
+        let path = write_deck(root.path(), &deck);
+        let err = validate_path(&path).unwrap_err();
+        let message = err.message.unwrap_or_default();
+        assert!(
+            !message.contains("requires 0"),
+            "id 0 must reach rslib, got {message}"
+        );
+        assert!(!message.contains("panic"), "{message}");
+        let err = export_path(&path, &root.path().join("out.apkg")).unwrap_err();
+        let message = err.message.unwrap_or_default();
+        assert!(!message.contains("requires 0"), "{message}");
+        assert!(!message.contains("panic"), "{message}");
+        assert!(!root.path().join("out.apkg").exists());
+    }
+
+    #[test]
+    fn field_count_mismatch_fails_validate_and_export() {
+        let root = tempfile::tempdir().unwrap();
+        let mut deck = bare_skeleton();
+        deck["notes"] = json!([{
+            "k": 0,
+            "fields": ["one", "two", "three"]
+        }]);
+        let path = write_deck(root.path(), &deck);
+        let message = "notes[0].guid has 3 fields and the notetype has 2";
+        let err = validate_path(&path).unwrap_err();
+        assert_eq!(err.message.as_deref(), Some(message));
+        let err = export_path(&path, &root.path().join("out.apkg")).unwrap_err();
+        assert_eq!(err.message.as_deref(), Some(message));
+        assert!(!root.path().join("out.apkg").exists());
+    }
+
+    #[test]
+    fn unknown_notetype_fails_validate_and_export_the_same_way() {
+        let root = tempfile::tempdir().unwrap();
+        let mut deck = bare_skeleton();
+        deck["notetype"] = json!("Nope");
+        let path = write_deck(root.path(), &deck);
+        let validate = validate_path(&path).unwrap_err();
+        let export = export_path(&path, &root.path().join("out.apkg")).unwrap_err();
+        let validate_message = validate.message.unwrap();
+        let export_message = export.message.unwrap();
+        assert_eq!(validate_message, export_message);
+        assert!(validate_message.contains("Nope"), "{validate_message}");
+        assert!(!validate_message.contains("panic"), "{validate_message}");
+        assert!(!root.path().join("out.apkg").exists());
     }
 
     fn assert_uuid_v4(text: &str) {
