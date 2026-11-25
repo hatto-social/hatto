@@ -287,6 +287,7 @@ fn json_row_len(row: &[serde_json::Value]) -> usize {
 }
 
 /// Byte length of one executemany body. One pass over the rows.
+#[cfg(test)]
 fn guid_update_wire_len(args: &[Vec<serde_json::Value>]) -> usize {
     if args.is_empty() {
         return GUID_UPDATE_OUTER_BYTES;

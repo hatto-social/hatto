@@ -15,8 +15,10 @@ rust-version.workspace = true
 anki_proto = { path = "../../third_party/anki/rslib/proto" }
 hatto_card_contract = { path = "../hatto_card_contract" }
 prost = "0.13"
-# Protobuf channel only: unrestricted open_backend and command. The desktop
-# allowlist is not used. rslib itself is the anki crate behind that channel.
+# Protobuf channel only. Production opens an ImportE backend with
+# open_import_e_backend and sends command. Tests keep the unrestricted
+# backend. The desktop allowlist is not used. rslib itself is the anki
+# crate behind that channel.
 rslib_bridge = { path = "../rslib_bridge/rust" }
 rusqlite = { version = "0.36.0", features = ["bundled"] }
 serde_json = "1"
