@@ -16,20 +16,22 @@ Anki and can change:
 | Field | Meaning |
 | --- | --- |
 | `deck_name` | Deck created with `AddDeck` |
-| `job_id` | UUID for imported notes. A note may override it. |
+| `job_id` | Accepted and ignored. A note may still set its own. Neither is used to derive a guid. |
 | `op_id` | UUID for local notes. A note may override it. |
 | `notetype` | Stock notetype name or its Hatto name (table below). Default `Basic`. |
 | `notetype_legacy` | Optional Anki legacy notetype object, sent to `add_notetype_legacy`. |
 | `media_dir` | Files added with `add_media_file`. Relative to the deck file. |
-| `notes[].source_guid` | Imported note. Guid is `imported_note_guid(job_id, source_guid)`. |
+| `notes[].source_guid` | Imported note. Guid is `normalize_import_guid(source_guid)`. |
 | `notes[].k` | Local note. Guid is `local_note_guid(op_id, k)`. |
 | `notes[].fields` | Field strings, one per notetype field. |
 | `notes[].tags` | Tag list. |
 
-A note sets `source_guid` or `k`, not both. `source_guid` is not trimmed or
-normalized. An empty `source_guid` is `GUID_FORMAT`. The same derived guid
-twice in this file is `NOTE_GUID_DUPLICATE`. Duplicates against a collection
-or `note_map` are not checked here.
+A note sets `source_guid` or `k`, not both. `source_guid` is not trimmed,
+case-folded, or Unicode-normalized. An empty `source_guid` is `GUID_FORMAT`.
+The same derived guid twice in this file is `NOTE_GUID_DUPLICATE`.
+Duplicates against a collection or `note_map` are not checked here.
+
+CLI `source_guid` mode is an input generator that mimics an external apkg: `normalize_import_guid` is idempotent, so a guid written here is the same guid a later import would assign.
 
 `hatto-card new` writes an example. `examples/with-media/` is that example
 plus `media/dot.png`.
@@ -60,8 +62,9 @@ writes that path instead of the input file.
 With no guid flags, `add-note` makes a UUIDv4 `op_id` and sets `k` to 0.
 `k` is the index of the note inside this write, not the index in the file.
 The guid is `local_note_guid(op_id, k)`. `--op-id` and `--k` set those
-values. `--job-id` and `--source-guid` together use `imported_note_guid`
-and cannot be combined with `--op-id` or `--k`. The id is stored on the
+values. `--source-guid` (with `--job-id`) uses `normalize_import_guid`.
+`--job-id` is stored on the new note and ignored for that guid. Those
+flags cannot be combined with `--op-id` or `--k`. The id is stored on the
 new note, so the deck-level `op_id` or `job_id` of the other notes stays
 as it was.
 
