@@ -138,6 +138,8 @@ fn new_then_validate_add_note_and_export_needs_no_manual_media() {
     assert_eq!(guids.len(), 3);
     assert!(!guids.contains(&"74a16fcd-b6db-5db5-be79-787c72943de7"));
     assert!(guids.iter().all(|guid| is_guid_format(guid)));
+    // Same source_guid on both decks: normalize_import_guid, not job_id.
+    assert_eq!(guids[0], "83c5c912-05aa-5d37-bc2b-cd4e9c11a709");
 
     let (code, other_out, stderr) = run(&["--json", "validate", "--deck", other.to_str().unwrap()]);
     assert_eq!(code, 0, "{other_out}\n{stderr}");
@@ -148,7 +150,9 @@ fn new_then_validate_add_note_and_export_needs_no_manual_media() {
         .iter()
         .map(|note| note["guid"].as_str().unwrap())
         .collect();
-    assert!(guids.iter().all(|guid| !other_guids.contains(guid)));
+    assert_eq!(guids[0], other_guids[0]);
+    assert_ne!(guids[1], other_guids[1]);
+    assert_ne!(guids[2], other_guids[2]);
 
     let (code, stdout, stderr) = run(&[
         "--json",

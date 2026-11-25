@@ -301,9 +301,10 @@ flags:
   --deck-name NAME  set deck_name (default: Example)
   -h, --help        show this help and exit 0
 
-job_id and op_id are new UUIDv4 values on every run. Note guids stay uuid5
-values derived from those ids. The deck has three notes. An empty deck is
-not written.
+job_id and op_id are new UUIDv4 values on every run. Local note guids are
+uuid5 values from op_id. The source_guid note uses normalize_import_guid
+and does not use job_id. The deck has three notes. An empty deck is not
+written.
 
 With --output, media/dot.png is created beside the file when it is missing,
 so validate and export can run next. An existing dot.png is left unchanged.
@@ -358,6 +359,7 @@ flags:
   -h, --help           show this help and exit 0
 
 --job-id and --source-guid cannot be combined with --op-id or --k.
+--job-id is stored on the note and is not used to derive the guid.
 With no guid flags, add-note makes a UUIDv4 op_id and sets k to 0.
 The file is written only after the same checks as validate.
 ";

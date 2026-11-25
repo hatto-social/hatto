@@ -38,8 +38,10 @@ CLI `source_guid` mode is an input generator that mimics an external apkg: `norm
 writes `media/dot.png` beside the deck file when that file is missing, so
 `validate` and `export` can run next. An existing `dot.png` is left unchanged.
 `examples/with-media/` is the same shape with the fixed ids in that file, plus
-the png `new` copies. Note guids stay uuid5 values from `hatto_card_contract`.
-A deck with no notes is still rejected.
+the png `new` copies. Local note guids are uuid5 values from the fresh
+`op_id`. The `source_guid` note uses `normalize_import_guid`, so the fresh
+`job_id` is stored and does not change that guid. A deck with no notes is
+still rejected.
 
 ## Commands
 

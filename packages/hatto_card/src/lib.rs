@@ -671,7 +671,11 @@ mod tests {
         let beta_zero = local_zero(&beta_notes);
         assert_ne!(alpha_zero, beta_zero);
         assert_ne!(alpha_zero, "74a16fcd-b6db-5db5-be79-787c72943de7");
-        assert_ne!(alpha_notes[0].guid, beta_notes[0].guid);
+        // Imported notes use normalize_import_guid. A fresh job_id does not
+        // change that guid. Local notes still follow the fresh op_id.
+        let source = alpha["deck"]["notes"][0]["source_guid"].as_str().unwrap();
+        assert_eq!(alpha_notes[0].guid, beta_notes[0].guid);
+        assert_eq!(alpha_notes[0].guid, normalize_import_guid(source).unwrap());
         assert_ne!(alpha_notes[2].guid, beta_notes[2].guid);
 
         let on_disk = read_deck(&alpha_path);
