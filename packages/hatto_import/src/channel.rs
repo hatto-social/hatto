@@ -18,8 +18,8 @@ use anki_proto::collection::OpenCollectionRequest;
 use anki_proto::generic;
 use prost::Message;
 #[cfg(test)]
-use rslib_bridge::api::open_backend;
-use rslib_bridge::api::{command, open_import_e_backend, service_method_index, AnkiBackend};
+use rslib_core::api::open_backend;
+use rslib_core::api::{command, open_import_e_backend, service_method_index, AnkiBackend};
 use serde_json::Value;
 use uuid::Uuid;
 

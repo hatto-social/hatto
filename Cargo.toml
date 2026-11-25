@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "packages/rslib_core",
     "packages/rslib_bridge/rust",
     "packages/hatto_card_contract",
     "packages/hatto_card",

@@ -18,8 +18,8 @@ prost = "0.13"
 # Protobuf channel only. Production opens an ImportE backend with
 # open_import_e_backend and sends command. Tests keep the unrestricted
 # backend. The desktop allowlist is not used. rslib itself is the anki
-# crate behind that channel.
-rslib_bridge = { path = "../rslib_bridge/rust" }
+# crate behind rslib_core. This crate does not depend on the cdylib.
+rslib_core = { path = "../rslib_core" }
 rusqlite = { version = "0.36.0", features = ["bundled"] }
 serde_json = "1"
 sha2 = { version = "=0.10.9", default-features = false, features = ["std"] }

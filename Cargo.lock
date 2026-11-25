@@ -1347,7 +1347,7 @@ dependencies = [
  "anki_proto",
  "hatto_card_contract",
  "prost",
- "rslib_bridge",
+ "rslib_core",
  "rusqlite",
  "serde_json",
  "sha2 0.10.9",
@@ -2794,21 +2794,35 @@ dependencies = [
 name = "rslib_bridge"
 version = "0.1.0"
 dependencies = [
+ "anki_proto",
+ "flutter_rust_bridge",
+ "hatto_card_contract",
+ "hatto_import",
+ "prost",
+ "rslib_core",
+ "rusqlite",
+ "serde_json",
+ "tempfile",
+ "zip",
+ "zstd 0.13.3",
+]
+
+[[package]]
+name = "rslib_core"
+version = "0.1.0"
+dependencies = [
  "anki",
  "anki_proto",
  "anki_proto_gen",
  "anyhow",
- "flutter_rust_bridge",
  "hatto_card_contract",
  "prost",
  "prost-build",
  "prost-reflect",
- "rusqlite",
+ "serde",
  "serde_json",
  "tempfile",
  "tokio",
- "zip",
- "zstd 0.13.3",
 ]
 
 [[package]]

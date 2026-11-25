@@ -10,7 +10,7 @@ use std::process::Command;
 use std::sync::{Mutex, MutexGuard};
 
 use anki_proto::generic;
-use hatto_card_contract::{imported_note_guid, local_note_guid, parse_uuid, NoteGuid};
+use hatto_card_contract::{local_note_guid, normalize_import_guid, parse_uuid, NoteGuid};
 use prost::Message;
 use rslib_bridge::api::{
     command, open_backend, prepare_runtime, service_method_index, AnkiBackend,
@@ -145,9 +145,8 @@ fn add_note_then_export_imports_the_added_notes() {
     ]);
     assert_eq!(code, 0, "{stdout}\n{stderr}");
     let added: serde_json::Value = serde_json::from_str(&stdout).unwrap();
-    let imported_guid =
-        NoteGuid::from_uuid(imported_note_guid(parse_uuid(job_id).unwrap(), source).unwrap())
-            .into_string();
+    let imported_guid = normalize_import_guid(source).unwrap();
+    assert_eq!(imported_guid, "c91b0fb6-53bb-5ea7-bc17-6d20a24edace");
     assert_eq!(added["notes"][4]["guid"], imported_guid);
     assert_eq!(added["source_guid"], source);
 
@@ -577,8 +576,9 @@ fn every_seed_notetype_keeps_its_id_under_the_stock_and_the_hatto_name() {
 /// "Unchanged" means what a user's notes are: guids, fields, tags, the cards
 /// Anki builds (count and template ords) and the deck they sit in. The
 /// notetype's name, id, mtime and the ids inside it do change on purpose:
-/// that is the fix. The expected values below were taken from the CLI at
-/// 2dc5251 (before the seed) on the same decks.
+/// that is the fix. Local-note guids below are from the CLI at 2dc5251.
+/// `source_guid` guids are `normalize_import_guid` (I6a), not
+/// `imported_note_guid(job_id, source_guid)`.
 #[test]
 fn existing_decks_export_the_same_notes_cards_and_deck() {
     let _serial = serial();
@@ -591,8 +591,8 @@ fn existing_decks_export_the_same_notes_cards_and_deck() {
         seq.content,
         serde_json::json!({
             "notes": [
-                ["244091ee-521b-5229-a8e9-b1db2ff4dda3", "front <img src=\"dot.png\">\u{1f}back", " example "],
                 ["74a16fcd-b6db-5db5-be79-787c72943de7", "local zero\u{1f}back", " local "],
+                ["83c5c912-05aa-5d37-bc2b-cd4e9c11a709", "front <img src=\"dot.png\">\u{1f}back", " example "],
                 ["ecd3ff65-dfef-5a7f-8224-47e03d25710c", "local max\u{1f}back", " local max "],
             ],
             "card_ords": [0, 0, 0],
@@ -610,10 +610,10 @@ fn existing_decks_export_the_same_notes_cards_and_deck() {
         seq.content,
         serde_json::json!({
             "notes": [
-                ["244091ee-521b-5229-a8e9-b1db2ff4dda3", "front <img src=\"dot.png\">\u{1f}back", " example "],
-                ["32de43eb-25fa-573d-8733-ece2944d829e", "imported front\u{1f}imported back", ""],
                 ["37b79715-eed7-5757-b39e-bdaa9ef6df6a", "added front\u{1f}added back", " added "],
                 ["74a16fcd-b6db-5db5-be79-787c72943de7", "local zero\u{1f}back", " local "],
+                ["83c5c912-05aa-5d37-bc2b-cd4e9c11a709", "front <img src=\"dot.png\">\u{1f}back", " example "],
+                ["c91b0fb6-53bb-5ea7-bc17-6d20a24edace", "imported front\u{1f}imported back", ""],
                 ["ecd3ff65-dfef-5a7f-8224-47e03d25710c", "local max\u{1f}back", " local max "],
             ],
             "card_ords": [0, 0, 0, 0, 0],
