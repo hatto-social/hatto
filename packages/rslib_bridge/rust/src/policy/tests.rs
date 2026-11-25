@@ -3119,6 +3119,40 @@ fn import_e_run_db_command_rejects_duplicate_keys() {
     assert_denied(&db_call_raw(&backend, &duplicate_in_args), "duplicate key");
 }
 
+#[test]
+fn import_e_run_db_command_rejects_excessive_nesting() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let backend = e_root(&dir);
+    let opened = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &e_collection_request(dir.path(), BATCH_V4),
+    );
+    assert!(opened.success, "{}", message_of(&opened));
+    let json = format!("{}0{}", "[".repeat(100_000), "]".repeat(100_000));
+    assert_denied(&db_call_raw(&backend, &json), "recursion limit");
+}
+
+#[test]
+fn import_e_run_db_command_rejects_unescaped_duplicate_keys() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let backend = e_root(&dir);
+    let opened = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &e_collection_request(dir.path(), BATCH_V4),
+    );
+    assert!(opened.success, "{}", message_of(&opened));
+    let allowed = super::import_e::GUID_UPDATE_SQL;
+    // `\u0071` is `q`, so the second key is `sql` after unescape.
+    let json = format!(
+        r#"{{"kind":"executemany","sql":"DELETE FROM notes","s\u0071l":"{allowed}","args":[["{BATCH_V4}",1]]}}"#
+    );
+    assert_denied(&db_call_raw(&backend, &json), "duplicate key");
+}
+
 fn with_unknown_field(bytes: &[u8]) -> Vec<u8> {
     let mut out = bytes.to_vec();
     let mut tag = (20_000u64 << 3) | 2;

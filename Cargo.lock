@@ -2804,6 +2804,7 @@ dependencies = [
  "prost-build",
  "prost-reflect",
  "rusqlite",
+ "serde",
  "serde_json",
  "tempfile",
  "tokio",

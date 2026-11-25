@@ -7,9 +7,11 @@
 //! `import/e/<uuid v4>/collection.anki2`. Package import reads `import/raw`,
 //! and package export writes `import/staged`, both for that same id.
 
+use std::collections::HashSet;
 use std::path::Path;
 
 use prost::Message;
+use serde::de::{self, DeserializeSeed, Deserializer, MapAccess, SeqAccess, Visitor};
 
 use super::desktop::MAX_REQUEST_BYTES;
 use super::validators::validate_close;
@@ -415,228 +417,82 @@ fn validate_run_db_command(input: &[u8]) -> Result<Vec<u8>, String> {
 /// deserializes this object into a struct and rejects the repeat, so the
 /// policy rejects a duplicate key at every object before it looks at `sql`.
 fn parse_db_json(bytes: &[u8]) -> Result<serde_json::Value, String> {
-    let mut cursor = 0;
-    skip_json_ws(bytes, &mut cursor);
-    parse_json_value(bytes, &mut cursor).map_err(|err| format!("run_db_command json: {err}"))?;
-    skip_json_ws(bytes, &mut cursor);
-    if cursor != bytes.len() {
-        return Err("run_db_command json: trailing characters".into());
-    }
-    serde_json::from_slice(bytes).map_err(|err| format!("run_db_command json: {err}"))
-}
-
-fn parse_json_value(bytes: &[u8], i: &mut usize) -> Result<(), String> {
-    skip_json_ws(bytes, i);
-    match bytes.get(*i).copied() {
-        Some(b'n') => consume_literal(bytes, i, b"null"),
-        Some(b't') => consume_literal(bytes, i, b"true"),
-        Some(b'f') => consume_literal(bytes, i, b"false"),
-        Some(b'"') => {
-            parse_json_string(bytes, i)?;
-            Ok(())
-        }
-        Some(b'[') => parse_json_array(bytes, i),
-        Some(b'{') => parse_json_object(bytes, i),
-        Some(b'-' | b'0'..=b'9') => parse_json_number(bytes, i),
-        _ => Err("invalid json".into()),
-    }
-}
-
-fn parse_json_object(bytes: &[u8], i: &mut usize) -> Result<(), String> {
-    *i += 1;
-    skip_json_ws(bytes, i);
-    if bytes.get(*i) == Some(&b'}') {
-        *i += 1;
-        return Ok(());
-    }
-    let mut keys = Vec::new();
-    loop {
-        skip_json_ws(bytes, i);
-        let key = parse_json_string(bytes, i)?;
-        if keys.contains(&key) {
-            return Err(format!("duplicate key '{key}'"));
-        }
-        keys.push(key);
-        skip_json_ws(bytes, i);
-        if bytes.get(*i) != Some(&b':') {
-            return Err("expected ':'".into());
-        }
-        *i += 1;
-        parse_json_value(bytes, i)?;
-        skip_json_ws(bytes, i);
-        match bytes.get(*i).copied() {
-            Some(b',') => *i += 1,
-            Some(b'}') => {
-                *i += 1;
-                return Ok(());
-            }
-            _ => return Err("expected ',' or '}'".into()),
-        }
-    }
-}
-
-fn parse_json_array(bytes: &[u8], i: &mut usize) -> Result<(), String> {
-    *i += 1;
-    skip_json_ws(bytes, i);
-    if bytes.get(*i) == Some(&b']') {
-        *i += 1;
-        return Ok(());
-    }
-    loop {
-        parse_json_value(bytes, i)?;
-        skip_json_ws(bytes, i);
-        match bytes.get(*i).copied() {
-            Some(b',') => *i += 1,
-            Some(b']') => {
-                *i += 1;
-                return Ok(());
-            }
-            _ => return Err("expected ',' or ']'".into()),
-        }
-    }
-}
-
-fn parse_json_string(bytes: &[u8], i: &mut usize) -> Result<String, String> {
-    if bytes.get(*i) != Some(&b'"') {
-        return Err("expected a string".into());
-    }
-    *i += 1;
-    let mut out = String::new();
-    loop {
-        let (ch, size) = json_char_at(bytes, *i)?;
-        *i += size;
-        match ch {
-            '"' => return Ok(out),
-            '\\' => out.push(json_escape(bytes, i)?),
-            ch if (ch as u32) < 0x20 => return Err("unescaped control character".into()),
-            ch => out.push(ch),
-        }
-    }
-}
-
-fn json_escape(bytes: &[u8], i: &mut usize) -> Result<char, String> {
-    let (ch, size) = json_char_at(bytes, *i)?;
-    *i += size;
-    match ch {
-        '"' | '\\' | '/' => Ok(ch),
-        'b' => Ok('\u{0008}'),
-        'f' => Ok('\u{000c}'),
-        'n' => Ok('\n'),
-        'r' => Ok('\r'),
-        't' => Ok('\t'),
-        'u' => json_u_escape(bytes, i),
-        _ => Err("invalid escape".into()),
-    }
-}
-
-fn json_u_escape(bytes: &[u8], i: &mut usize) -> Result<char, String> {
-    let unit = json_hex4(bytes, i)?;
-    if (0xDC00..=0xDFFF).contains(&unit) {
-        return Err("lone surrogate".into());
-    }
-    if !(0xD800..=0xDBFF).contains(&unit) {
-        return char::from_u32(unit).ok_or_else(|| "invalid unicode escape".into());
-    }
-    let (slash, slash_size) = json_char_at(bytes, *i)?;
-    if slash != '\\' {
-        return Err("lone surrogate".into());
-    }
-    *i += slash_size;
-    let (marker, marker_size) = json_char_at(bytes, *i)?;
-    if marker != 'u' {
-        return Err("lone surrogate".into());
-    }
-    *i += marker_size;
-    let low = json_hex4(bytes, i)?;
-    if !(0xDC00..=0xDFFF).contains(&low) {
-        return Err("invalid surrogate pair".into());
-    }
-    let point = 0x10000 + (((unit - 0xD800) << 10) | (low - 0xDC00));
-    char::from_u32(point).ok_or_else(|| "invalid unicode escape".into())
-}
-
-fn json_hex4(bytes: &[u8], i: &mut usize) -> Result<u32, String> {
-    let end = i.checked_add(4).ok_or("short unicode escape")?;
-    let digits = bytes.get(*i..end).ok_or("short unicode escape")?;
-    let text = std::str::from_utf8(digits).map_err(|_| "invalid unicode escape")?;
-    let value = u32::from_str_radix(text, 16).map_err(|_| "invalid unicode escape")?;
-    *i = end;
+    let mut deserializer = serde_json::Deserializer::from_slice(bytes);
+    let value = NoDuplicateKeys
+        .deserialize(&mut deserializer)
+        .map_err(|err| format!("run_db_command json: {err}"))?;
+    deserializer
+        .end()
+        .map_err(|err| format!("run_db_command json: {err}"))?;
     Ok(value)
 }
 
-fn json_char_at(bytes: &[u8], index: usize) -> Result<(char, usize), String> {
-    let rest = bytes.get(index..).ok_or("unexpected end of json")?;
-    let width = match rest.first().copied() {
-        Some(byte) if byte < 0x80 => 1,
-        Some(byte) if byte & 0xE0 == 0xC0 => 2,
-        Some(byte) if byte & 0xF0 == 0xE0 => 3,
-        Some(byte) if byte & 0xF8 == 0xF0 => 4,
-        _ => return Err("invalid utf-8".into()),
-    };
-    let slice = rest.get(..width).ok_or("invalid utf-8")?;
-    let text = std::str::from_utf8(slice).map_err(|_| "invalid utf-8")?;
-    let ch = text.chars().next().ok_or("invalid utf-8")?;
-    Ok((ch, ch.len_utf8()))
-}
+/// Keys are compared after serde unescapes them. Nested values use this same
+/// seed, so serde_json's default recursion limit of 128 stays in force.
+struct NoDuplicateKeys;
 
-fn parse_json_number(bytes: &[u8], i: &mut usize) -> Result<(), String> {
-    if bytes.get(*i) == Some(&b'-') {
-        *i += 1;
-    }
-    let start = *i;
-    if bytes.get(*i) == Some(&b'0') {
-        *i += 1;
-    } else if bytes.get(*i).is_some_and(|byte| byte.is_ascii_digit()) {
-        while bytes.get(*i).is_some_and(|byte| byte.is_ascii_digit()) {
-            *i += 1;
-        }
-    } else {
-        return Err("invalid number".into());
-    }
-    if bytes.get(*i) == Some(&b'.') {
-        *i += 1;
-        let fraction = *i;
-        while bytes.get(*i).is_some_and(|byte| byte.is_ascii_digit()) {
-            *i += 1;
-        }
-        if *i == fraction {
-            return Err("invalid number".into());
-        }
-    }
-    if matches!(bytes.get(*i), Some(b'e' | b'E')) {
-        *i += 1;
-        if matches!(bytes.get(*i), Some(b'+' | b'-')) {
-            *i += 1;
-        }
-        let exponent = *i;
-        while bytes.get(*i).is_some_and(|byte| byte.is_ascii_digit()) {
-            *i += 1;
-        }
-        if *i == exponent {
-            return Err("invalid number".into());
-        }
-    }
-    if *i == start {
-        return Err("invalid number".into());
-    }
-    Ok(())
-}
+impl<'de> DeserializeSeed<'de> for NoDuplicateKeys {
+    type Value = serde_json::Value;
 
-fn consume_literal(bytes: &[u8], i: &mut usize, literal: &[u8]) -> Result<(), String> {
-    if bytes
-        .get(*i..)
-        .is_some_and(|rest| rest.starts_with(literal))
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: Deserializer<'de>,
     {
-        *i += literal.len();
-        Ok(())
-    } else {
-        Err("invalid json".into())
+        deserializer.deserialize_any(self)
     }
 }
 
-fn skip_json_ws(bytes: &[u8], i: &mut usize) {
-    while matches!(bytes.get(*i), Some(b' ' | b'\t' | b'\n' | b'\r')) {
-        *i += 1;
+impl<'de> Visitor<'de> for NoDuplicateKeys {
+    type Value = serde_json::Value;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("json value")
+    }
+
+    fn visit_bool<E: de::Error>(self, value: bool) -> Result<Self::Value, E> {
+        Ok(serde_json::Value::Bool(value))
+    }
+
+    fn visit_i64<E: de::Error>(self, value: i64) -> Result<Self::Value, E> {
+        Ok(serde_json::Value::Number(value.into()))
+    }
+
+    fn visit_u64<E: de::Error>(self, value: u64) -> Result<Self::Value, E> {
+        Ok(serde_json::Value::Number(value.into()))
+    }
+
+    fn visit_f64<E: de::Error>(self, value: f64) -> Result<Self::Value, E> {
+        serde_json::Number::from_f64(value)
+            .map(serde_json::Value::Number)
+            .ok_or_else(|| E::custom("not a finite number"))
+    }
+
+    fn visit_str<E: de::Error>(self, value: &str) -> Result<Self::Value, E> {
+        Ok(serde_json::Value::String(value.to_owned()))
+    }
+
+    fn visit_unit<E: de::Error>(self) -> Result<Self::Value, E> {
+        Ok(serde_json::Value::Null)
+    }
+
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+        let mut out = Vec::new();
+        while let Some(value) = seq.next_element_seed(NoDuplicateKeys)? {
+            out.push(value);
+        }
+        Ok(serde_json::Value::Array(out))
+    }
+
+    fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
+        let mut seen = HashSet::new();
+        let mut out = serde_json::Map::new();
+        while let Some(key) = map.next_key::<String>()? {
+            if !seen.insert(key.clone()) {
+                return Err(de::Error::custom(format!("duplicate key '{key}'")));
+            }
+            out.insert(key, map.next_value_seed(NoDuplicateKeys)?);
+        }
+        Ok(serde_json::Value::Object(out))
     }
 }
 
