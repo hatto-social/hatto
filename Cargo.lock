@@ -1341,6 +1341,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "hatto_import"
+version = "0.1.0"
+dependencies = [
+ "anki_proto",
+ "hatto_card_contract",
+ "prost",
+ "rslib_bridge",
+ "rusqlite",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
+ "uuid",
+ "zip",
+ "zstd 0.13.3",
+]
+
+[[package]]
 name = "headers"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

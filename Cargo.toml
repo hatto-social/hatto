@@ -4,6 +4,7 @@ members = [
     "packages/rslib_bridge/rust",
     "packages/hatto_card_contract",
     "packages/hatto_card",
+    "packages/hatto_import",
 ]
 # Anki is its own workspace (unmodified). It lives in-tree only as a submodule.
 exclude = ["third_party/anki"]
