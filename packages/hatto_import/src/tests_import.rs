@@ -306,8 +306,11 @@ fn t9_missing_notetype_leaves_the_resident_unchanged() {
     let before = resident.snapshot().unwrap();
     let mut lookup = ColLookup { col: &resident };
     let err = prepare_import(&data, &bad, test_limits(), &mut lookup).unwrap_err();
-    assert!(resident.import_count() == 0, "{err}");
+    let message = err.message().to_ascii_lowercase();
+    assert!(err.is_not_found() && message.contains("notetype"), "{err}");
+    assert_eq!(resident.import_count(), 0, "{err}");
     assert_eq!(resident.snapshot().unwrap(), before, "{err}");
+    assert_no_batch_leftovers(&data);
 }
 
 #[test]
@@ -344,7 +347,7 @@ fn t11_renamed_deck_keeps_old_notes_and_puts_new_notes_in_the_original_name() {
         source.export(&file2, true, true).unwrap();
     }
     let second = commit_import(&data, &file2, &mut resident).unwrap();
-    assert!(second.plan.changed >= 1, "{:?}", second.plan);
+    assert_eq!(second.plan.changed, 1, "{:?}", second.plan);
     assert_eq!(second.plan.new, 1, "{:?}", second.plan);
     let edited = resident.note_row(&g(2)).unwrap().unwrap();
     let edited_did = resident.card_rows(edited.id).unwrap()[0][2]
@@ -430,7 +433,7 @@ fn t13_reimport_keeps_the_user_preset_and_description() {
     }
     let second = commit_import(&data, &file2, &mut resident).unwrap();
     assert!(!second.first_import, "{:?}", second.plan);
-    assert!(second.plan.changed >= 1, "{:?}", second.plan);
+    assert_eq!(second.plan.changed, 1, "{:?}", second.plan);
     let deck_id = resident.deck_id_by_name("Words").unwrap().unwrap();
     assert_eq!(resident.description(deck_id).unwrap(), "user-desc");
     let config = resident.config_id(deck_id).unwrap();
@@ -640,6 +643,50 @@ fn t21_deck_name_normalization_and_first_import() {
     assert_eq!(again.plan.new, 1, "{:?}", again.plan);
     let new_id = resident.deck_id_by_name("Gone").unwrap().unwrap();
     assert_ne!(new_id, gone_id);
+}
+
+#[test]
+fn first_import_stays_true_when_only_an_empty_deck_name_matches() {
+    let _lock = lock_collections();
+    let (root, data) = fresh();
+    let file = root.path().join("deck.apkg");
+    {
+        let source = TestCol::open(&root.path().join("source")).unwrap();
+        let shell = source.add_deck("Shell").unwrap();
+        let fresh_deck = source.add_deck("Fresh").unwrap();
+        source.set_description(fresh_deck, "from-file").unwrap();
+        source.set_new_per_day(fresh_deck, 7).unwrap();
+        let nt = source.notetype_id("Basic").unwrap();
+        let bare = source
+            .add_note(nt, shell, &["bare", "back"], &g(1))
+            .unwrap();
+        source.set_mod(bare, MOD).unwrap();
+        source.delete_cards(bare).unwrap();
+        let note = source
+            .add_note(nt, fresh_deck, &["hola", "hello"], &g(2))
+            .unwrap();
+        source.set_mod(note, MOD).unwrap();
+        source.export(&file, true, true).unwrap();
+    }
+    let mut resident = TestCol::open(&root.path().join("resident")).unwrap();
+    resident.add_deck("Shell").unwrap();
+    let prepared = commit_import(&data, &file, &mut resident).unwrap();
+    // Shell is removed with the cardless note before the judgment, so the
+    // only exported deck is Fresh. That name is absent, so this is a first
+    // import and the package preset is restored.
+    assert!(prepared.first_import, "{:?}", prepared.plan);
+    assert_eq!(prepared.cardless_notes, 1);
+    assert_eq!(prepared.plan.new, 1, "{:?}", prepared.plan);
+    assert_eq!(prepared.plan.changed, 0, "{:?}", prepared.plan);
+    assert_eq!(resident.new_per_day(1).unwrap(), 20);
+    let fresh_id = resident.deck_id_by_name("Fresh").unwrap().unwrap();
+    let config = resident.config_id(fresh_id).unwrap();
+    assert_ne!(config, 1);
+    assert_eq!(resident.new_per_day(config).unwrap(), 7);
+    assert_eq!(resident.description(fresh_id).unwrap(), "from-file");
+    assert!(resident.deck_id_by_name("Shell").unwrap().is_some());
+    assert!(resident.note_row(&g(1)).unwrap().is_none());
+    assert!(resident.note_row(&g(2)).unwrap().is_some());
 }
 
 #[test]
@@ -857,6 +904,20 @@ fn legacy_package_without_protobuf_default_keeps_config_id_1() {
     assert_eq!(resident.config_id(deck_id).unwrap(), 1);
     assert_eq!(resident.description(deck_id).unwrap(), "hello");
     assert!(resident.note_row(&g(1)).unwrap().is_some());
+}
+
+fn assert_no_batch_leftovers(data: &Path) {
+    for folder in ["raw", "e", "staged"] {
+        let dir = data.join("import").join(folder);
+        if !dir.exists() {
+            continue;
+        }
+        let entries: Vec<_> = fs::read_dir(&dir)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        assert!(entries.is_empty(), "import/{folder} leftover {entries:?}");
+    }
 }
 
 fn corrupt_notetype(src: &Path, dest: &Path) {

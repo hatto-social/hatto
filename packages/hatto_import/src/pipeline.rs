@@ -115,6 +115,8 @@ fn prepare_with_id(
         let plan = summarize_plan(&class_list, dup);
         remove_skipped_notes(&session, &pairs)?;
         remove_empty_decks(&session)?;
+        // The staged package only contains decks that are still here. This one
+        // judgment is the preset branch, the export flag, and `first_import`.
         let names = deck_names_except_default(&session)?;
         let first_import = judge_first_import(lookup, &names)?;
         if !first_import {
@@ -122,8 +124,6 @@ fn prepare_with_id(
         } else {
             preset::restore_original_default_preset(&session, data_dir, batch_id)?;
         }
-        let names_after = deck_names_except_default(&session)?;
-        let first_import = judge_first_import(lookup, &names_after)?;
         session.export_staged(data_dir, batch_id, first_import)?;
         let staged = crate::paths::staged_apkg_path(data_dir, batch_id)?;
         let staged_sha256 = sha256_file(&staged)?;
