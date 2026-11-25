@@ -5,10 +5,11 @@
 //! Protobuf channel to rslib 26.09.3.
 //!
 //! Production code opens a collection only through [`ESession::open`], which
-//! builds `import/e/<id>/collection.anki2` and does not take a path from the
-//! caller. The test harness opens its resident collection with
-//! [`open_test_collection`], the unrestricted `open_backend` kind. This file
-//! does not point the process temp directory at an E folder.
+//! builds `import/e/<id>/collection.anki2` and opens it with
+//! [`open_import_e_backend`] (the ImportE profile). It does not take a
+//! collection path from the caller. The test harness opens its resident
+//! collection with [`open_test_collection`] and the unrestricted backend.
+//! This file does not point the process temp directory at an E folder.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -16,7 +17,9 @@ use std::path::{Path, PathBuf};
 use anki_proto::collection::OpenCollectionRequest;
 use anki_proto::generic;
 use prost::Message;
-use rslib_bridge::api::{command, open_backend, service_method_index, AnkiBackend};
+#[cfg(test)]
+use rslib_bridge::api::open_backend;
+use rslib_bridge::api::{command, open_import_e_backend, service_method_index, AnkiBackend};
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -29,19 +32,18 @@ pub(crate) struct Session {
 }
 
 impl Session {
-    fn open(collection: &Path, media: &Path, media_db: &Path) -> Result<Self, ImportError> {
+    fn open(
+        backend: AnkiBackend,
+        collection: &Path,
+        media: &Path,
+        media_db: &Path,
+    ) -> Result<Self, ImportError> {
         if let Some(parent) = collection.parent() {
             fs::create_dir_all(parent)
                 .map_err(|err| ImportError::new(format!("{}: {err}", parent.display())))?;
         }
         fs::create_dir_all(media)
             .map_err(|err| ImportError::new(format!("{}: {err}", media.display())))?;
-        let init = anki_proto::backend::BackendInit {
-            preferred_langs: vec!["en".into()],
-            locale_folder_path: String::new(),
-            server: false,
-        };
-        let backend = open_backend(init.encode_to_vec()).map_err(ImportError::new)?;
         let session = Self {
             backend,
             collection_path: collection.to_path_buf(),
@@ -129,7 +131,13 @@ impl ESession {
         let collection = e_collection_path(data_dir, batch_id)?;
         let media = e_media_directory_path(data_dir, batch_id)?;
         let media_db = e_media_db_path(data_dir, batch_id)?;
-        let inner = Session::open(&collection, &media, &media_db)?;
+        let data_dir_text = data_dir
+            .to_str()
+            .ok_or_else(|| ImportError::new("data_dir is not utf-8"))?;
+        let backend =
+            open_import_e_backend(backend_init().encode_to_vec(), data_dir_text.to_owned())
+                .map_err(ImportError::new)?;
+        let inner = Session::open(backend, &collection, &media, &media_db)?;
         if inner.collection_path != collection {
             return Err(ImportError::new(
                 "E session opened a path other than import/e/<id>/collection.anki2",
@@ -223,9 +231,9 @@ impl ESession {
     }
 }
 
-/// Unrestricted `open_backend`, the same kind as `rslib_bridge::api::open_backend`.
+/// Resident collection for tests. Opens with the unrestricted backend.
 ///
-/// Test harness only. The import pipeline does not call this.
+/// Test harness only. Production [`ESession::open`] uses the ImportE profile.
 #[cfg(test)]
 pub(crate) fn open_test_collection(root: &Path) -> Result<Session, ImportError> {
     fs::create_dir_all(root)
@@ -233,7 +241,16 @@ pub(crate) fn open_test_collection(root: &Path) -> Result<Session, ImportError> 
     let collection = root.join("collection.anki2");
     let media = root.join("collection.media");
     let media_db = root.join("collection.media.db");
-    Session::open(&collection, &media, &media_db)
+    let backend = open_backend(backend_init().encode_to_vec()).map_err(ImportError::new)?;
+    Session::open(backend, &collection, &media, &media_db)
+}
+
+fn backend_init() -> anki_proto::backend::BackendInit {
+    anki_proto::backend::BackendInit {
+        preferred_langs: vec!["en".into()],
+        locale_folder_path: String::new(),
+        server: false,
+    }
 }
 
 fn decode_backend_error(bytes: &[u8], service: &str, method: &str) -> ImportError {
