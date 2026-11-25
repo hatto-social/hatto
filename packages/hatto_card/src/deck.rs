@@ -80,11 +80,13 @@ impl DeckFile {
     }
 }
 
-/// Example file written by `hatto-card new`.
+/// Fixed example shape shared with `examples/with-media/deck.json`.
 ///
-/// `source_guid` includes quotes, a backtick, a backslash, and Hangul so the
-/// roundtrip keeps those bytes out of any normalization. `k` is 0 and the
-/// largest `u32`.
+/// `hatto-card new` starts from this and then replaces `job_id` and `op_id`
+/// with new UUIDv4 values. These constants stay so the checked-in example and
+/// the golden guid tests keep one known deck. `source_guid` includes quotes,
+/// a backtick, a backslash, and Hangul so the roundtrip keeps those bytes out
+/// of any normalization. `k` is 0 and the largest `u32`.
 pub fn skeleton() -> Value {
     let source_guid = concat!("'\"`", "\\", "한글");
     json!({
