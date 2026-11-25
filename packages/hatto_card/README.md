@@ -31,19 +31,30 @@ normalized. An empty `source_guid` is `GUID_FORMAT`. The same derived guid
 twice in this file is `NOTE_GUID_DUPLICATE`. Duplicates against a collection
 or `note_map` are not checked here.
 
-`hatto-card new` writes an example. `examples/with-media/` is that example
-plus `media/dot.png`.
+`hatto-card new` writes this shape with a new UUIDv4 `job_id` and `op_id`.
+`--deck-name` sets `deck_name` (default `Example`). With `--output`, it also
+writes `media/dot.png` beside the deck file when that file is missing, so
+`validate` and `export` can run next. An existing `dot.png` is left unchanged.
+`examples/with-media/` is the same shape with the fixed ids in that file, plus
+the png `new` copies. Note guids stay uuid5 values from `hatto_card_contract`.
+A deck with no notes is still rejected.
 
 ## Commands
 
 ```sh
-hatto-card --json new --output deck.json
+hatto-card --help
+hatto-card new --help
+hatto-card --json new --output deck.json --deck-name "My deck"
 hatto-card --json validate --deck deck.json
 hatto-card --json export --deck deck.json --output out.apkg
 hatto-card --json add-note --deck deck.json --notetype Basic --field front --field back
 hatto-card --json add-note --deck deck.json --notetype Basic --field front --field back --op-id UUID --k 0
 hatto-card --json add-note --deck deck.json --notetype Basic --field front --field back --tag example --job-id UUID --source-guid TEXT
 ```
+
+`-h` and `--help` print help on stdout and exit 0, for the top level and for
+each command (`hatto-card new --help`, and the same for `validate`, `export`,
+and `add-note`). A missing or unknown command still exits 2.
 
 `export` validates, writes the notes into a temporary collection, and exports
 that one deck. `--json` prints one JSON object. Exit status is non-zero when

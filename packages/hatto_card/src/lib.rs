@@ -73,15 +73,61 @@ pub fn failure_json(failure: &ToolFailure) -> Value {
     value
 }
 
-pub fn write_skeleton(path: Option<&Path>) -> Result<Value, ToolFailure> {
-    let value = skeleton();
+/// Writes the example deck with a new UUIDv4 `job_id` and `op_id`.
+///
+/// `deck_name` replaces the example name when set. An empty name is rejected
+/// so the file is not written in a shape `validate` already refuses. With
+/// `path` set, `media/dot.png` is created beside the file when that file is
+/// missing. The note still references that image, and `validate` requires the
+/// media directory.
+pub fn write_skeleton(path: Option<&Path>, deck_name: Option<&str>) -> Result<Value, ToolFailure> {
+    let mut value = skeleton();
+    if let Some(name) = deck_name {
+        if name.is_empty() {
+            return Err(ToolFailure::message("deck_name is empty"));
+        }
+        value["deck_name"] = json!(name);
+    }
+    value["job_id"] = json!(new_op_id());
+    value["op_id"] = json!(new_op_id());
     let pretty = serde_json::to_string_pretty(&value)
         .map_err(|err| ToolFailure::message(err.to_string()))?;
     if let Some(path) = path {
         fs::write(path, pretty + "\n")
             .map_err(|err| ToolFailure::message(format!("write {}: {err}", path.display())))?;
+        write_example_media(path, &value)?;
     }
     Ok(json!({ "ok": true, "deck": value }))
+}
+
+/// Bytes of `examples/with-media/media/dot.png`. `new` references this file.
+const EXAMPLE_DOT_PNG: &[u8] = include_bytes!("../examples/with-media/media/dot.png");
+
+/// Creates the skeleton's media file. An existing `dot.png` is left as-is so
+/// a caller that already placed bytes there keeps them.
+fn write_example_media(deck_path: &Path, deck: &Value) -> Result<(), ToolFailure> {
+    let Some(raw) = deck.get("media_dir").and_then(Value::as_str) else {
+        return Ok(());
+    };
+    let relative = PathBuf::from(raw);
+    if relative.is_absolute() {
+        return Err(ToolFailure::message(
+            "skeleton media_dir must stay relative to the deck file",
+        ));
+    }
+    let parent = deck_path
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    let dir = parent.join(relative);
+    fs::create_dir_all(&dir)
+        .map_err(|err| ToolFailure::message(format!("write {}: {err}", dir.display())))?;
+    let png = dir.join("dot.png");
+    if png.exists() {
+        return Ok(());
+    }
+    fs::write(&png, EXAMPLE_DOT_PNG)
+        .map_err(|err| ToolFailure::message(format!("write {}: {err}", png.display())))
 }
 
 /// One note to append. `notetype` is the deck's notetype name, not a new field.
@@ -560,5 +606,101 @@ mod tests {
         assert_eq!(note["tags"], json!(["one", "two"]));
         assert_eq!(note["k"], 0);
         assert_eq!(copy["notes"].as_array().unwrap().len(), 4);
+    }
+
+    fn assert_uuid_v4(text: &str) {
+        assert!(is_guid_format(text), "{text}");
+        assert_eq!(parse_uuid(text).unwrap().get_version_num(), 4, "{text}");
+    }
+
+    /// F4: two decks from `new` must not share the skeleton's constant ids,
+    /// or the k:0 note guid those ids always produced.
+    #[test]
+    fn new_decks_get_fresh_ids_and_a_chosen_name() {
+        let root = tempfile::tempdir().unwrap();
+        let alpha_path = root.path().join("alpha.json");
+        let beta_path = root.path().join("beta.json");
+        let alpha = write_skeleton(Some(&alpha_path), Some("Parent::Child")).unwrap();
+        let beta = write_skeleton(Some(&beta_path), None).unwrap();
+        assert_eq!(alpha["deck"]["deck_name"], "Parent::Child");
+        assert_eq!(beta["deck"]["deck_name"], "Example");
+        assert_eq!(alpha["deck"]["notes"].as_array().unwrap().len(), 3);
+
+        let alpha_job = alpha["deck"]["job_id"].as_str().unwrap();
+        let alpha_op = alpha["deck"]["op_id"].as_str().unwrap();
+        let beta_job = beta["deck"]["job_id"].as_str().unwrap();
+        let beta_op = beta["deck"]["op_id"].as_str().unwrap();
+        assert_uuid_v4(alpha_job);
+        assert_uuid_v4(alpha_op);
+        assert_ne!(alpha_job, beta_job);
+        assert_ne!(alpha_op, beta_op);
+        assert_ne!(alpha_job, "01234567-89ab-4cde-8fab-0123456789ab");
+        assert_ne!(alpha_op, "fedcba98-7654-4210-8fed-cba987654321");
+
+        let alpha_notes =
+            derive_notes(&parse_deck(&fs::read_to_string(&alpha_path).unwrap()).unwrap()).unwrap();
+        let beta_notes =
+            derive_notes(&parse_deck(&fs::read_to_string(&beta_path).unwrap()).unwrap()).unwrap();
+        let local_zero = |notes: &[DerivedNote]| {
+            notes
+                .iter()
+                .find(|note| note.fields.as_slice() == ["local zero", "back"])
+                .unwrap()
+                .guid
+                .clone()
+        };
+        let alpha_zero = local_zero(&alpha_notes);
+        let beta_zero = local_zero(&beta_notes);
+        assert_ne!(alpha_zero, beta_zero);
+        assert_ne!(alpha_zero, "74a16fcd-b6db-5db5-be79-787c72943de7");
+        assert_ne!(alpha_notes[0].guid, beta_notes[0].guid);
+        assert_ne!(alpha_notes[2].guid, beta_notes[2].guid);
+
+        let on_disk = read_deck(&alpha_path);
+        assert_eq!(on_disk["deck_name"], "Parent::Child");
+        assert_eq!(on_disk["job_id"], alpha_job);
+        let empty_name = write_skeleton(None, Some("")).unwrap_err();
+        assert_eq!(empty_name.message.as_deref(), Some("deck_name is empty"));
+    }
+
+    /// The skeleton references dot.png. `new` must create it, and must not
+    /// replace a file the caller already put there.
+    #[test]
+    fn new_writes_missing_media_and_then_validates() {
+        let root = tempfile::tempdir().unwrap();
+        let fresh = root.path().join("fresh");
+        fs::create_dir(&fresh).unwrap();
+        let deck = fresh.join("deck.json");
+        write_skeleton(Some(&deck), Some("Fresh")).unwrap();
+        let png = fresh.join("media").join("dot.png");
+        assert_eq!(fs::read(&png).unwrap(), EXAMPLE_DOT_PNG);
+        let checked = validate_path(&deck).unwrap();
+        assert_eq!(checked["ok"], true);
+        assert_eq!(checked["notes"].as_array().unwrap().len(), 3);
+
+        let kept = root.path().join("kept");
+        fs::create_dir_all(kept.join("media")).unwrap();
+        let sentinel = kept.join("media").join("dot.png");
+        fs::write(&sentinel, b"already-there").unwrap();
+        let kept_deck = kept.join("deck.json");
+        write_skeleton(Some(&kept_deck), None).unwrap();
+        assert_eq!(fs::read(&sentinel).unwrap(), b"already-there");
+        assert_eq!(validate_path(&kept_deck).unwrap()["ok"], true);
+    }
+
+    #[test]
+    fn empty_deck_is_still_rejected() {
+        let root = tempfile::tempdir().unwrap();
+        let mut value = skeleton();
+        value["notes"] = json!([]);
+        value.as_object_mut().unwrap().remove("media_dir");
+        let path = write_deck(root.path(), &value);
+        let err = validate_path(&path).unwrap_err();
+        assert!(
+            err.errors
+                .iter()
+                .any(|error| error.location == "notes" && error.message == "notes is empty"),
+            "{err:?}"
+        );
     }
 }
