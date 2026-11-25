@@ -11,6 +11,7 @@
 
 engine: &engine
   - 'packages/rslib_bridge/**'
+  - 'packages/rslib_core/**'
   - 'packages/hatto_card_contract/**'
   - 'packages/hatto_card/**'
   - 'packages/hatto_import/**'
@@ -55,7 +56,7 @@ mobile: &mobile
   - 'apps/mobile/**'
 
 # The linux job analyzes and tests every workspace package, then builds
-# the Linux desktop app and runs cargo test for the bridge.
+# the Linux desktop app and runs cargo test for the bridge and rslib_core.
 linux:
   - *desktop
   - *mobile
