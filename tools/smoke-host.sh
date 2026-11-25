@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# Host smoke: rslib collection open, side DB, and the Flutter bridge test.
+# Host smoke: rslib collection open (bridge and rslib_core), side DB, and the Flutter bridge test.
 # Android/NDK is not part of this script. See the README.
 set -euo pipefail
 
@@ -31,6 +31,9 @@ export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$ROOT/target}"
 
 echo "== cargo test -p rslib_bridge =="
 cargo test -p rslib_bridge -- --test-threads=1
+
+echo "== cargo test -p rslib_core =="
+cargo test -p rslib_core -- --test-threads=1
 
 echo "== dart test packages/hatto_store =="
 # Run inside the package so Dart builds its native-asset hooks. From the
