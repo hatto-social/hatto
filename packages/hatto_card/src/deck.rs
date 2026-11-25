@@ -6,11 +6,12 @@
 //!
 //! No document defines this JSON. It is the thinnest map onto Anki: a deck
 //! name, a notetype name or a legacy notetype object, notes that carry either
-//! `source_guid` (imported) or `op_id`/`k` (local), fields, tags, and an
-//! optional media directory. See the package README.
+//! `source_guid` (imported, [`normalize_import_guid`]) or `op_id`/`k`
+//! (local), fields, tags, and an optional media directory. See the package
+//! README.
 
 use hatto_card_contract::{
-    imported_note_guid, is_guid_format, local_note_guid, parse_uuid, validate_deck_file,
+    is_guid_format, local_note_guid, normalize_import_guid, parse_uuid, validate_deck_file,
     CardErrorCode, DeckNote, EmptySourceGuid, NoteGuid, Uuid,
 };
 use serde::Deserialize;
@@ -39,6 +40,7 @@ pub struct DerivedNote {
 #[derive(Clone, Debug, Deserialize)]
 pub struct DeckFile {
     pub deck_name: String,
+    /// Accepted so an existing deck file still parses. Not an input to a guid.
     #[serde(default)]
     pub job_id: Option<String>,
     #[serde(default)]
@@ -60,6 +62,7 @@ pub struct DeckFile {
 pub struct InputNote {
     #[serde(default)]
     pub source_guid: Option<String>,
+    /// Accepted so an existing deck file still parses. Not an input to a guid.
     #[serde(default)]
     pub job_id: Option<String>,
     #[serde(default)]
@@ -181,18 +184,11 @@ fn derive_one(deck: &DeckFile, note: &InputNote, location: &str) -> Result<Deriv
         });
     }
     let guid = if let Some(source) = note.source_guid.as_deref() {
-        let job_text = note
-            .job_id
-            .as_deref()
-            .or(deck.job_id.as_deref())
-            .ok_or_else(|| Problem {
-                code: String::new(),
-                location: format!("{location}.job_id"),
-                message: "imported note needs job_id".into(),
-            })?;
-        let job = require_uuid(job_text, &format!("{location}.job_id"))?;
-        match imported_note_guid(job, source) {
-            Ok(id) => NoteGuid::from(id).into_string(),
+        // `job_id` on the deck or the note stays in the file and is ignored.
+        // The guid is `f` (`IMPORT_NS`), which does not take a job.
+        let _job_id_accepted_and_ignored = note.job_id.as_deref().or(deck.job_id.as_deref());
+        match normalize_import_guid(source) {
+            Ok(guid) => guid,
             Err(EmptySourceGuid) => {
                 return Err(Problem {
                     code: CardErrorCode::GUID_FORMAT.into(),
@@ -248,6 +244,7 @@ fn require_uuid(text: &str, location: &str) -> Result<Uuid, Problem> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use hatto_card_contract::normalize_import_guid;
 
     fn deck(notes: Value) -> DeckFile {
         let mut value = skeleton();
@@ -296,5 +293,85 @@ mod tests {
         let spaced = derive_notes(&spaced).unwrap();
         let trimmed = derive_notes(&trimmed).unwrap();
         assert_ne!(spaced[0].guid, trimmed[0].guid);
+    }
+
+    fn file_with_job(job_id: Option<&str>, note_job: Option<&str>, source: &str) -> DeckFile {
+        let mut value = skeleton();
+        match job_id {
+            Some(job) => value["job_id"] = json!(job),
+            None => {
+                value.as_object_mut().unwrap().remove("job_id");
+            }
+        }
+        let mut note = json!({"source_guid": source, "fields": ["a", "b"]});
+        if let Some(job) = note_job {
+            note["job_id"] = json!(job);
+        }
+        value["notes"] = json!([note]);
+        serde_json::from_value(value).unwrap()
+    }
+
+    #[test]
+    fn source_guid_uses_normalize_import_guid_and_job_id_does_not_change_it() {
+        // Contract §5.1 golden: base91 is hashed, a lowercase UUID is kept,
+        // an uppercase UUID is not a guid.
+        let cases = [
+            ("oxr*zK@INR", "c15b93d8-6483-5c3c-b94f-1061d53fda92"),
+            (
+                "3f2b8a64-1c0e-4d5a-9b7e-0a1b2c3d4e5f",
+                "3f2b8a64-1c0e-4d5a-9b7e-0a1b2c3d4e5f",
+            ),
+            (
+                "3F2B8A64-1C0E-4D5A-9B7E-0A1B2C3D4E5F",
+                "4b08d171-4bd5-5f1f-8e85-1315a11b82e0",
+            ),
+        ];
+        let jobs = [
+            (Some("01234567-89ab-4cde-8fab-0123456789ab"), None),
+            (
+                Some("11111111-2222-4333-8444-555555555555"),
+                Some("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"),
+            ),
+            (None, None),
+            (Some("not-a-uuid"), Some("also-not")),
+        ];
+        for (source, expect) in cases {
+            assert_eq!(normalize_import_guid(source).unwrap(), expect);
+            for (deck_job, note_job) in jobs {
+                let notes = derive_notes(&file_with_job(deck_job, note_job, source)).unwrap();
+                assert_eq!(notes[0].guid, expect);
+            }
+        }
+    }
+
+    #[test]
+    fn applying_the_derived_guid_again_does_not_change_it() {
+        let once = derive_notes(&deck(json!([{
+            "source_guid": "plainGuid3",
+            "fields": ["a", "b"]
+        }])))
+        .unwrap();
+        assert_eq!(once[0].guid, "e67308dc-2365-5fc4-900e-4fc19f04c9ab");
+        let twice = derive_notes(&deck(json!([{
+            "source_guid": once[0].guid,
+            "fields": ["a", "b"]
+        }])))
+        .unwrap();
+        assert_eq!(twice[0].guid, once[0].guid);
+    }
+
+    #[test]
+    fn a_raw_and_its_normalized_form_are_a_duplicate_in_this_file() {
+        let raw = "plainGuid3";
+        let normalized = normalize_import_guid(raw).unwrap();
+        let file = deck(json!([
+            {"source_guid": raw, "fields": ["a", "b"]},
+            {"source_guid": normalized, "fields": ["c", "d"]}
+        ]));
+        let errors = derive_notes(&file).unwrap_err();
+        assert!(errors
+            .iter()
+            .all(|error| error.code == "NOTE_GUID_DUPLICATE"));
+        assert_eq!(errors.len(), 2);
     }
 }

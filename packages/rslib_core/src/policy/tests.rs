@@ -3072,3 +3072,257 @@ fn new_config_request(
         fsrs_health_check: false,
     }
 }
+
+fn db_call_raw(backend: &crate::api::AnkiBackend, json: &str) -> ProtoResponse {
+    call(
+        backend,
+        "BackendAnkidroidService",
+        "run_db_command",
+        &anki_proto::generic::Json {
+            json: json.as_bytes().to_vec(),
+        },
+    )
+}
+
+#[test]
+fn import_e_run_db_command_rejects_duplicate_keys() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let backend = e_root(&dir);
+    let opened = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &e_collection_request(dir.path(), BATCH_V4),
+    );
+    assert!(opened.success, "{}", message_of(&opened));
+    let allowed = super::import_e::GUID_UPDATE_SQL;
+    let delete_then_allowed = format!(
+        r#"{{"kind":"executemany","sql":"DELETE FROM notes","sql":"{allowed}","args":[["{BATCH_V4}",1]]}}"#
+    );
+    let allowed_then_delete = format!(
+        r#"{{"kind":"executemany","sql":"{allowed}","sql":"DELETE FROM notes","args":[["{BATCH_V4}",1]]}}"#
+    );
+    assert_denied(
+        &db_call_raw(&backend, &delete_then_allowed),
+        "duplicate key",
+    );
+    assert_denied(
+        &db_call_raw(&backend, &allowed_then_delete),
+        "duplicate key",
+    );
+    assert_denied(
+        &db_call_raw(&backend, r#"{"kind":"begin","kind":"rollback"}"#),
+        "duplicate key",
+    );
+    let duplicate_in_args =
+        format!(r#"{{"kind":"executemany","sql":"{allowed}","args":[[{{"a":1,"a":2}},1]]}}"#);
+    assert_denied(&db_call_raw(&backend, &duplicate_in_args), "duplicate key");
+}
+
+#[test]
+fn import_e_run_db_command_rejects_excessive_nesting() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let backend = e_root(&dir);
+    let opened = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &e_collection_request(dir.path(), BATCH_V4),
+    );
+    assert!(opened.success, "{}", message_of(&opened));
+    let json = format!("{}0{}", "[".repeat(100_000), "]".repeat(100_000));
+    assert_denied(&db_call_raw(&backend, &json), "recursion limit");
+}
+
+#[test]
+fn import_e_run_db_command_rejects_unescaped_duplicate_keys() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let backend = e_root(&dir);
+    let opened = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &e_collection_request(dir.path(), BATCH_V4),
+    );
+    assert!(opened.success, "{}", message_of(&opened));
+    let allowed = super::import_e::GUID_UPDATE_SQL;
+    // `\u0071` is `q`, so the second key is `sql` after unescape.
+    let json = format!(
+        r#"{{"kind":"executemany","sql":"DELETE FROM notes","s\u0071l":"{allowed}","args":[["{BATCH_V4}",1]]}}"#
+    );
+    assert_denied(&db_call_raw(&backend, &json), "duplicate key");
+}
+
+fn with_unknown_field(bytes: &[u8]) -> Vec<u8> {
+    let mut out = bytes.to_vec();
+    let mut tag = (20_000u64 << 3) | 2;
+    while tag > 0x7f {
+        out.push(((tag as u8) & 0x7f) | 0x80);
+        tag >>= 7;
+    }
+    out.push(tag as u8);
+    let payload = b"hatto-unknown-field";
+    out.push(u8::try_from(payload.len()).unwrap());
+    out.extend_from_slice(payload);
+    out
+}
+
+fn assert_unknown_field_dropped(forwarded: &[u8], clean: &[u8], extra: &[u8]) {
+    assert_eq!(forwarded, clean);
+    assert_ne!(forwarded, extra);
+    assert!(!forwarded
+        .windows(b"hatto-unknown-field".len())
+        .any(|window| window == b"hatto-unknown-field"));
+}
+
+#[test]
+fn import_e_search_drops_unknown_protobuf_fields() {
+    let request = anki_proto::search::SearchRequest {
+        search: String::new(),
+        order: None,
+    };
+    let clean = request.encode_to_vec();
+    let extra = with_unknown_field(&clean);
+    let forwarded = super::import_e::validate_search(&extra).expect("search");
+    assert_unknown_field_dropped(&forwarded, &clean, &extra);
+}
+
+#[test]
+fn import_e_update_deck_drops_unknown_protobuf_fields() {
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let backend = e_root(&dir);
+    let opened = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &e_collection_request(dir.path(), BATCH_V4),
+    );
+    assert!(opened.success, "{}", message_of(&opened));
+    let mut described = deck_proto(&backend, 1);
+    match described.kind.as_mut().unwrap() {
+        anki_proto::decks::deck::Kind::Normal(normal) => {
+            normal.description = "from the file".into();
+        }
+        other => panic!("default deck is not normal: {other:?}"),
+    }
+    dispatch_message(&backend, "BackendDecksService", "update_deck", &described)
+        .expect("set description");
+    let mut cleared = deck_proto(&backend, 1);
+    match cleared.kind.as_mut().unwrap() {
+        anki_proto::decks::deck::Kind::Normal(normal) => normal.description.clear(),
+        other => panic!("default deck is not normal: {other:?}"),
+    }
+    let clean = cleared.encode_to_vec();
+    let extra = with_unknown_field(&clean);
+    let forwarded = super::import_e::validate_update_deck(&backend, &extra).expect("update deck");
+    assert_unknown_field_dropped(&forwarded, &clean, &extra);
+}
+
+#[test]
+fn import_e_update_deck_configs_drops_unknown_protobuf_fields() {
+    let request = anki_proto::deck_config::UpdateDeckConfigsRequest {
+        target_deck_id: 2,
+        configs: vec![anki_proto::deck_config::DeckConfig::default()],
+        removed_config_ids: Vec::new(),
+        mode: anki_proto::deck_config::UpdateDeckConfigsMode::Normal as i32,
+        card_state_customizer: String::new(),
+        limits: None,
+        new_cards_ignore_review_limit: false,
+        fsrs: false,
+        apply_all_parent_limits: false,
+        fsrs_reschedule: false,
+        fsrs_health_check: false,
+    };
+    let clean = request.encode_to_vec();
+    let extra = with_unknown_field(&clean);
+    let forwarded = super::import_e::validate_update_deck_configs(&extra).expect("configs");
+    assert_unknown_field_dropped(&forwarded, &clean, &extra);
+}
+
+#[test]
+fn resident_import_accepts_a_symlinked_ancestor() {
+    // macOS spells the temp dir as /var, which is a symlink to /private/var.
+    // The desktop profile stores the canonical data_dir, and the app passes
+    // import/staged with the symlink spelling.
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let real = dir.path().join("real");
+    std::fs::create_dir_all(&real).unwrap();
+    let link = dir.path().join("link");
+    std::os::unix::fs::symlink(&real, &link).unwrap();
+    let root = link.join("collection");
+    let paths = col_paths(&root);
+    let backend = open_desktop_collection(&paths);
+    let _card = add_basic_card(&backend);
+    let staged = root
+        .join("import")
+        .join("staged")
+        .join(format!("{BATCH_V4}.apkg"));
+    std::fs::create_dir_all(staged.parent().unwrap()).unwrap();
+    export_package(&backend, &staged);
+    let spelled = staged.to_string_lossy().into_owned();
+    assert_ne!(
+        spelled.as_str(),
+        staged.canonicalize().unwrap().to_string_lossy().as_ref()
+    );
+    let imported = call(
+        &backend,
+        "BackendImportExportService",
+        "import_anki_package",
+        &resident_import(spelled, true),
+    );
+    assert!(imported.success, "{}", message_of(&imported));
+}
+
+#[test]
+fn import_e_accepts_a_symlinked_ancestor() {
+    // Same /var -> /private/var shape for E open, raw import, and staged export.
+    let dir = tempfile::TempDir::new_in("/tmp").unwrap();
+    let real = dir.path().join("real");
+    std::fs::create_dir_all(&real).unwrap();
+    let link = dir.path().join("link");
+    std::os::unix::fs::symlink(&real, &link).unwrap();
+    let root = link.join("collection");
+    std::fs::create_dir_all(root.join("tmp")).unwrap();
+    crate::api::prepare_runtime(root.join("tmp").to_string_lossy().into_owned());
+    assert_ne!(
+        root.to_string_lossy().as_ref(),
+        root.canonicalize().unwrap().to_string_lossy().as_ref()
+    );
+    let backend =
+        crate::api::open_import_e_backend(init_bytes(), root.to_string_lossy().into_owned())
+            .expect("import-e backend");
+    let opened = call(
+        &backend,
+        "BackendCollectionService",
+        "open_collection",
+        &e_collection_request(&root, BATCH_V4),
+    );
+    assert!(opened.success, "{}", message_of(&opened));
+
+    let raw = root
+        .join("import")
+        .join("raw")
+        .join(format!("{BATCH_V4}.apkg"));
+    let staged = root
+        .join("import")
+        .join("staged")
+        .join(format!("{BATCH_V4}.apkg"));
+    std::fs::create_dir_all(raw.parent().unwrap()).unwrap();
+    std::fs::create_dir_all(staged.parent().unwrap()).unwrap();
+    export_package(&backend, &raw);
+    let imported = call(
+        &backend,
+        "BackendImportExportService",
+        "import_anki_package",
+        &e_import(raw.to_string_lossy().into_owned()),
+    );
+    assert!(imported.success, "{}", message_of(&imported));
+    let exported = call(
+        &backend,
+        "BackendImportExportService",
+        "export_anki_package",
+        &whole_collection_export(staged.to_string_lossy().into_owned(), false),
+    );
+    assert!(exported.success, "{}", message_of(&exported));
+    assert!(staged.is_file());
+}

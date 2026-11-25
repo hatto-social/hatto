@@ -5,9 +5,10 @@
 """Turn cargo-about JSON and a Gradle license report into committed notices.
 
 Anki path crates stay out of the ordinary third-party list. Their entry
-points at NOTICE.md. rslib_bridge is this repository's own crate and is
-omitted. License texts are the ones cargo-about and the Gradle plugin
-resolved, including clarifications for crates whose packaged license files
+points at NOTICE.md. rslib_bridge, rslib_core, and hatto_import are this
+repository's own crates and are omitted. License texts are the ones cargo-about
+and the Gradle plugin resolved, including clarifications for crates whose
+packaged license files
 are not machine-readable on their own.
 """
 
@@ -18,10 +19,18 @@ import sys
 from pathlib import Path
 
 ANKI_RUNTIME = ("anki", "anki_i18n", "anki_io", "anki_proto")
-# rslib_bridge, the guid contract, and the developer CLI are this
-# repository. They are not third-party notices. hatto_card is not in the
-# rslib_bridge graph; it is listed so a later direct dependency is dropped.
-OWN_CRATES = {"rslib_bridge", "hatto_card_contract", "hatto_card"}
+# rslib_bridge, rslib_core, the import pipeline, the guid contract, and the
+# developer CLI are this repository. They are not third-party notices.
+# hatto_card is not in the rslib_bridge graph; it is listed so a later
+# direct dependency is dropped. hatto_import and rslib_core are linked
+# into the bridge cdylib.
+OWN_CRATES = {
+    "rslib_bridge",
+    "rslib_core",
+    "hatto_import",
+    "hatto_card_contract",
+    "hatto_card",
+}
 ANKI_COMMIT = "29bb700b951e3f0c0cb69b77c0180fc1fe33e6ba"
 
 ANKI_TEXT = f"""\
@@ -84,7 +93,7 @@ def _rust_entries(
             "Anki runtime crates missing from cargo-about output: "
             + ", ".join(missing)
         )
-    for name in ("rslib_bridge", "hatto_card_contract"):
+    for name in ("rslib_bridge", "rslib_core", "hatto_import", "hatto_card_contract"):
         if name not in by_name:
             _die(f"{name} missing from cargo-about output")
 

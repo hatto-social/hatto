@@ -148,7 +148,8 @@ pub enum AddNoteGuid {
         op_id: Option<String>,
         k: Option<u32>,
     },
-    /// `imported_note_guid(job_id, source_guid)`.
+    /// `normalize_import_guid(source_guid)`. `job_id` is stored on the note
+    /// and ignored for the guid.
     Imported { job_id: String, source_guid: String },
 }
 
@@ -256,9 +257,11 @@ fn new_op_id() -> String {
 }
 
 fn note_json(request: &AddNoteRequest, added: &AddedNote) -> Value {
-    // The id used for this guid is stored on the note. The deck-level op_id
-    // or job_id belongs to notes that omit their own, and this write must
-    // not change those notes.
+    // Store the id this note was given. A local note stores `op_id` and `k`.
+    // An imported note stores `source_guid` and, when passed, `job_id`.
+    // `job_id` is not an input to the guid. The deck-level op_id or job_id
+    // belongs to notes that omit their own, and this write must not change
+    // those notes.
     let mut note = match added {
         AddedNote::Local { op_id, k } => json!({
             "op_id": op_id,
@@ -399,7 +402,7 @@ fn add_media(session: &Session, dir: &Path) -> Result<(), ToolFailure> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hatto_card_contract::{imported_note_guid, is_guid_format, local_note_guid, parse_uuid};
+    use hatto_card_contract::{is_guid_format, local_note_guid, normalize_import_guid, parse_uuid};
 
     fn bare_skeleton() -> Value {
         let mut value = skeleton();
@@ -511,9 +514,8 @@ mod tests {
         let job_id = "11111111-2222-4333-8444-555555555555";
         let source = "  note  ";
         let added = add_note_path(&path, None, &imported(job_id, source)).unwrap();
-        let expect =
-            NoteGuid::from_uuid(imported_note_guid(parse_uuid(job_id).unwrap(), source).unwrap())
-                .into_string();
+        let expect = normalize_import_guid(source).unwrap();
+        assert_eq!(expect, "b5c01858-bc45-5ce7-9d27-8ee126feb56b");
         assert_eq!(last_guid(&added), expect);
         assert_eq!(added["source_guid"], source);
         let note = read_deck(&path)["notes"][3].clone();
@@ -521,6 +523,22 @@ mod tests {
         assert_eq!(note["job_id"], job_id);
         assert!(note.get("op_id").is_none());
         assert!(note.get("k").is_none());
+
+        let other_job = add_note_path(
+            &path,
+            None,
+            &imported("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", source),
+        )
+        .unwrap_err();
+        assert!(other_job
+            .errors
+            .iter()
+            .any(|error| error.code == "NOTE_GUID_DUPLICATE"));
+        assert_eq!(read_deck(&path)["notes"].as_array().unwrap().len(), 4);
+
+        let ignored = add_note_path(&path, None, &imported("not-a-uuid", "oxr*zK@INR")).unwrap();
+        assert_eq!(last_guid(&ignored), "c15b93d8-6483-5c3c-b94f-1061d53fda92");
+        assert_eq!(read_deck(&path)["notes"][4]["job_id"], "not-a-uuid");
     }
 
     #[test]

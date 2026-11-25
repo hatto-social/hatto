@@ -2,9 +2,11 @@
 # packages/rslib_bridge/rust. Generate notices with tools/license/gen-notices.sh.
 #
 # Hatto's own path crates in that graph, besides rslib_bridge:
+# packages/rslib_core (the only crate that links rslib), packages/hatto_import
+# (the import pipeline, linked into the cdylib), and
 # packages/hatto_card_contract (pure guid rules; a path dependency of the
 # bridge). packages/hatto_card is the developer CLI. It is not linked into
-# the apps. gen-notices.sh also runs cargo-deny on both new manifests.
+# the apps. gen-notices.sh also runs cargo-deny on the new manifests.
 # render_notices.py drops these crates from the third-party list.
 #
 # `accepted` is a priority list. An `OR` expression is satisfied by the

@@ -156,8 +156,9 @@ fn add_note(pairs: &[(&str, &str)]) -> Result<Value, CliError> {
     .map_err(Failed)
 }
 
-/// Local is the default. `--job-id` and `--source-guid` select an import and
-/// cannot be combined with `--op-id` or `--k`.
+/// Local is the default. `--source-guid` selects an import. `--job-id` is
+/// accepted with it, stored, and ignored when the guid is derived. Those
+/// flags cannot be combined with `--op-id` or `--k`.
 fn guid_mode(pairs: &[(&str, &str)]) -> Result<AddNoteGuid, CliError> {
     let op_id = optional(pairs, "--op-id")?;
     let k_text = optional(pairs, "--k")?;

@@ -7,9 +7,11 @@
 //! `import/e/<uuid v4>/collection.anki2`. Package import reads `import/raw`,
 //! and package export writes `import/staged`, both for that same id.
 
+use std::collections::HashSet;
 use std::path::Path;
 
 use prost::Message;
+use serde::de::{self, DeserializeSeed, Deserializer, MapAccess, SeqAccess, Visitor};
 
 use super::desktop::MAX_REQUEST_BYTES;
 use super::validators::validate_close;
@@ -254,15 +256,15 @@ fn check_export_options(
     Ok(())
 }
 
-fn validate_search(input: &[u8]) -> Result<Vec<u8>, String> {
+pub(super) fn validate_search(input: &[u8]) -> Result<Vec<u8>, String> {
     let request = decode::<anki_proto::search::SearchRequest>(input)?;
     check_search_order(request.order.as_ref())?;
-    Ok(input.to_vec())
+    Ok(request.encode_to_vec())
 }
 
 /// A normal deck may change in exactly one way: clear `description`, or
 /// change `config_id` alone.
-fn validate_update_deck(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String> {
+pub(super) fn validate_update_deck(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, String> {
     let request = decode::<anki_proto::decks::Deck>(input)?;
     let Some(anki_proto::decks::deck::Kind::Normal(requested)) = request.kind.as_ref() else {
         return Err("deck is not a normal deck".into());
@@ -288,13 +290,14 @@ fn validate_update_deck(backend: &AnkiBackend, input: &[u8]) -> Result<Vec<u8>, 
     } else {
         return Err("update_deck must clear the description or change only config_id".into());
     };
-    if request.encode_to_vec() != expected.encode_to_vec() {
+    let encoded = request.encode_to_vec();
+    if encoded != expected.encode_to_vec() {
         return Err("other deck fields must stay unchanged".into());
     }
-    Ok(input.to_vec())
+    Ok(encoded)
 }
 
-fn validate_update_deck_configs(input: &[u8]) -> Result<Vec<u8>, String> {
+pub(super) fn validate_update_deck_configs(input: &[u8]) -> Result<Vec<u8>, String> {
     let request = decode::<anki_proto::deck_config::UpdateDeckConfigsRequest>(input)?;
     if request.target_deck_id == 1 {
         return Err("target_deck_id must not be 1".into());
@@ -312,7 +315,7 @@ fn validate_update_deck_configs(input: &[u8]) -> Result<Vec<u8>, String> {
     if request.configs.len() != 1 || request.configs[0].id != 0 {
         return Err("configs must be one new config".into());
     }
-    Ok(input.to_vec())
+    Ok(request.encode_to_vec())
 }
 
 fn with_config_id(
@@ -344,8 +347,7 @@ fn description_cleared_deck(
 
 fn validate_run_db_command(input: &[u8]) -> Result<Vec<u8>, String> {
     let request = decode::<anki_proto::generic::Json>(input)?;
-    let value: serde_json::Value = serde_json::from_slice(&request.json)
-        .map_err(|err| format!("run_db_command json: {err}"))?;
+    let value = parse_db_json(&request.json)?;
     let Some(obj) = value.as_object() else {
         return Err("run_db_command json must be an object".into());
     };
@@ -409,6 +411,89 @@ fn validate_run_db_command(input: &[u8]) -> Result<Vec<u8>, String> {
         }
     }
     Ok(input.to_vec())
+}
+
+/// `serde_json::Value` keeps the last copy of a duplicate key. rslib
+/// deserializes this object into a struct and rejects the repeat, so the
+/// policy rejects a duplicate key at every object before it looks at `sql`.
+fn parse_db_json(bytes: &[u8]) -> Result<serde_json::Value, String> {
+    let mut deserializer = serde_json::Deserializer::from_slice(bytes);
+    let value = NoDuplicateKeys
+        .deserialize(&mut deserializer)
+        .map_err(|err| format!("run_db_command json: {err}"))?;
+    deserializer
+        .end()
+        .map_err(|err| format!("run_db_command json: {err}"))?;
+    Ok(value)
+}
+
+/// Keys are compared after serde unescapes them. Nested values use this same
+/// seed, so serde_json's default recursion limit of 128 stays in force.
+struct NoDuplicateKeys;
+
+impl<'de> DeserializeSeed<'de> for NoDuplicateKeys {
+    type Value = serde_json::Value;
+
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_any(self)
+    }
+}
+
+impl<'de> Visitor<'de> for NoDuplicateKeys {
+    type Value = serde_json::Value;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("json value")
+    }
+
+    fn visit_bool<E: de::Error>(self, value: bool) -> Result<Self::Value, E> {
+        Ok(serde_json::Value::Bool(value))
+    }
+
+    fn visit_i64<E: de::Error>(self, value: i64) -> Result<Self::Value, E> {
+        Ok(serde_json::Value::Number(value.into()))
+    }
+
+    fn visit_u64<E: de::Error>(self, value: u64) -> Result<Self::Value, E> {
+        Ok(serde_json::Value::Number(value.into()))
+    }
+
+    fn visit_f64<E: de::Error>(self, value: f64) -> Result<Self::Value, E> {
+        serde_json::Number::from_f64(value)
+            .map(serde_json::Value::Number)
+            .ok_or_else(|| E::custom("not a finite number"))
+    }
+
+    fn visit_str<E: de::Error>(self, value: &str) -> Result<Self::Value, E> {
+        Ok(serde_json::Value::String(value.to_owned()))
+    }
+
+    fn visit_unit<E: de::Error>(self) -> Result<Self::Value, E> {
+        Ok(serde_json::Value::Null)
+    }
+
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+        let mut out = Vec::new();
+        while let Some(value) = seq.next_element_seed(NoDuplicateKeys)? {
+            out.push(value);
+        }
+        Ok(serde_json::Value::Array(out))
+    }
+
+    fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
+        let mut seen = HashSet::new();
+        let mut out = serde_json::Map::new();
+        while let Some(key) = map.next_key::<String>()? {
+            if !seen.insert(key.clone()) {
+                return Err(de::Error::custom(format!("duplicate key '{key}'")));
+            }
+            out.insert(key, map.next_value_seed(NoDuplicateKeys)?);
+        }
+        Ok(serde_json::Value::Object(out))
+    }
 }
 
 fn exact_keys(
