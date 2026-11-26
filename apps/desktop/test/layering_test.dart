@@ -88,6 +88,10 @@ void main() {
       'deleteRevlogOrigin(',
       'replaceNote(',
       'reconcileCollection(',
+      'ImportPipeline(',
+      'reconcileInTurn(',
+      'recoverImports(',
+      'upsertImportedNote(',
       'adoptDeck(',
       'adoptNote(',
       'ensureDeckMapped(',
@@ -137,13 +141,21 @@ void main() {
       final path = file.path.replaceAll('\\', '/');
       final text = file.readAsStringSync();
       for (final pattern in banned) {
-        expect(pattern.hasMatch(text), isFalse, reason: '$path matches ${pattern.pattern}');
+        expect(
+          pattern.hasMatch(text),
+          isFalse,
+          reason: '$path matches ${pattern.pattern}',
+        );
       }
       expect(_imports(text, 'package:http'), isFalse, reason: path);
       expect(_imports(text, 'package:dio'), isFalse, reason: path);
       expect(_imports(text, 'package:url_launcher'), isFalse, reason: path);
       for (final name in packages) {
-        expect(_imports(text, 'package:$name'), isFalse, reason: '$path imports $name');
+        expect(
+          _imports(text, 'package:$name'),
+          isFalse,
+          reason: '$path imports $name',
+        );
       }
       expect(
         _imports(text, 'package:flutter_widget_from_html/'),

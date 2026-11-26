@@ -559,6 +559,15 @@ class SideDb {
   /// and home deck. The `ON CONFLICT` target is `note_guid`, so a stale
   /// `rslib_note_id` on that same row is replaced instead of raising
   /// `UNIQUE`.
+  /// Removes the `note_map` row for [rslibNoteId], if one exists.
+  ///
+  /// Does not start a transaction. Import adoption calls this inside
+  /// [inImmediateTransaction] when a live guid must take an id that a
+  /// different guid still holds.
+  void deleteNoteMapByRslibId(int rslibNoteId) {
+    _db.execute('DELETE FROM note_map WHERE rslib_note_id = ?', [rslibNoteId]);
+  }
+
   void upsertImportedNote({
     required String noteGuid,
     required int rslibNoteId,

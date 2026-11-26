@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:async';
+
 import 'package:hatto_store/hatto_store.dart';
 
 /// In-memory [ImportEngine]. Not a bridge.
@@ -17,8 +19,8 @@ class FakeImportEngine implements ImportEngine {
   }) : notes = notes ?? <ResidentNoteFacts>[],
        deckIds = deckIds ?? <String, int>{};
 
-  final List<ResidentNoteFacts> notes;
-  final Map<String, int> deckIds;
+  List<ResidentNoteFacts> notes;
+  Map<String, int> deckIds;
   int notetypeUseCount;
   List<int> newNoteIds;
   List<StagedFileNote> fileNotes;
@@ -30,18 +32,38 @@ class FakeImportEngine implements ImportEngine {
   String? committedPath;
   bool? committedFirstImport;
   List<String>? scannedBatchIds;
+  void Function(List<String> preparedBatchIds)? onScan;
+  FutureOr<void> Function()? onStage;
+  Object? lookupError;
+  int commitCalls = 0;
+  int stageCalls = 0;
+  FakeStagedImport? lastStaged;
+  void Function()? onCommit;
+  Future<PreparedPlan> Function(
+    StagedImport staged,
+    List<ResidentNoteFacts> residentFacts,
+    List<String> foundDeckNames,
+  )?
+  finishWith;
 
   @override
   Future<StagedImport> stageE({
     required String sourcePath,
     required int maxBytes,
   }) async {
-    return FakeStagedImport(
+    stageCalls += 1;
+    final hook = onStage;
+    if (hook != null) {
+      await hook();
+    }
+    final staged = FakeStagedImport(
       sourcePath: sourcePath,
       maxBytes: maxBytes,
       fileNotes: fileNotes,
       deckNames: stagedDeckNames,
     );
+    lastStaged = staged;
+    return staged;
   }
 
   @override
@@ -51,6 +73,10 @@ class FakeImportEngine implements ImportEngine {
   }) async {
     lookupNoteIds.add(List<int>.of(noteIds));
     lookupDeckNames.add(List<String>.of(deckNames));
+    final error = lookupError;
+    if (error != null) {
+      throw error;
+    }
     final byId = <int, ResidentNoteFacts>{
       for (final note in notes) note.id: note,
     };
@@ -72,6 +98,10 @@ class FakeImportEngine implements ImportEngine {
     required List<ResidentNoteFacts> residentFacts,
     required List<String> foundDeckNames,
   }) async {
+    final custom = finishWith;
+    if (custom != null) {
+      return custom(staged, residentFacts, foundDeckNames);
+    }
     return plan ??
         PreparedPlan(
           batchId: '00000000-0000-4000-8000-000000000000',
@@ -98,6 +128,7 @@ class FakeImportEngine implements ImportEngine {
   @override
   Future<ImportScan> scan({required List<String> preparedBatchIds}) async {
     scannedBatchIds = List<String>.of(preparedBatchIds);
+    onScan?.call(preparedBatchIds);
     return const ImportScan(removed: [], keptPrepared: [], ignored: []);
   }
 
@@ -111,6 +142,8 @@ class FakeImportEngine implements ImportEngine {
   }) async {
     committedPath = stagedPath;
     committedFirstImport = firstImport;
+    commitCalls += 1;
+    onCommit?.call();
     return ResidentImportResult(newNoteIds: newNoteIds);
   }
 
@@ -137,9 +170,11 @@ class FakeStagedImport implements StagedImport {
   final List<String> deckNames;
 
   var disposed = false;
+  var disposeCount = 0;
 
   @override
   void dispose() {
+    disposeCount += 1;
     disposed = true;
   }
 }

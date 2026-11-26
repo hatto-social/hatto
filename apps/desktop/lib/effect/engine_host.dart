@@ -10,6 +10,8 @@ import 'package:path/path.dart' as p;
 import '../engine/anki_api.dart';
 import '../engine/engine.dart';
 import '../state/bootstrap_state.dart';
+import '../store/import_engine_desktop.dart';
+import '../store/rslib_anki.dart';
 import '../store/write_gateway.dart';
 
 /// Opens the side database and the collection. Production and tests use this.
@@ -36,9 +38,15 @@ class EngineHost {
 
   bool get holdsInstanceLock => _lock != null;
 
+  /// True when this open ran the import startup sequence.
+  bool importStartupRan = false;
+
+  Object? get importStartupError => _gateway?.importStartupError;
+
   Future<BootstrapState> open({
     required String dataDir,
     Future<void> Function(Engine engine, FlowApi api)? openCollection,
+    Future<void> Function(WriteGateway gateway)? importStartup,
   }) async {
     final lock = InstanceLock.tryAcquire(dataDir);
     if (lock == null) {
@@ -48,8 +56,9 @@ class EngineHost {
     markedClosedEngine = null;
     SideDb? side;
     try {
-      side = SideDb.openOrCreate(p.join(dataDir, 'hatto.sqlite'));
-      _side = side;
+      final openedSide = SideDb.openOrCreate(p.join(dataDir, 'hatto.sqlite'));
+      side = openedSide;
+      _side = openedSide;
       _gateway = WriteGateway(
         db: side,
         command: (service, method, input) async {
@@ -81,6 +90,28 @@ class EngineHost {
       }
       engine = opened;
       flow = api;
+      final gateway = _gateway!;
+      gateway.attachImport(
+        anki: RslibAnkiApi(api),
+        engine: DesktopImportEngine(engine: opened, dataDir: dataDir),
+        dataDir: dataDir,
+      );
+      importStartupRan = false;
+      if (importStartupNeeded(openedSide, dataDir)) {
+        importStartupRan = true;
+        try {
+          final override = importStartup;
+          if (override != null) {
+            await override(gateway);
+          } else {
+            await gateway.recoverImportsAtStartup();
+          }
+        } catch (err, stack) {
+          gateway.noteImportStartupFailure(err);
+          stderr.writeln('import startup failed: $err');
+          stderr.writeln(stack);
+        }
+      }
       final collectionPath = p.join(dataDir, 'collection.anki2');
       _collectionPath = collectionPath;
       final marker = File('$collectionPath.hatto-fsrs-init');
@@ -123,6 +154,28 @@ class EngineHost {
       return null;
     }
     return File(p.join(dataDir, 'collection.anki2')).absolute.path;
+  }
+
+  /// True when an import intent exists or a working import folder is not empty.
+  ///
+  /// Absent directories count as empty. This does not take the side-database
+  /// lock and does not delete anything.
+  static bool importStartupNeeded(SideDb db, String dataDir) {
+    for (final intent in db.pendingIntents()) {
+      if (intent.op == intentImport) {
+        return true;
+      }
+    }
+    for (final name in const ['raw', 'e', 'staged']) {
+      final dir = Directory(p.join(dataDir, 'import', name));
+      if (!dir.existsSync()) {
+        continue;
+      }
+      if (dir.listSync(followLinks: false).isNotEmpty) {
+        return true;
+      }
+    }
+    return false;
   }
 
   bool get markerPresent {

@@ -84,6 +84,8 @@ class ResidentNoteFacts {
     required this.guid,
     required this.id,
     required this.contentHashHex,
+    this.notetypeId = 0,
+    this.mod = 0,
   });
 
   final String guid;
@@ -93,6 +95,12 @@ class ResidentNoteFacts {
 
   /// Lowercase hex. Compared as a string, not as bytes.
   final String contentHashHex;
+
+  /// Resident notetype id. [ImportEngine.finish] classifies with this.
+  final int notetypeId;
+
+  /// Resident `notes.mod`. [ImportEngine.finish] classifies with this.
+  final int mod;
 }
 
 /// Notes and deck names from [ImportEngine.residentLookup].

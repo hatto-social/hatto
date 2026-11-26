@@ -38,15 +38,20 @@ String importRawApkgPath(String dataDir, String batchId) {
   return p.join(dataDir, 'import', 'raw', '$batchId.apkg');
 }
 
+/// Lowercase hex SHA-256 of [source].
+String sha256OfFile(File source) {
+  if (!source.existsSync()) {
+    throw SideDbException('import archive is missing: ${source.path}');
+  }
+  return _sha256OfFile(source);
+}
+
 /// Copies [source] to `<dataDir>/imports/<sha256>`.
 ///
 /// Returns the content sha256 for `deck_map.source_sha256`. A file already
 /// stored under that name is left in place.
 String storeImportArchive({required String dataDir, required File source}) {
-  if (!source.existsSync()) {
-    throw SideDbException('import archive is missing: ${source.path}');
-  }
-  final digest = _sha256OfFile(source);
+  final digest = sha256OfFile(source);
   final dest = File(importArchivePath(dataDir, digest));
   if (p.equals(source.absolute.path, dest.absolute.path)) {
     return digest;

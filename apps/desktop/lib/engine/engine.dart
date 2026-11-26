@@ -4,6 +4,7 @@
 
 import 'package:protobuf/protobuf.dart';
 import 'package:rslib_bridge/rslib_bridge.dart';
+import 'package:rslib_bridge/rslib_bridge.dart' as bridge show residentLookup;
 
 import '../src/gen/anki/backend.pb.dart';
 import 'methods.g.dart';
@@ -29,10 +30,12 @@ const desktopServices = <String, String>{
   'undo': 'BackendCollectionService',
   'redo': 'BackendCollectionService',
   'deck_tree': 'BackendDecksService',
+  'get_deck_id_by_name': 'BackendDecksService',
   'rename_deck': 'BackendDecksService',
   'get_deck_names': 'BackendDecksService',
   'set_current_deck': 'BackendDecksService',
   'get_notetype_names': 'BackendNotetypesService',
+  'get_notetype_names_and_counts': 'BackendNotetypesService',
   'get_field_names': 'BackendNotetypesService',
   'new_note': 'BackendNotesService',
   'get_note': 'BackendNotesService',
@@ -55,6 +58,7 @@ const desktopServices = <String, String>{
   'render_existing_card': 'BackendCardRenderingService',
   'extract_av_tags': 'BackendCardRenderingService',
   'graphs': 'BackendStatsService',
+  'import_anki_package': 'BackendImportExportService',
 };
 
 class Engine {
@@ -109,6 +113,18 @@ class Engine {
       throw BackendException(rpc, BackendError.fromBuffer(response.payload));
     }
     return parse(response.payload);
+  }
+
+  /// Resident notes and deck names. The backend handle stays in this library.
+  Future<ResidentMatch> residentLookup({
+    required List<int> noteIds,
+    required List<String> deckNames,
+  }) {
+    return bridge.residentLookup(
+      backend: _backend,
+      noteIds: Int64List.fromList(noteIds),
+      deckNames: deckNames,
+    );
   }
 
   /// Marks the engine closed. Native resources stay allocated.
