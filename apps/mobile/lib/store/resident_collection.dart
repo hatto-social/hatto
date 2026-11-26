@@ -69,6 +69,11 @@ class ResidentCollection {
   final bridge.AnkiBackend backend;
   var _closed = false;
 
+  /// Wraps a collection this object did not open. [close] still closes it.
+  factory ResidentCollection.attached(bridge.AnkiBackend backend) {
+    return ResidentCollection._(backend);
+  }
+
   static Future<ResidentCollection> open(String directory) async {
     final root = Directory(directory)..createSync(recursive: true);
     final media = Directory(p.join(root.path, 'collection.media'))

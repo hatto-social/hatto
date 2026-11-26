@@ -16,23 +16,6 @@ import 'package:hatto_mobile/store/pb.dart';
 
 export 'package:hatto_mobile/store/pb.dart' show PbField, PbWriter, parseFields;
 
-/// Fixed import job ids. Same values as `smoke_jobs` in
-/// `packages/hatto_card_contract/fixtures/note_guid_golden.json`.
-/// Each smoke job is its own import, so the ids differ.
-const smokeJobIds = <String, String>{
-  'job1': '6f0c0a1e-7b2d-4c3a-8e91-0a1b2c3d4e5f',
-  'job2': '7a1d1b2f-8c3e-4d4b-9f02-1b2c3d4e5f60',
-  'job3': '8b2e2c30-9d4f-4e5c-a013-2c3d4e5f6071',
-};
-
-String smokeJobId(String job) {
-  final id = smokeJobIds[job];
-  if (id == null) {
-    throw ArgumentError('unknown smoke job $job');
-  }
-  return id;
-}
-
 const cardedRevlogSql =
     'select count(*) from revlog where cid in (select id from cards)';
 
@@ -272,22 +255,6 @@ Uint8List importCollectionPackageRequest({
     ..stringField(2, backupPath)
     ..stringField(3, mediaFolder)
     ..stringField(4, mediaDb);
-  return writer.takeBytes();
-}
-
-Uint8List _importAnkiPackageOptions() {
-  final writer = PbWriter()
-    ..varintField(2, 2)
-    ..varintField(3, 2)
-    ..boolField(4, true)
-    ..boolField(5, true);
-  return writer.takeBytes();
-}
-
-Uint8List importAnkiPackageRequest(String packagePath) {
-  final writer = PbWriter()
-    ..stringField(1, packagePath)
-    ..bytesField(2, _importAnkiPackageOptions());
   return writer.takeBytes();
 }
 

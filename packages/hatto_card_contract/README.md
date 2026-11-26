@@ -14,9 +14,9 @@ are re-exported by `rslib_bridge` over flutter_rust_bridge, with the same
 `assignImportGuids`, `noteContentHash`, `classify`, and `summarizePlan`.
 The wrappers do no I/O and do not call rslib. The apps do not call them.
 
-`apps/desktop` and `packages/hatto_store` do not call the three re-exported
-functions, and neither does `apps/mobile/lib`. The device smoke
-`apps/mobile/integration_test/smoke_flow.dart` calls `importedNoteGuid`.
+`apps/desktop`, `packages/hatto_store`, and `apps/mobile` do not call the
+three re-exported functions. The device smoke does not call
+`importedNoteGuid`.
 The hatto-card CLI calls this crate directly. No other package calls
 `validate_deck_file`.
 

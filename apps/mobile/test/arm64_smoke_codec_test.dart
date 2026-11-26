@@ -30,18 +30,8 @@ void main() {
         ),
       ).readAsStringSync(),
     ) as Map<String, dynamic>;
-    final jobs = (golden['smoke_jobs'] as Map<String, dynamic>).map(
-      (key, value) => MapEntry(key, value as String),
-    );
-    expect(smokeJobIds, jobs);
-    // The previous smoke namespace was uuid5(NAMESPACE_URL, 'smoke:job1')
-    // = ade39d77-e71f-52e1-bdb9-4d405b7a656c, and uuid5 of that with
-    // 'abc123' was 9468cc32-8cb3-58b6-aee2-726cfdd69331. The app rule is
-    // uuid5(fixed job id, source guid).
-    expect(
-      uuid5(smokeJobId('job1'), 'abc123'),
-      'a68db4fd-118d-5ad9-b151-638b9431e3a9',
-    );
+    // smoke_jobs stays in the golden file. check_note_guid_golden.py still
+    // requires job1, job2, and job3. The device smoke no longer reads them.
     for (final raw in golden['imported'] as List<dynamic>) {
       final item = raw as Map<String, dynamic>;
       if (item['error'] == 'empty_source_guid') {
