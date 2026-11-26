@@ -21,6 +21,8 @@ use crate::ImportError;
 use crate::ImportLimits;
 use crate::NoteFacts;
 use crate::ResidentLookup;
+use crate::FORMAT_ERROR_PREFIX;
+use crate::TOO_LARGE_COMPRESSED_PREFIX;
 
 struct DenyLookup;
 
@@ -233,21 +235,32 @@ fn format_errors_do_not_call_the_resident_lookup() {
 
     let text = root.path().join("notes.txt");
     fs::write(&text, b"PK\x03\x04not-an-apkg-name").unwrap();
-    let err =
-        prepare_import(&data, &text, ImportLimits { max_bytes: 1000 }, &mut lookup).unwrap_err();
+    let err = prepare_import(&data, &text, limits(1000), &mut lookup).unwrap_err();
+    assert!(err.to_string().starts_with(FORMAT_ERROR_PREFIX), "{err}");
     assert!(err.to_string().contains(".apkg"), "{err}");
 
     let bad = root.path().join("bad.apkg");
     fs::write(&bad, b"not a zip file at all").unwrap();
-    let err =
-        prepare_import(&data, &bad, ImportLimits { max_bytes: 1000 }, &mut lookup).unwrap_err();
+    let err = prepare_import(&data, &bad, limits(1000), &mut lookup).unwrap_err();
+    assert!(err.to_string().starts_with(FORMAT_ERROR_PREFIX), "{err}");
     assert!(err.to_string().contains("zip"), "{err}");
 
     let big = root.path().join("big.apkg");
     let mut bytes = b"PK\x03\x04".to_vec();
     bytes.extend(std::iter::repeat_n(1, 40));
     fs::write(&big, &bytes).unwrap();
-    let err = prepare_import(&data, &big, ImportLimits { max_bytes: 8 }, &mut lookup).unwrap_err();
+    let err = prepare_import(&data, &big, limits(8), &mut lookup).unwrap_err();
+    assert!(
+        err.to_string().starts_with(TOO_LARGE_COMPRESSED_PREFIX),
+        "{err}"
+    );
     assert!(err.to_string().contains("max_bytes"), "{err}");
     assert!(!data.join("import").exists());
+}
+
+fn limits(max_bytes: u64) -> ImportLimits {
+    ImportLimits {
+        max_bytes,
+        max_uncompressed_bytes: u64::MAX,
+    }
 }

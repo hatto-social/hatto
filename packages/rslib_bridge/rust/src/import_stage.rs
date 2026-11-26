@@ -20,11 +20,15 @@ pub(crate) fn import_stage_e(
     data_dir: String,
     source_path: String,
     max_bytes: u64,
+    max_uncompressed_bytes: u64,
 ) -> Result<PendingImport, String> {
     let staged = hatto_import::stage_import(
         Path::new(&data_dir),
         Path::new(&source_path),
-        hatto_import::ImportLimits { max_bytes },
+        hatto_import::ImportLimits {
+            max_bytes,
+            max_uncompressed_bytes,
+        },
     )
     .map_err(|err| err.to_string())?;
     let notes = staged.notes.iter().map(bridge_note).collect();
@@ -205,6 +209,7 @@ mod tests {
     const GUID_1: &str = "00000000-0000-4000-8000-000000000001";
     const MOD: i64 = 1_700_000_000;
     const MAX_BYTES: u64 = 32 * 1024 * 1024;
+    const MAX_UNCOMPRESSED: u64 = u64::MAX;
 
     fn guid(n: u32) -> String {
         format!("00000000-0000-4000-8000-{n:012x}")
@@ -498,15 +503,21 @@ mod tests {
         let data_dir = data.to_string_lossy().into_owned();
         let file_text = file.to_string_lossy().into_owned();
 
-        let pending = import_stage_e(data_dir.clone(), file_text.clone(), MAX_BYTES).unwrap();
+        let pending = import_stage_e(
+            data_dir.clone(),
+            file_text.clone(),
+            MAX_BYTES,
+            MAX_UNCOMPRESSED,
+        )
+        .unwrap();
         assert_eq!(pending.file_notes().len(), 1);
         assert_eq!(pending.file_notes()[0].guid, GUID_1);
         assert!(pending.deck_names().iter().any(|name| name == "Spanish"));
         let looked = resident_lookup(&resident, Vec::new(), pending.deck_names()).unwrap();
         assert!(looked.notes.is_empty());
         assert!(looked.found_deck_names.is_empty());
-        let first = import_stage_finish(pending, looked.notes.clone(), looked.found_deck_names)
-        .unwrap();
+        let first =
+            import_stage_finish(pending, looked.notes.clone(), looked.found_deck_names).unwrap();
         assert_eq!(first.new_guids, vec![GUID_1.to_string()]);
         assert!(first.changed.is_empty());
         assert!(first.first_import);
@@ -517,13 +528,12 @@ mod tests {
 
         import_staged(&resident, &first.staged_path, first.first_import);
         let id = note_id_by_guid(&resident, GUID_1);
-        let again = import_stage_e(data_dir, file_text, MAX_BYTES).unwrap();
+        let again = import_stage_e(data_dir, file_text, MAX_BYTES, MAX_UNCOMPRESSED).unwrap();
         let looked = resident_lookup(&resident, vec![id], again.deck_names()).unwrap();
         assert_eq!(looked.notes.len(), 1);
         assert_eq!(looked.notes[0].r#mod, MOD);
         assert!(looked.found_deck_names.iter().any(|name| name == "Spanish"));
-        let second =
-            import_stage_finish(again, looked.notes, looked.found_deck_names).unwrap();
+        let second = import_stage_finish(again, looked.notes, looked.found_deck_names).unwrap();
         assert!(second.plan.no_resident_call, "{second:?}");
         assert!(second.new_guids.is_empty());
         assert!(second.changed.is_empty());
@@ -582,6 +592,7 @@ mod tests {
             data.to_string_lossy().into_owned(),
             v2.to_string_lossy().into_owned(),
             MAX_BYTES,
+            MAX_UNCOMPRESSED,
         )
         .unwrap();
         let looked = resident_lookup(&resident, ids, pending.deck_names()).unwrap();
@@ -638,7 +649,13 @@ mod tests {
         add_deck(&resident, "d1");
         let data_dir = data.to_string_lossy().into_owned();
         let file_text = file.to_string_lossy().into_owned();
-        let pending = import_stage_e(data_dir.clone(), file_text.clone(), MAX_BYTES).unwrap();
+        let pending = import_stage_e(
+            data_dir.clone(),
+            file_text.clone(),
+            MAX_BYTES,
+            MAX_UNCOMPRESSED,
+        )
+        .unwrap();
         let looked = resident_lookup(&resident, Vec::new(), pending.deck_names()).unwrap();
         assert!(
             looked
@@ -648,8 +665,7 @@ mod tests {
             "{:?}",
             looked.found_deck_names
         );
-        let finished =
-            import_stage_finish(pending, looked.notes, looked.found_deck_names).unwrap();
+        let finished = import_stage_finish(pending, looked.notes, looked.found_deck_names).unwrap();
         assert!(!finished.first_import, "{finished:?}");
 
         let gone = deck_id(&resident, "d1");
@@ -659,11 +675,10 @@ mod tests {
             "remove_decks",
             &anki_proto::decks::DeckIds { dids: vec![gone] },
         ));
-        let pending = import_stage_e(data_dir, file_text, MAX_BYTES).unwrap();
+        let pending = import_stage_e(data_dir, file_text, MAX_BYTES, MAX_UNCOMPRESSED).unwrap();
         let looked = resident_lookup(&resident, Vec::new(), pending.deck_names()).unwrap();
         assert!(looked.found_deck_names.is_empty(), "{looked:?}");
-        let again =
-            import_stage_finish(pending, looked.notes, looked.found_deck_names).unwrap();
+        let again = import_stage_finish(pending, looked.notes, looked.found_deck_names).unwrap();
         assert!(again.first_import, "{again:?}");
         assert_eq!(again.plan.new, 1);
         close(&resident);

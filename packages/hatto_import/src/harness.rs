@@ -34,6 +34,7 @@ pub(crate) fn test_limits() -> ImportLimits {
     // A test ceiling, not the product cap (O4).
     ImportLimits {
         max_bytes: 32 * 1024 * 1024,
+        max_uncompressed_bytes: u64::MAX,
     }
 }
 

@@ -22,18 +22,26 @@ use uuid::Uuid;
 
 use crate::channel::ESession;
 use crate::cleanup::remove_import_batch;
-use crate::error::ImportError;
+use crate::error::{
+    ImportError, FORMAT_ERROR_PREFIX, TOO_LARGE_COMPRESSED_PREFIX, TOO_LARGE_UNCOMPRESSED_PREFIX,
+};
 use crate::paths::{e_dir, raw_dir, staged_dir};
 use crate::preset::{self, clear_deck_description};
 
 const ZIP_LOCAL_MAGIC: [u8; 4] = [0x50, 0x4b, 0x03, 0x04];
 const DEFAULT_DECK_ID: i64 = 1;
 
-/// Size ceiling for one package. The number is the caller's (O4). This crate
-/// does not pick one.
+/// Size ceilings for one package. The numbers are the caller's (O4). This
+/// crate does not pick them.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ImportLimits {
+    /// Compressed file size, in bytes.
     pub max_bytes: u64,
+    /// Sum of zip central-directory uncompressed sizes, in bytes.
+    ///
+    /// The outer zip only. An inner zstd frame such as `collection.anki21b`
+    /// is out of scope for v0.
+    pub max_uncompressed_bytes: u64,
 }
 
 /// What the caller can read about the resident collection.
@@ -193,6 +201,10 @@ pub fn stage_import(
 
     let raw = crate::paths::raw_apkg_path(data_dir, batch_id)?;
     fs::copy(source, &raw).map_err(|err| ImportError::new(format!("copy source: {err}")))?;
+    // The copy is checked again. A file swapped after the first check must
+    // not reach E.
+    #[cfg(test)]
+    run_after_raw_copy_hook(&raw);
     validate_source(&raw, limits)?;
 
     let session = ESession::open(data_dir, batch_id)?;
@@ -321,33 +333,118 @@ impl Drop for BatchGuard {
     }
 }
 
-fn validate_source(path: &Path, limits: ImportLimits) -> Result<(), ImportError> {
+/// ASCII case-insensitive `.apkg`. `paths::batch_id_from_apkg_name` still
+/// requires a lowercase suffix on raw copies.
+fn has_apkg_extension(path: &Path) -> bool {
     let name = path
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or("");
-    if !name.ends_with(".apkg") || path.extension().and_then(|ext| ext.to_str()) != Some("apkg") {
-        return Err(ImportError::new("package extension is not .apkg"));
+    let extension = path.extension().and_then(|ext| ext.to_str()).unwrap_or("");
+    let suffix_ok = name.len() >= 5
+        && name.as_bytes()[name.len() - 5] == b'.'
+        && name[name.len() - 4..].eq_ignore_ascii_case("apkg");
+    suffix_ok && extension.eq_ignore_ascii_case("apkg")
+}
+
+fn prefixed(prefix: &str, detail: impl std::fmt::Display) -> ImportError {
+    ImportError::new(format!("{prefix} {detail}"))
+}
+
+pub(crate) fn validate_source(path: &Path, limits: ImportLimits) -> Result<(), ImportError> {
+    if !has_apkg_extension(path) {
+        return Err(prefixed(
+            FORMAT_ERROR_PREFIX,
+            "package extension is not .apkg",
+        ));
     }
     let meta =
         fs::metadata(path).map_err(|err| ImportError::new(format!("{}: {err}", path.display())))?;
     if !meta.is_file() {
-        return Err(ImportError::new("package path is not a file"));
+        return Err(prefixed(FORMAT_ERROR_PREFIX, "package path is not a file"));
     }
     if meta.len() > limits.max_bytes {
-        return Err(ImportError::new("package exceeds max_bytes"));
+        return Err(prefixed(
+            TOO_LARGE_COMPRESSED_PREFIX,
+            "package exceeds max_bytes",
+        ));
     }
-    let mut file = fs::File::open(path)
-        .map_err(|err| ImportError::new(format!("{}: {err}", path.display())))?;
-    let mut magic = [0u8; 4];
-    file.read_exact(&mut magic)
-        .map_err(|_| ImportError::new("package is shorter than a zip local header"))?;
-    if magic != ZIP_LOCAL_MAGIC {
-        return Err(ImportError::new(
-            "package does not start with a zip local header",
+    {
+        let mut file = fs::File::open(path)
+            .map_err(|err| ImportError::new(format!("{}: {err}", path.display())))?;
+        let mut magic = [0u8; 4];
+        file.read_exact(&mut magic).map_err(|_| {
+            prefixed(
+                FORMAT_ERROR_PREFIX,
+                "package is shorter than a zip local header",
+            )
+        })?;
+        if magic != ZIP_LOCAL_MAGIC {
+            return Err(prefixed(
+                FORMAT_ERROR_PREFIX,
+                "package does not start with a zip local header",
+            ));
+        }
+    }
+    reject_uncompressed_sum(path, limits.max_uncompressed_bytes)
+}
+
+/// Sum of central-directory uncompressed sizes. Inner compression such as
+/// `collection.anki21b` is not opened.
+fn reject_uncompressed_sum(path: &Path, max_uncompressed_bytes: u64) -> Result<(), ImportError> {
+    let file = fs::File::open(path)
+        .map_err(|err| prefixed(FORMAT_ERROR_PREFIX, format!("invalid zip archive: {err}")))?;
+    let mut archive = zip::ZipArchive::new(file)
+        .map_err(|err| prefixed(FORMAT_ERROR_PREFIX, format!("invalid zip archive: {err}")))?;
+    let mut total: u64 = 0;
+    for index in 0..archive.len() {
+        let size = archive
+            .by_index(index)
+            .map_err(|err| prefixed(FORMAT_ERROR_PREFIX, format!("invalid zip archive: {err}")))?
+            .size();
+        total = total.checked_add(size).ok_or_else(|| {
+            prefixed(
+                TOO_LARGE_UNCOMPRESSED_PREFIX,
+                "uncompressed size sum overflows u64",
+            )
+        })?;
+    }
+    if total > max_uncompressed_bytes {
+        return Err(prefixed(
+            TOO_LARGE_UNCOMPRESSED_PREFIX,
+            "uncompressed size sum exceeds max_uncompressed_bytes",
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+std::thread_local! {
+    static AFTER_RAW_COPY: std::cell::RefCell<Option<Box<dyn FnOnce(&Path)>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Test seam between the raw copy and the second [`validate_source`].
+#[cfg(test)]
+pub(crate) fn set_after_raw_copy_hook(hook: Box<dyn FnOnce(&Path)>) {
+    AFTER_RAW_COPY.with(|slot| {
+        *slot.borrow_mut() = Some(hook);
+    });
+}
+
+#[cfg(test)]
+pub(crate) fn clear_after_raw_copy_hook() {
+    AFTER_RAW_COPY.with(|slot| {
+        slot.borrow_mut().take();
+    });
+}
+
+#[cfg(test)]
+fn run_after_raw_copy_hook(path: &Path) {
+    let hook = AFTER_RAW_COPY.with(|slot| slot.borrow_mut().take());
+    if let Some(hook) = hook {
+        hook(path);
+    }
 }
 
 fn rewrite_guids(

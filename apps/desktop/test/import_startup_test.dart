@@ -59,7 +59,10 @@ void main() {
     final queued = await host.flow!.queuedCards();
     expect(queued.cards, isEmpty);
     expect(
-      () => host.writes!.importFile(sourcePath: 'missing.apkg', maxBytes: 10),
+      () => host.writes!.importFile(
+        sourcePath: 'missing.apkg',
+        limits: const ImportLimits(maxBytes: 10, maxUncompressedBytes: 10),
+      ),
       throwsA(isA<ImportStartupException>()),
     );
   });
@@ -69,21 +72,21 @@ void main() {
     addTearDown(db.close);
     final root = Directory.systemTemp.createTempSync('hatto-s2-need');
     addTearDown(() => root.deleteSync(recursive: true));
-    expect(EngineHost.importStartupNeeded(db, root.path), isFalse);
+    expect(importStartupNeeded(db, root.path), isFalse);
     for (final name in const ['raw', 'e', 'staged']) {
       Directory(p.join(root.path, 'import', name)).createSync(recursive: true);
     }
-    expect(EngineHost.importStartupNeeded(db, root.path), isFalse);
+    expect(importStartupNeeded(db, root.path), isFalse);
     File(p.join(root.path, 'import', 'staged', 'x.apkg'))
         .writeAsBytesSync(const [1]);
-    expect(EngineHost.importStartupNeeded(db, root.path), isTrue);
+    expect(importStartupNeeded(db, root.path), isTrue);
     File(p.join(root.path, 'import', 'staged', 'x.apkg')).deleteSync();
     db.beginIntent(
       op: intentImport,
       targetKey: '11111111-1111-4111-8111-111111111111',
       expected: '{}',
     );
-    expect(EngineHost.importStartupNeeded(db, root.path), isTrue);
+    expect(importStartupNeeded(db, root.path), isTrue);
   });
 }
 

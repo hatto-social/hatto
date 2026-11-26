@@ -108,6 +108,7 @@ abstract class RustLibApi extends BaseApi {
     required String dataDir,
     required String sourcePath,
     required BigInt maxBytes,
+    required BigInt maxUncompressedBytes,
   });
 
   Future<PreparedImport> crateApiImportStageFinish({
@@ -384,6 +385,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required String dataDir,
     required String sourcePath,
     required BigInt maxBytes,
+    required BigInt maxUncompressedBytes,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -392,6 +394,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(dataDir, serializer);
           sse_encode_String(sourcePath, serializer);
           sse_encode_u_64(maxBytes, serializer);
+          sse_encode_u_64(maxUncompressedBytes, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -405,7 +408,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateApiImportStageEConstMeta,
-        argValues: [dataDir, sourcePath, maxBytes],
+        argValues: [dataDir, sourcePath, maxBytes, maxUncompressedBytes],
         apiImpl: this,
       ),
     );
@@ -413,7 +416,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiImportStageEConstMeta => const TaskConstMeta(
     debugName: "import_stage_e",
-    argNames: ["dataDir", "sourcePath", "maxBytes"],
+    argNames: ["dataDir", "sourcePath", "maxBytes", "maxUncompressedBytes"],
   );
 
   @override

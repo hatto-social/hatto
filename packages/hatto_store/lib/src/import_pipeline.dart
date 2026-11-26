@@ -7,6 +7,7 @@ import 'dart:io';
 
 import 'import_archive.dart';
 import 'import_engine.dart';
+import 'import_error.dart';
 import 'import_intent.dart';
 import 'import_recovery.dart';
 import 'intent_ops.dart';
@@ -31,6 +32,11 @@ enum ImportOutcome {
   /// [ImportEngine.commitResident] returned, then adoption did not finish.
   /// The intent row is still there for the next startup.
   failedAfterCommit,
+
+  /// An exception happened after the intent was persisted, and it is not
+  /// known whether the resident collection changed. The intent stays for
+  /// the next startup. Callers must not claim the collection is unchanged.
+  failedUnknown,
 
   /// A pre-commit boundary saw [ImportCancellationToken.isCancelled].
   cancelled,
@@ -125,19 +131,32 @@ class ImportPipeline {
 
   final ImportCancellationToken? cancel;
 
-  Future<ImportOutcome> run({
+  /// UI progress for the current [run]. Not called inside the adoption
+  /// transaction. A throw is ignored.
+  void Function(ImportPhase phase)? _onPhase;
+
+  Future<ImportRunResult> run({
     required String sourcePath,
-    required int maxBytes,
+    required ImportLimits limits,
+    void Function(ImportPhase phase)? onPhase,
   }) {
-    return db.exclusive(() => _run(sourcePath: sourcePath, maxBytes: maxBytes));
+    return db.exclusive(() async {
+      _onPhase = onPhase;
+      try {
+        return await _run(sourcePath: sourcePath, limits: limits);
+      } finally {
+        _onPhase = null;
+      }
+    });
   }
 
-  Future<ImportOutcome> _run({
+  Future<ImportRunResult> _run({
     required String sourcePath,
-    required int maxBytes,
+    required ImportLimits limits,
   }) async {
     db.requireExclusiveTurn('ImportPipeline');
     StagedImport? staged;
+    PreparedPlan? plan;
     var stagedTaken = false;
     var intentId = 0;
     var inserted = false;
@@ -154,16 +173,17 @@ class ImportPipeline {
     try {
       await reconcileInTurn(db: db, anki: anki);
       if (await _cancelled(ImportPhase.afterReconcile)) {
-        return ImportOutcome.cancelled;
+        return _result(outcome: ImportOutcome.cancelled);
       }
 
-      staged = await engine.stageE(sourcePath: sourcePath, maxBytes: maxBytes);
+      staged = await engine.stageE(sourcePath: sourcePath, limits: limits);
       final opened = staged!;
       if (await _cancelled(ImportPhase.afterStage)) {
         return await _cancelTurn(
           inserted: inserted,
           intentId: intentId,
           scan: releaseThenScan,
+          plan: plan,
         );
       }
 
@@ -175,6 +195,7 @@ class ImportPipeline {
           inserted: inserted,
           intentId: intentId,
           scan: releaseThenScan,
+          plan: plan,
         );
       }
 
@@ -188,56 +209,63 @@ class ImportPipeline {
           inserted: inserted,
           intentId: intentId,
           scan: releaseThenScan,
+          plan: plan,
         );
       }
 
-      final plan = await engine.finish(
+      plan = await engine.finish(
         staged: opened,
         residentFacts: match.notes,
         foundDeckNames: match.foundDeckNames,
       );
+      final prepared = plan;
       stagedTaken = true;
       if (await _cancelled(ImportPhase.afterFinish)) {
         return await _cancelTurn(
           inserted: inserted,
           intentId: intentId,
           scan: releaseThenScan,
+          plan: plan,
         );
       }
-      if (plan.counts.noResidentCall) {
+      if (prepared.counts.noResidentCall) {
         await releaseThenScan();
-        return ImportOutcome.noop;
+        return _result(outcome: ImportOutcome.noop, plan: prepared);
       }
 
       final noteCount = await engine.notetypeUseCountSum();
-      final preChanged = _preChanged(plan.changed.keys, match.notes);
+      final preChanged = _preChanged(prepared.changed.keys, match.notes);
       if (preChanged == null) {
         await releaseThenScan();
-        return ImportOutcome.failedBeforeCommit;
+        return _result(
+          outcome: ImportOutcome.failedBeforeCommit,
+          plan: prepared,
+        );
       }
       if (await _cancelled(ImportPhase.afterPre)) {
         return await _cancelTurn(
           inserted: inserted,
           intentId: intentId,
           scan: releaseThenScan,
+          plan: plan,
         );
       }
 
       final sourceSha = sha256OfFile(
-        File(importRawApkgPath(dataDir, plan.batchId)),
+        File(importRawApkgPath(dataDir, prepared.batchId)),
       );
       final expected = ImportIntentExpected(
         sourceSha256: sourceSha,
-        stagedSha256: plan.stagedSha256,
-        firstImport: plan.firstImport,
-        newGuids: plan.newGuids,
-        changed: plan.changed,
-        deckNames: plan.deckNames,
+        stagedSha256: prepared.stagedSha256,
+        firstImport: prepared.firstImport,
+        newGuids: prepared.newGuids,
+        changed: prepared.changed,
+        deckNames: prepared.deckNames,
         pre: ImportIntentPre(noteCount: noteCount, changed: preChanged),
       );
       intentId = db.beginIntent(
         op: intentImport,
-        targetKey: plan.batchId,
+        targetKey: prepared.batchId,
         expected: encodeImportIntentExpected(expected),
       );
       inserted = true;
@@ -246,39 +274,47 @@ class ImportPipeline {
           inserted: inserted,
           intentId: intentId,
           scan: releaseThenScan,
+          plan: plan,
         );
       }
       if (!_layerW(
-        batchId: plan.batchId,
-        stagedSha256: plan.stagedSha256,
-        stagedPath: plan.stagedPath,
+        batchId: prepared.batchId,
+        stagedSha256: prepared.stagedSha256,
+        stagedPath: prepared.stagedPath,
       )) {
         _abandon(intentId);
         await releaseThenScan();
-        return ImportOutcome.failedBeforeCommit;
+        return _result(
+          outcome: ImportOutcome.failedBeforeCommit,
+          plan: prepared,
+        );
       }
       if (await _cancelled(ImportPhase.beforeResidentCommit)) {
         return await _cancelTurn(
           inserted: inserted,
           intentId: intentId,
           scan: releaseThenScan,
+          plan: plan,
         );
       }
 
       final ResidentImportResult committed;
       try {
         committed = await engine.commitResident(
-          stagedPath: plan.stagedPath,
-          firstImport: plan.firstImport,
+          stagedPath: prepared.stagedPath,
+          firstImport: prepared.firstImport,
         );
       } on _FaultEscape {
         rethrow;
-      } catch (_) {
+      } catch (err, stack) {
         return await _settleRejectedCommit(
           expected: expected,
           intentId: intentId,
-          batchId: plan.batchId,
+          batchId: prepared.batchId,
           scan: releaseThenScan,
+          plan: prepared,
+          error: err,
+          stack: stack,
         );
       }
       residentCommitted = true;
@@ -294,7 +330,7 @@ class ImportPipeline {
           anki: anki,
           engine: engine,
           expected: expected,
-          batchId: plan.batchId,
+          batchId: prepared.batchId,
           intentId: intentId,
           dataDir: dataDir,
           noteIdsByGuid: landed,
@@ -309,49 +345,85 @@ class ImportPipeline {
         );
       } on _FaultEscape {
         rethrow;
-      } catch (_) {
+      } catch (err, stack) {
         await releaseThenScan();
-        return ImportOutcome.failedAfterCommit;
+        return _result(
+          outcome: ImportOutcome.failedAfterCommit,
+          plan: prepared,
+          error: err,
+          stack: stack,
+        );
       }
       await releaseThenScan();
-      return ImportOutcome.committed;
+      return _result(outcome: ImportOutcome.committed, plan: prepared);
     } on _FaultEscape catch (err) {
       Error.throwWithStackTrace(err.cause, err.stack);
     } catch (err, stack) {
       if (residentCommitted) {
         await releaseThenScan();
-        return ImportOutcome.failedAfterCommit;
+        return _result(
+          outcome: ImportOutcome.failedAfterCommit,
+          plan: plan,
+          error: err,
+          stack: stack,
+        );
       }
       if (inserted) {
-        Error.throwWithStackTrace(err, stack);
+        return _result(
+          outcome: ImportOutcome.failedUnknown,
+          plan: plan,
+          error: err,
+          stack: stack,
+        );
       }
       await releaseThenScan();
-      return ImportOutcome.failedBeforeCommit;
+      return _result(
+        outcome: ImportOutcome.failedBeforeCommit,
+        error: err,
+        stack: stack,
+      );
     } finally {
       staged?.dispose();
     }
   }
 
-  Future<ImportOutcome> _cancelTurn({
+  Future<ImportRunResult> _cancelTurn({
     required bool inserted,
     required int intentId,
     required Future<void> Function() scan,
+    PreparedPlan? plan,
   }) async {
     if (inserted) {
       _abandon(intentId);
     }
     await scan();
-    return ImportOutcome.cancelled;
+    return _result(outcome: ImportOutcome.cancelled, plan: plan);
   }
 
   /// [commitResident] threw. Reconcile and either drop the intent or adopt.
-  Future<ImportOutcome> _settleRejectedCommit({
+  ///
+  /// A throw from reconcile is [ImportOutcome.failedUnknown]: the intent
+  /// stays, because it is not known whether the resident collection changed.
+  Future<ImportRunResult> _settleRejectedCommit({
     required ImportIntentExpected expected,
     required int intentId,
     required String batchId,
     required Future<void> Function() scan,
+    required PreparedPlan plan,
+    required Object error,
+    required StackTrace stack,
   }) async {
-    final again = await reconcileInTurn(db: db, anki: anki);
+    final ReconcileResult again;
+    try {
+      again = await reconcileInTurn(db: db, anki: anki);
+    } catch (err, reconcileStack) {
+      return _result(
+        outcome: ImportOutcome.failedUnknown,
+        plan: plan,
+        error: err,
+        stack: reconcileStack,
+      );
+    }
     final didCommit = await importCommitted(
       db: db,
       engine: engine,
@@ -361,7 +433,12 @@ class ImportPipeline {
     if (!didCommit) {
       _abandon(intentId);
       await scan();
-      return ImportOutcome.failedBeforeCommit;
+      return _result(
+        outcome: ImportOutcome.failedBeforeCommit,
+        plan: plan,
+        error: error,
+        stack: stack,
+      );
     }
     try {
       await adoptCommittedImport(
@@ -378,19 +455,24 @@ class ImportPipeline {
         beforeWrites: () {
           try {
             _faultSync(ImportPhase.duringAdoption);
-          } catch (err, stack) {
-            throw _FaultEscape(err, stack);
+          } catch (err, adoptStack) {
+            throw _FaultEscape(err, adoptStack);
           }
         },
       );
     } on _FaultEscape {
       rethrow;
-    } catch (_) {
+    } catch (err, adoptStack) {
       await scan();
-      return ImportOutcome.failedAfterCommit;
+      return _result(
+        outcome: ImportOutcome.failedAfterCommit,
+        plan: plan,
+        error: err,
+        stack: adoptStack,
+      );
     }
     await scan();
-    return ImportOutcome.committed;
+    return _result(outcome: ImportOutcome.committed, plan: plan);
   }
 
   Future<bool> _cancelled(ImportPhase phase) async {
@@ -402,6 +484,7 @@ class ImportPipeline {
   }
 
   Future<void> _fault(ImportPhase phase) async {
+    _emitPhase(phase);
     final hook = fault;
     if (hook == null) {
       return;
@@ -411,6 +494,35 @@ class ImportPipeline {
     } catch (err, stack) {
       Error.throwWithStackTrace(_FaultEscape(err, stack), stack);
     }
+  }
+
+  void _emitPhase(ImportPhase phase) {
+    if (phase == ImportPhase.duringAdoption) {
+      return;
+    }
+    final hook = _onPhase;
+    if (hook == null) {
+      return;
+    }
+    try {
+      hook(phase);
+    } catch (_) {
+      // The screen owns this callback. A throw must not stop the import.
+    }
+  }
+
+  ImportRunResult _result({
+    required ImportOutcome outcome,
+    PreparedPlan? plan,
+    Object? error,
+    StackTrace? stack,
+  }) {
+    return ImportRunResult(
+      outcome: outcome,
+      plan: plan,
+      error: error,
+      stack: stack,
+    );
   }
 
   void _faultSync(ImportPhase phase) {
@@ -522,6 +634,30 @@ Map<String, String>? _preChanged(
     changed[guid] = hash;
   }
   return changed;
+}
+
+/// One import turn. [plan] is set once [ImportEngine.finish] has returned.
+class ImportRunResult {
+  const ImportRunResult({
+    required this.outcome,
+    this.plan,
+    this.error,
+    this.stack,
+  });
+
+  final ImportOutcome outcome;
+
+  /// Populated for [ImportOutcome.noop], [ImportOutcome.committed],
+  /// [ImportOutcome.failedAfterCommit], and [ImportOutcome.failedUnknown]
+  /// when finish has returned. Null for a pre-finish cancellation or failure.
+  final PreparedPlan? plan;
+
+  /// Set when the turn stopped because something threw.
+  final Object? error;
+  final StackTrace? stack;
+
+  /// Rust prefix on [error], when the message carries one.
+  ImportErrorKind? get errorKind => importErrorKind(error);
 }
 
 class _FaultEscape implements Exception {

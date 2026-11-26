@@ -140,16 +140,20 @@ Future<String> smokeOpenCollection({required String dir}) =>
 
 /// §7.1 steps 1–3. Does not take a resident collection.
 ///
-/// `max_bytes` is the caller's package ceiling. Between this and
-/// [`import_stage_finish`] only the E folder exists.
+/// `max_bytes` is the caller's compressed package ceiling.
+/// `max_uncompressed_bytes` is the ceiling on the sum of zip entry
+/// uncompressed sizes. Between this and [`import_stage_finish`] only the E
+/// folder exists.
 Future<PendingImport> importStageE({
   required String dataDir,
   required String sourcePath,
   required BigInt maxBytes,
+  required BigInt maxUncompressedBytes,
 }) => RustLib.instance.api.crateApiImportStageE(
   dataDir: dataDir,
   sourcePath: sourcePath,
   maxBytes: maxBytes,
+  maxUncompressedBytes: maxUncompressedBytes,
 );
 
 /// Read resident notes by id and which deck names already exist.

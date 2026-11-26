@@ -20,6 +20,11 @@ import 'package:protobuf/protobuf.dart';
 import 'package:rslib_bridge/rslib_bridge.dart';
 import 'package:sqlite3/sqlite3.dart';
 
+const _importLimits = ImportLimits(
+  maxBytes: 20 * 1024 * 1024,
+  maxUncompressedBytes: 512 * 1024 * 1024,
+);
+
 void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
@@ -60,9 +65,9 @@ void main() {
     await host.open(dataDir: dataDir.path);
     final first = await host.writes!.importFile(
       sourcePath: apkg.path,
-      maxBytes: 20 * 1024 * 1024,
+      limits: _importLimits,
     );
-    expect(first, ImportOutcome.committed);
+    expect(first.outcome, ImportOutcome.committed);
     await host.close();
 
     final collectionPath = p.join(dataDir.path, 'collection.anki2');
@@ -76,9 +81,9 @@ void main() {
     await again.open(dataDir: dataDir.path);
     final second = await again.writes!.importFile(
       sourcePath: apkg.path,
-      maxBytes: 20 * 1024 * 1024,
+      limits: _importLimits,
     );
-    expect(second, ImportOutcome.committed);
+    expect(second.outcome, ImportOutcome.committed);
     await again.close();
 
     final db = sqlite3.open(collectionPath);
@@ -115,15 +120,15 @@ void main() {
       );
       final first = await host.writes!.importFile(
         sourcePath: v1.path,
-        maxBytes: 20 * 1024 * 1024,
+        limits: _importLimits,
       );
-      expect(first, ImportOutcome.committed);
+      expect(first.outcome, ImportOutcome.committed);
       final before = await counter.notetypeUseCountSum();
 
       ImportIntentExpected? seen;
       final second = await host.writes!.importFile(
         sourcePath: v2.path,
-        maxBytes: 20 * 1024 * 1024,
+        limits: _importLimits,
         fault: (phase) {
           if (phase == ImportPhase.afterIntent) {
             seen = decodeImportIntentExpected(
@@ -132,7 +137,7 @@ void main() {
           }
         },
       );
-      expect(second, ImportOutcome.committed);
+      expect(second.outcome, ImportOutcome.committed);
       expect(seen, isNotNull);
       expect(seen!.pre.noteCount, before);
       expect(seen!.newGuids, hasLength(1));

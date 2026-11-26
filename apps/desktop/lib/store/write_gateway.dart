@@ -91,11 +91,12 @@ class WriteGateway {
   }
 
   /// One import turn. Refuses when startup recovery failed.
-  Future<ImportOutcome> importFile({
+  Future<ImportRunResult> importFile({
     required String sourcePath,
-    required int maxBytes,
+    required ImportLimits limits,
     ImportCancellationToken? cancel,
     FutureOr<void> Function(ImportPhase phase)? fault,
+    void Function(ImportPhase phase)? onPhase,
   }) {
     final blocked = _importStartupError;
     if (blocked != null) {
@@ -110,7 +111,11 @@ class WriteGateway {
       fault: fault,
       cancel: cancel,
     );
-    return pipeline.run(sourcePath: sourcePath, maxBytes: maxBytes);
+    return pipeline.run(
+      sourcePath: sourcePath,
+      limits: limits,
+      onPhase: onPhase,
+    );
   }
 
   ({AnkiApi anki, ImportEngine engine, String dataDir}) _bound() {

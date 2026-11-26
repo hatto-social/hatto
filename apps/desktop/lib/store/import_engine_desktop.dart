@@ -27,12 +27,13 @@ class DesktopImportEngine implements ImportEngine {
   @override
   Future<StagedImport> stageE({
     required String sourcePath,
-    required int maxBytes,
+    required ImportLimits limits,
   }) async {
     final pending = await bridge.importStageE(
       dataDir: dataDir,
       sourcePath: sourcePath,
-      maxBytes: BigInt.from(maxBytes),
+      maxBytes: BigInt.from(limits.maxBytes),
+      maxUncompressedBytes: BigInt.from(limits.maxUncompressedBytes),
     );
     final notes = await pending.fileNotes();
     final names = await pending.deckNames();

@@ -4,9 +4,11 @@
 
 export 'src/import_archive.dart';
 export 'src/import_engine.dart';
+export 'src/import_error.dart';
 export 'src/import_intent.dart';
 export 'src/import_pipeline.dart';
 export 'src/import_recovery.dart';
+export 'src/import_startup.dart';
 export 'src/instance_lock.dart';
 export 'src/intent_ops.dart';
 export 'src/media_journal.dart';

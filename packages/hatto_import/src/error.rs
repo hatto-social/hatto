@@ -6,6 +6,16 @@ use std::fmt;
 
 use anki_proto::backend::backend_error::Kind;
 
+/// Wrong extension, missing zip local header, or an invalid zip archive.
+pub const FORMAT_ERROR_PREFIX: &str = "format:";
+
+/// Compressed file size exceeds `ImportLimits::max_bytes`.
+pub const TOO_LARGE_COMPRESSED_PREFIX: &str = "too_large:compressed";
+
+/// Uncompressed zip entry sizes exceed `ImportLimits::max_uncompressed_bytes`
+/// or overflow `u64`.
+pub const TOO_LARGE_UNCOMPRESSED_PREFIX: &str = "too_large:uncompressed";
+
 /// Failure of the E pipeline, a path check, or a folder scan.
 #[derive(Debug)]
 pub struct ImportError {
