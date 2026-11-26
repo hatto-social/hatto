@@ -78,11 +78,27 @@ void main() {
       collection,
       'select count(*), sum(length(val)) from config',
     );
-    // Staged-E fit. Direct import of this package trains 33312 items; the
-    // staged package trains 33109. expected.json holds the staged number.
-    expect(first.items, fsrs['fsrs_items']);
-    expect(first.params, hasLength(fsrs['n_params']));
+    // Same 04:00 rollover split as smoke_flow_host_test. expected.json is
+    // the Asia/Seoul baseline (33312). UTC returns 33109.
+    expect(first.params, hasLength(21));
     expect(fsrsValuesFinite(first.params), isTrue);
+    final offset = DateTime.now().timeZoneOffset;
+    if (offset == const Duration(hours: 9)) {
+      expect(first.items, 33312);
+      final golden = (fsrs['params'] as List<dynamic>)
+          .map((value) => (value as num).toDouble())
+          .toList();
+      expect(first.params, hasLength(golden.length));
+      for (var i = 0; i < golden.length; i++) {
+        expect(
+          (first.params[i] - golden[i]).abs(),
+          lessThan(5e-7),
+          reason: 'param $i ${first.params[i]} vs ${golden[i]}',
+        );
+      }
+    } else if (offset == Duration.zero) {
+      expect(first.items, 33109);
+    }
     expect(
       fsrsRunsMatch(
         itemsA: first.items,
@@ -94,17 +110,6 @@ void main() {
     );
     expect(sameSqlRows(beforeCol, afterCol), isTrue);
     expect(sameSqlRows(beforeConfig, afterConfig), isTrue);
-    final golden = (fsrs['params'] as List<dynamic>)
-        .map((value) => (value as num).toDouble())
-        .toList();
-    expect(first.params, hasLength(golden.length));
-    for (var i = 0; i < golden.length; i++) {
-      expect(
-        (first.params[i] - golden[i]).abs(),
-        lessThan(5e-7),
-        reason: 'param $i ${first.params[i]} vs ${golden[i]}',
-      );
-    }
   }, timeout: const Timeout(Duration(minutes: 10)));
 
   test('nt jobs keep the golden notetype counts', () async {

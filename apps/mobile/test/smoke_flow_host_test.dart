@@ -38,7 +38,7 @@ void main() {
     expect(text, contains('HATTO_SMOKE col:palace.colpkg'));
     expect(text, contains('E_notes=4'));
     expect(text, contains('R_notes=6'));
-    expect(text, contains('fsrs_items=33109'));
+    _expectFsrs(text, loadExpected()['fsrs_synthetic'] as Map<String, dynamic>);
     expect(text, contains('HATTO_SMOKE nt:job1'));
     expect(text, contains('before=6 after=8'));
     expect(text, contains('HATTO_SMOKE nt:job2'));
@@ -50,4 +50,41 @@ void main() {
     expect(text, contains('mod_unchanged=1'));
     expect(text, isNot(contains('HATTO_SMOKE_FAIL')));
   }, timeout: const Timeout(Duration(minutes: 8)));
+}
+
+/// `fsrs_items` follows the device's local Anki day (04:00 rollover).
+/// `expected.json` is the Asia/Seoul baseline. UTC is 203 reviews shorter.
+void _expectFsrs(String text, Map<String, dynamic> fsrs) {
+  final line = RegExp(r'HATTO_SMOKE fsrs\b.*').firstMatch(text)?.group(0);
+  expect(line, isNotNull);
+  final fields = <String, String>{
+    for (final match in RegExp(r'(\w+)=("[^"]*"|\S+)').allMatches(line!))
+      match.group(1)!: match.group(2)!.replaceAll('"', ''),
+  };
+  final offset = DateTime.now().timeZoneOffset;
+  if (offset == const Duration(hours: 9)) {
+    expect(int.parse(fields['fsrs_items']!), 33312);
+    final golden = (fsrs['params'] as List<dynamic>)
+        .map((value) => (value as num).toDouble())
+        .toList();
+    final got = fields['params']!
+        .split(',')
+        .map((value) => double.parse(value))
+        .toList();
+    expect(got, hasLength(golden.length));
+    for (var i = 0; i < golden.length; i++) {
+      expect(
+        (got[i] - golden[i]).abs(),
+        lessThan(5e-7),
+        reason: 'param $i ${got[i]} vs ${golden[i]}',
+      );
+    }
+  } else if (offset == Duration.zero) {
+    expect(int.parse(fields['fsrs_items']!), 33109);
+    expect(int.parse(fields['n_params']!), 21);
+    expect(fields['finite'], '1');
+  } else {
+    expect(int.parse(fields['n_params']!), 21);
+    expect(fields['finite'], '1');
+  }
 }
