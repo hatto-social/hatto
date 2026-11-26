@@ -38,3 +38,10 @@ String formatUuid(Uint8List bytes) {
 final RegExp uuidVersion4Or5 = RegExp(
   r'^[0-9a-f]{8}-[0-9a-f]{4}-[45][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
 );
+
+/// Lowercase hyphenated UUID version 4, RFC 4122 variant.
+///
+/// Import batch ids use this form. [uuidVersion4Or5] also allows version 5.
+final RegExp uuidVersion4 = RegExp(
+  r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+);

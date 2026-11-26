@@ -3,6 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 export 'src/import_archive.dart';
+export 'src/import_engine.dart';
+export 'src/import_intent.dart';
+export 'src/import_recovery.dart';
 export 'src/instance_lock.dart';
 export 'src/intent_ops.dart';
 export 'src/media_journal.dart';
