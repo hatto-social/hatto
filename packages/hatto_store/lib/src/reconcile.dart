@@ -164,9 +164,12 @@ class ReconcileResult {
 
   final List<SkippedNote> skippedNotes;
 
-  /// Unmapped resident notes reserved by a pending import.
+  /// Resident notes left unmapped so a pending import can adopt them.
   ///
   /// Guid to rslib note id. Reconcile does not adopt these as `editor`.
+  /// This is an unmapped guid in `new_guids`, and also a mapped id whose
+  /// live guid differs when that live guid is in `new_guids`. Recovery
+  /// reads [residentImportNotes], which includes this map.
   final Map<String, int> reservedImportNotes;
 
   /// Live resident notes whose guid is in a pending import's `new_guids`.
@@ -267,9 +270,11 @@ Future<NoteMapRow> adoptNote({
 ///
 /// Unmapped decks are adopted (a pending `deck.add` intent supplies the guid
 /// when its name matches). Unmapped notes are adopted from `GetNote`'s guid.
-/// A mapped id whose guid differs is replaced. Mapped ids that are gone stay
-/// in the map. Known intents are then dropped. An intent whose `expected`
-/// JSON is not the v0 object is left in place.
+/// A mapped id whose guid differs is replaced, unless the live guid is in a
+/// pending import's `new_guids`: that note stays unmapped for import
+/// adoption. Mapped ids that are gone stay in the map. Known intents are
+/// then dropped. An intent whose `expected` JSON is not the v0 object is
+/// left in place.
 ///
 /// A pending `import` intent is never settled here. Its `new_guids` and
 /// `deck_names` are reserved: an unmapped resident note or deck that matches
@@ -352,6 +357,14 @@ Future<ReconcileResult> reconcileInTurn({
       continue;
     }
     final note = await anki.getNote(id);
+    if (imports.newGuids.contains(note.guid) && note.guid != row.noteGuid) {
+      // The id is mapped to a guid the collection no longer has. The live
+      // guid belongs to the pending import, so this pass does not adopt it
+      // as editor.
+      reservedImportNotes.putIfAbsent(note.guid, () => id);
+      residentImportNotes.putIfAbsent(note.guid, () => id);
+      continue;
+    }
     if (note.guid == row.noteGuid) {
       if (imports.newGuids.contains(note.guid)) {
         residentImportNotes.putIfAbsent(note.guid, () => id);

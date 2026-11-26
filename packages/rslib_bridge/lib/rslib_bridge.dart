@@ -15,6 +15,8 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated_io.dart';
 import 'src/bridge_loader.dart';
 import 'src/rust/frb_generated.dart';
 
+export 'package:flutter_rust_bridge/flutter_rust_bridge.dart' show Int64List;
+
 export 'src/anki_api/anki_api.dart';
 export 'src/bridge_loader.dart';
 export 'src/rust/api.dart';

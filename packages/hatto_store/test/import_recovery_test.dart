@@ -648,6 +648,52 @@ void main() {
     expect(db.journalRows(), isEmpty);
   });
 
+  test('a mapped id whose live guid is in new_guids stays reserved', () async {
+    final db = SideDb.openInMemory();
+    addTearDown(db.close);
+    final sourceSha = 'ab' * 32;
+    db.putDeck(deckGuid: 'old-home', rslibDeckId: 1, originKind: 'editor');
+    db.importNote(
+      noteGuid: 'stale-guid',
+      rslibNoteId: 7,
+      cards: const [ImportedNoteCard(ord: 0, rslibDeckId: 1)],
+    );
+    final collection = FakeCollection()
+      ..decks = const [CollectionDeck(id: 8, name: 'Spanish')]
+      ..addNote(id: 7, guid: 'live-new', cardId: 70, deckId: 8);
+    final engine = FakeImportEngine(deckIds: const {'Spanish': 8});
+    _insertImport(
+      db,
+      _expected(
+        sourceSha256: sourceSha,
+        newGuids: const ['live-new'],
+        deckNames: const ['Spanish'],
+      ),
+    );
+
+    final reconcile = await _turn(
+      db: db,
+      collection: collection,
+      engine: engine,
+      dataDir: '/unused',
+    );
+
+    expect(reconcile.reservedImportNotes, {'live-new': 7});
+    expect(reconcile.residentImportNotes, {'live-new': 7});
+    expect(db.note('stale-guid'), isNull);
+    expect(db.note('live-new')!.rslibNoteId, 7);
+    final deck = db.deckByRslibId(8)!;
+    expect(deck.originKind, 'import');
+    expect(deck.originRole, isNull);
+    expect(deck.importBatchId, batchId);
+    expect(deck.sourceSha256, sourceSha);
+    expect(deck.serverUnsynced, isTrue);
+    expect(db.note('live-new')!.homeDeckGuid, deck.deckGuid);
+    expect(db.deckByRslibId(1)!.originKind, 'editor');
+    expect(db.pendingIntents(), isEmpty);
+    expect(db.journalRows(), isEmpty);
+  });
+
   test('recoverImports outside an exclusive turn throws', () async {
     final db = SideDb.openInMemory();
     addTearDown(db.close);

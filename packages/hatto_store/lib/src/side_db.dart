@@ -551,6 +551,15 @@ class SideDb {
     );
   }
 
+  /// Removes the `note_map` row for [rslibNoteId], if one exists.
+  ///
+  /// Does not start a transaction. Import adoption calls this inside
+  /// [inImmediateTransaction] when a live guid must take an id that a
+  /// different guid still holds.
+  void deleteNoteMapByRslibId(int rslibNoteId) {
+    _db.execute('DELETE FROM note_map WHERE rslib_note_id = ?', [rslibNoteId]);
+  }
+
   /// Inserts a note map row, or updates `rslib_note_id` and `home_deck_guid`.
   ///
   /// [importNote] rejects a second call whose rslib id differs and does not
