@@ -274,20 +274,18 @@ packages:
     source: hosted
     version: "1.1.0"
   file_selector_android:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
-      name: file_selector_android
-      sha256: d670cd0ce77a2e785b18d8b4d0a8d6a222d6a813ec9b7ddf2790a1b4fb6fa92c
-      url: "https://pub.dev"
-    source: hosted
+      path: "apps/desktop/third_party/file_selector_android"
+      relative: true
+    source: path
     version: "0.5.2+11"
   file_selector_ios:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
-      name: file_selector_ios
-      sha256: "5b42ec0ef7626124b4624ea244341e9df780406793c204e89fa68a2e71af115c"
-      url: "https://pub.dev"
-    source: hosted
+      path: "apps/desktop/third_party/file_selector_ios"
+      relative: true
+    source: path
     version: "0.5.3+7"
   file_selector_linux:
     dependency: "direct overridden"
@@ -311,20 +309,18 @@ packages:
     source: path
     version: "2.7.0"
   file_selector_web:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
-      name: file_selector_web
-      sha256: "73181fbc5257776d8ecaa6a94ab3c8e920ad143b9132a6d984a9271dfc6928d3"
-      url: "https://pub.dev"
-    source: hosted
+      path: "apps/desktop/third_party/file_selector_web"
+      relative: true
+    source: path
     version: "0.9.5"
   file_selector_windows:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
-      name: file_selector_windows
-      sha256: fbefc5fb92c6d3cbe8d284a2cd971b593bb07d2cd6da8557b81a862250b4acec
-      url: "https://pub.dev"
-    source: hosted
+      path: "apps/desktop/third_party/file_selector_windows"
+      relative: true
+    source: path
     version: "0.9.3+6"
   fixnum:
     dependency: transitive
