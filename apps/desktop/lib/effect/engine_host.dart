@@ -41,6 +41,11 @@ class EngineHost {
   /// True when this open ran the import startup sequence.
   bool importStartupRan = false;
 
+  String? _dataDir;
+
+  /// Data directory passed to the successful [open], if any.
+  String? get dataDir => _dataDir;
+
   Object? get importStartupError => _gateway?.importStartupError;
 
   Future<BootstrapState> open({
@@ -114,6 +119,7 @@ class EngineHost {
       }
       final collectionPath = p.join(dataDir, 'collection.anki2');
       _collectionPath = collectionPath;
+      _dataDir = dataDir;
       final marker = File('$collectionPath.hatto-fsrs-init');
       final markerPresent = marker.existsSync();
       return BootstrapState(
@@ -127,6 +133,7 @@ class EngineHost {
       side?.close();
       _side = null;
       _gateway = null;
+      _dataDir = null;
       _lock?.release();
       _lock = null;
       rethrow;

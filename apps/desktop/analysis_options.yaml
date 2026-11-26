@@ -9,6 +9,9 @@ analyzer:
     - build/**
     - linux/**
     - macos/**
+    # Upstream file_selector sources pinned for cross_file 0.4. Pigeon
+    # inputs and web helpers are not part of the desktop library.
+    - third_party/**
 
 linter:
   rules:
