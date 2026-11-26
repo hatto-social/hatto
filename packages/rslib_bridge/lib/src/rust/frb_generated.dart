@@ -69,7 +69,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => 1691967112;
+  int get rustContentHash => 268228832;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -81,6 +81,14 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 }
 
 abstract class RustLibApi extends BaseApi {
+  Future<List<String>> crateApiPendingImportDeckNames({
+    required PendingImport that,
+  });
+
+  Future<List<NoteFacts>> crateApiPendingImportFileNotes({
+    required PendingImport that,
+  });
+
   String crateApiAnkiVersion();
 
   List<AssignedImportGuid> crateApiAssignImportGuids({
@@ -96,16 +104,16 @@ abstract class RustLibApi extends BaseApi {
     required List<int> input,
   });
 
-  Future<PreparedImport> crateApiImportStageE({
+  Future<PendingImport> crateApiImportStageE({
     required String dataDir,
     required String sourcePath,
     required BigInt maxBytes,
-    required AnkiBackend resident,
   });
 
-  Future<ImportFinish> crateApiImportStageFinish({
-    required AnkiBackend resident,
-    required PreparedImport prepared,
+  Future<PreparedImport> crateApiImportStageFinish({
+    required PendingImport pending,
+    required List<NoteFacts> residentFacts,
+    required List<String> foundDeckNames,
   });
 
   String crateApiImportedNoteGuid({
@@ -137,10 +145,15 @@ abstract class RustLibApi extends BaseApi {
 
   Future<void> crateApiPrepareRuntime({required String tmpDir});
 
-  Future<ResidentObjects> crateApiResidentLookup({
-    required AnkiBackend resident,
-    required List<String> guids,
+  Future<ResidentMatch> crateApiResidentLookup({
+    required AnkiBackend backend,
+    required Int64List noteIds,
     required List<String> deckNames,
+  });
+
+  Future<ImportFolderScan> crateApiScanImportFolders({
+    required String dataDir,
+    required List<String> preparedBatchIds,
   });
 
   ServiceMethodIndex? crateApiServiceMethodIndex({
@@ -159,6 +172,15 @@ abstract class RustLibApi extends BaseApi {
   get rust_arc_decrement_strong_count_AnkiBackend;
 
   CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_AnkiBackendPtr;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_PendingImport;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_PendingImport;
+
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_PendingImportPtr;
 }
 
 class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
@@ -170,12 +192,84 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   });
 
   @override
+  Future<List<String>> crateApiPendingImportDeckNames({
+    required PendingImport that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImport(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 1,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiPendingImportDeckNamesConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiPendingImportDeckNamesConstMeta =>
+      const TaskConstMeta(
+        debugName: "PendingImport_deck_names",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<List<NoteFacts>> crateApiPendingImportFileNotes({
+    required PendingImport that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImport(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 2,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_note_facts,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiPendingImportFileNotesConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiPendingImportFileNotesConstMeta =>
+      const TaskConstMeta(
+        debugName: "PendingImport_file_notes",
+        argNames: ["that"],
+      );
+
+  @override
   String crateApiAnkiVersion() {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 1)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 3)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -200,7 +294,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_import_source_note(notes, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 2)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 4)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_assigned_import_guid,
@@ -226,7 +320,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_box_autoadd_note_facts(file, serializer);
           sse_encode_opt_box_autoadd_note_facts(resident, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 3)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 5)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_class,
@@ -265,7 +359,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 4,
+            funcId: 6,
             port: port_,
           );
         },
@@ -286,11 +380,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
-  Future<PreparedImport> crateApiImportStageE({
+  Future<PendingImport> crateApiImportStageE({
     required String dataDir,
     required String sourcePath,
     required BigInt maxBytes,
-    required AnkiBackend resident,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -299,23 +392,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(dataDir, serializer);
           sse_encode_String(sourcePath, serializer);
           sse_encode_u_64(maxBytes, serializer);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAnkiBackend(
-            resident,
-            serializer,
-          );
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 7,
             port: port_,
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_prepared_import,
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImport,
           decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateApiImportStageEConstMeta,
-        argValues: [dataDir, sourcePath, maxBytes, resident],
+        argValues: [dataDir, sourcePath, maxBytes],
         apiImpl: this,
       ),
     );
@@ -323,36 +413,38 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiImportStageEConstMeta => const TaskConstMeta(
     debugName: "import_stage_e",
-    argNames: ["dataDir", "sourcePath", "maxBytes", "resident"],
+    argNames: ["dataDir", "sourcePath", "maxBytes"],
   );
 
   @override
-  Future<ImportFinish> crateApiImportStageFinish({
-    required AnkiBackend resident,
-    required PreparedImport prepared,
+  Future<PreparedImport> crateApiImportStageFinish({
+    required PendingImport pending,
+    required List<NoteFacts> residentFacts,
+    required List<String> foundDeckNames,
   }) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAnkiBackend(
-            resident,
+          sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImport(
+            pending,
             serializer,
           );
-          sse_encode_box_autoadd_prepared_import(prepared, serializer);
+          sse_encode_list_note_facts(residentFacts, serializer);
+          sse_encode_list_String(foundDeckNames, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 6,
+            funcId: 8,
             port: port_,
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_import_finish,
+          decodeSuccessData: sse_decode_prepared_import,
           decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateApiImportStageFinishConstMeta,
-        argValues: [resident, prepared],
+        argValues: [pending, residentFacts, foundDeckNames],
         apiImpl: this,
       ),
     );
@@ -360,7 +452,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiImportStageFinishConstMeta => const TaskConstMeta(
     debugName: "import_stage_finish",
-    argNames: ["resident", "prepared"],
+    argNames: ["pending", "residentFacts", "foundDeckNames"],
   );
 
   @override
@@ -374,7 +466,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(jobId, serializer);
           sse_encode_String(sourceGuid, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 7)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 9)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -401,7 +493,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 10,
             port: port_,
           );
         },
@@ -431,7 +523,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 11,
             port: port_,
           );
         },
@@ -459,7 +551,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(text, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 10)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 12)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_bool,
@@ -483,7 +575,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(opId, serializer);
           sse_encode_u_32(k, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 11)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 13)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -512,7 +604,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_String(fields, serializer);
           sse_encode_list_String(tags, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 12)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 14)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_prim_u_8_strict,
@@ -540,7 +632,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 15,
             port: port_,
           );
         },
@@ -573,7 +665,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 16,
             port: port_,
           );
         },
@@ -604,7 +696,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 17,
             port: port_,
           );
         },
@@ -623,9 +715,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "prepare_runtime", argNames: ["tmpDir"]);
 
   @override
-  Future<ResidentObjects> crateApiResidentLookup({
-    required AnkiBackend resident,
-    required List<String> guids,
+  Future<ResidentMatch> crateApiResidentLookup({
+    required AnkiBackend backend,
+    required Int64List noteIds,
     required List<String> deckNames,
   }) {
     return handler.executeNormal(
@@ -633,24 +725,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAnkiBackend(
-            resident,
+            backend,
             serializer,
           );
-          sse_encode_list_String(guids, serializer);
+          sse_encode_list_prim_i_64_strict(noteIds, serializer);
           sse_encode_list_String(deckNames, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 18,
             port: port_,
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_resident_objects,
+          decodeSuccessData: sse_decode_resident_match,
           decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateApiResidentLookupConstMeta,
-        argValues: [resident, guids, deckNames],
+        argValues: [backend, noteIds, deckNames],
         apiImpl: this,
       ),
     );
@@ -658,7 +750,41 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiResidentLookupConstMeta => const TaskConstMeta(
     debugName: "resident_lookup",
-    argNames: ["resident", "guids", "deckNames"],
+    argNames: ["backend", "noteIds", "deckNames"],
+  );
+
+  @override
+  Future<ImportFolderScan> crateApiScanImportFolders({
+    required String dataDir,
+    required List<String> preparedBatchIds,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(dataDir, serializer);
+          sse_encode_list_String(preparedBatchIds, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 19,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_import_folder_scan,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiScanImportFoldersConstMeta,
+        argValues: [dataDir, preparedBatchIds],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiScanImportFoldersConstMeta => const TaskConstMeta(
+    debugName: "scan_import_folders",
+    argNames: ["dataDir", "preparedBatchIds"],
   );
 
   @override
@@ -672,7 +798,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(service, serializer);
           sse_encode_String(method, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 17)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 20)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_service_method_index,
@@ -700,7 +826,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 21,
             port: port_,
           );
         },
@@ -729,7 +855,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_class(classes, serializer);
           sse_encode_u_32(dup, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 19)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 22)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_plan,
@@ -755,6 +881,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   get rust_arc_decrement_strong_count_AnkiBackend => wire
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAnkiBackend;
 
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_PendingImport => wire
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImport;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_PendingImport => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImport;
+
   @protected
   AnkiBackend
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAnkiBackend(
@@ -762,6 +896,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return AnkiBackendImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  PendingImport
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImport(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return PendingImportImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -774,12 +917,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  PendingImport
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImport(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return PendingImportImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
   AnkiBackend
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAnkiBackend(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return AnkiBackendImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  PendingImport
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImport(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return PendingImportImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -815,15 +976,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  PreparedImport dco_decode_box_autoadd_prepared_import(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return dco_decode_prepared_import(raw);
-  }
-
-  @protected
   ServiceMethodIndex dco_decode_box_autoadd_service_method_index(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_service_method_index(raw);
+  }
+
+  @protected
+  ChangedNote dco_decode_changed_note(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return ChangedNote(
+      guid: dco_decode_String(arr[0]),
+      contentHash: dco_decode_list_prim_u_8_strict(arr[1]),
+    );
   }
 
   @protected
@@ -859,12 +1026,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  ImportFinish dco_decode_import_finish(dynamic raw) {
+  ImportFolderScan dco_decode_import_folder_scan(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 1)
-      throw Exception('unexpected arr length: expect 1 but see ${arr.length}');
-    return ImportFinish(residentCalled: dco_decode_bool(arr[0]));
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return ImportFolderScan(
+      removed: dco_decode_list_String(arr[0]),
+      keptPrepared: dco_decode_list_String(arr[1]),
+      ignored: dco_decode_list_String(arr[2]),
+    );
   }
 
   @protected
@@ -892,6 +1063,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<ChangedNote> dco_decode_list_changed_note(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_changed_note).toList();
+  }
+
+  @protected
   List<Class> dco_decode_list_class(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_class).toList();
@@ -916,9 +1093,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  List<NoteIntent> dco_decode_list_note_intent(dynamic raw) {
+  Int64List dco_decode_list_prim_i_64_strict(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return (raw as List<dynamic>).map(dco_decode_note_intent).toList();
+    return dcoDecodeInt64List(raw);
   }
 
   @protected
@@ -934,12 +1111,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  List<ResidentDeck> dco_decode_list_resident_deck(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return (raw as List<dynamic>).map(dco_decode_resident_deck).toList();
-  }
-
-  @protected
   NoteFacts dco_decode_note_facts(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -950,18 +1121,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       notetypeId: dco_decode_i_64(arr[1]),
       mod: dco_decode_i_64(arr[2]),
       contentHash: dco_decode_list_prim_u_8_strict(arr[3]),
-    );
-  }
-
-  @protected
-  NoteIntent dco_decode_note_intent(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    final arr = raw as List<dynamic>;
-    if (arr.length != 2)
-      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
-    return NoteIntent(
-      guid: dco_decode_String(arr[0]),
-      class_: dco_decode_class(arr[1]),
     );
   }
 
@@ -1002,8 +1161,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   PreparedImport dco_decode_prepared_import(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 9)
-      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
+    if (arr.length != 10)
+      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
     return PreparedImport(
       importBatchId: dco_decode_String(arr[0]),
       plan: dco_decode_plan(arr[1]),
@@ -1011,9 +1170,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       stagedSha256: dco_decode_String(arr[3]),
       firstImport: dco_decode_bool(arr[4]),
       cardlessNotes: dco_decode_u_32(arr[5]),
-      added: dco_decode_list_note_intent(arr[6]),
-      updated: dco_decode_list_note_intent(arr[7]),
-      skipped: dco_decode_list_note_intent(arr[8]),
+      newGuids: dco_decode_list_String(arr[6]),
+      changed: dco_decode_list_changed_note(arr[7]),
+      deckNames: dco_decode_list_String(arr[8]),
+      preNoteCount: dco_decode_u_32(arr[9]),
     );
   }
 
@@ -1030,26 +1190,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  ResidentDeck dco_decode_resident_deck(dynamic raw) {
+  ResidentMatch dco_decode_resident_match(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
     if (arr.length != 2)
       throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
-    return ResidentDeck(
-      name: dco_decode_String(arr[0]),
-      id: dco_decode_i_64(arr[1]),
-    );
-  }
-
-  @protected
-  ResidentObjects dco_decode_resident_objects(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    final arr = raw as List<dynamic>;
-    if (arr.length != 2)
-      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
-    return ResidentObjects(
+    return ResidentMatch(
       notes: dco_decode_list_note_facts(arr[0]),
-      decks: dco_decode_list_resident_deck(arr[1]),
+      foundDeckNames: dco_decode_list_String(arr[1]),
     );
   }
 
@@ -1108,6 +1256,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  PendingImport
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImport(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return PendingImportImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
   AnkiBackend
   sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAnkiBackend(
     SseDeserializer deserializer,
@@ -1120,12 +1280,36 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  PendingImport
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImport(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return PendingImportImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
   AnkiBackend
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAnkiBackend(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return AnkiBackendImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  PendingImport
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImport(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return PendingImportImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -1168,19 +1352,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  PreparedImport sse_decode_box_autoadd_prepared_import(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return (sse_decode_prepared_import(deserializer));
-  }
-
-  @protected
   ServiceMethodIndex sse_decode_box_autoadd_service_method_index(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_service_method_index(deserializer));
+  }
+
+  @protected
+  ChangedNote sse_decode_changed_note(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_guid = sse_decode_String(deserializer);
+    var var_contentHash = sse_decode_list_prim_u_8_strict(deserializer);
+    return ChangedNote(guid: var_guid, contentHash: var_contentHash);
   }
 
   @protected
@@ -1218,10 +1402,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  ImportFinish sse_decode_import_finish(SseDeserializer deserializer) {
+  ImportFolderScan sse_decode_import_folder_scan(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_residentCalled = sse_decode_bool(deserializer);
-    return ImportFinish(residentCalled: var_residentCalled);
+    var var_removed = sse_decode_list_String(deserializer);
+    var var_keptPrepared = sse_decode_list_String(deserializer);
+    var var_ignored = sse_decode_list_String(deserializer);
+    return ImportFolderScan(
+      removed: var_removed,
+      keptPrepared: var_keptPrepared,
+      ignored: var_ignored,
+    );
   }
 
   @protected
@@ -1257,6 +1447,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var ans_ = <AssignedImportGuid>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_assigned_import_guid(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<ChangedNote> sse_decode_list_changed_note(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <ChangedNote>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_changed_note(deserializer));
     }
     return ans_;
   }
@@ -1314,15 +1516,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  List<NoteIntent> sse_decode_list_note_intent(SseDeserializer deserializer) {
+  Int64List sse_decode_list_prim_i_64_strict(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-
     var len_ = sse_decode_i_32(deserializer);
-    var ans_ = <NoteIntent>[];
-    for (var idx_ = 0; idx_ < len_; ++idx_) {
-      ans_.add(sse_decode_note_intent(deserializer));
-    }
-    return ans_;
+    return deserializer.buffer.getInt64List(len_);
   }
 
   @protected
@@ -1340,20 +1537,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  List<ResidentDeck> sse_decode_list_resident_deck(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    var len_ = sse_decode_i_32(deserializer);
-    var ans_ = <ResidentDeck>[];
-    for (var idx_ = 0; idx_ < len_; ++idx_) {
-      ans_.add(sse_decode_resident_deck(deserializer));
-    }
-    return ans_;
-  }
-
-  @protected
   NoteFacts sse_decode_note_facts(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_guid = sse_decode_String(deserializer);
@@ -1366,14 +1549,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       mod: var_mod,
       contentHash: var_contentHash,
     );
-  }
-
-  @protected
-  NoteIntent sse_decode_note_intent(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_guid = sse_decode_String(deserializer);
-    var var_class_ = sse_decode_class(deserializer);
-    return NoteIntent(guid: var_guid, class_: var_class_);
   }
 
   @protected
@@ -1432,9 +1607,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_stagedSha256 = sse_decode_String(deserializer);
     var var_firstImport = sse_decode_bool(deserializer);
     var var_cardlessNotes = sse_decode_u_32(deserializer);
-    var var_added = sse_decode_list_note_intent(deserializer);
-    var var_updated = sse_decode_list_note_intent(deserializer);
-    var var_skipped = sse_decode_list_note_intent(deserializer);
+    var var_newGuids = sse_decode_list_String(deserializer);
+    var var_changed = sse_decode_list_changed_note(deserializer);
+    var var_deckNames = sse_decode_list_String(deserializer);
+    var var_preNoteCount = sse_decode_u_32(deserializer);
     return PreparedImport(
       importBatchId: var_importBatchId,
       plan: var_plan,
@@ -1442,9 +1618,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       stagedSha256: var_stagedSha256,
       firstImport: var_firstImport,
       cardlessNotes: var_cardlessNotes,
-      added: var_added,
-      updated: var_updated,
-      skipped: var_skipped,
+      newGuids: var_newGuids,
+      changed: var_changed,
+      deckNames: var_deckNames,
+      preNoteCount: var_preNoteCount,
     );
   }
 
@@ -1457,19 +1634,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  ResidentDeck sse_decode_resident_deck(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_name = sse_decode_String(deserializer);
-    var var_id = sse_decode_i_64(deserializer);
-    return ResidentDeck(name: var_name, id: var_id);
-  }
-
-  @protected
-  ResidentObjects sse_decode_resident_objects(SseDeserializer deserializer) {
+  ResidentMatch sse_decode_resident_match(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_notes = sse_decode_list_note_facts(deserializer);
-    var var_decks = sse_decode_list_resident_deck(deserializer);
-    return ResidentObjects(notes: var_notes, decks: var_decks);
+    var var_foundDeckNames = sse_decode_list_String(deserializer);
+    return ResidentMatch(notes: var_notes, foundDeckNames: var_foundDeckNames);
   }
 
   @protected
@@ -1526,6 +1695,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImport(
+    PendingImport self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as PendingImportImpl).frbInternalSseEncode(move: true),
+      serializer,
+    );
+  }
+
+  @protected
+  void
   sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAnkiBackend(
     AnkiBackend self,
     SseSerializer serializer,
@@ -1539,6 +1721,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImport(
+    PendingImport self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as PendingImportImpl).frbInternalSseEncode(move: false),
+      serializer,
+    );
+  }
+
+  @protected
+  void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAnkiBackend(
     AnkiBackend self,
     SseSerializer serializer,
@@ -1546,6 +1741,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
       (self as AnkiBackendImpl).frbInternalSseEncode(move: null),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImport(
+    PendingImport self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as PendingImportImpl).frbInternalSseEncode(move: null),
       serializer,
     );
   }
@@ -1584,21 +1792,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_box_autoadd_prepared_import(
-    PreparedImport self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_prepared_import(self, serializer);
-  }
-
-  @protected
   void sse_encode_box_autoadd_service_method_index(
     ServiceMethodIndex self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_service_method_index(self, serializer);
+  }
+
+  @protected
+  void sse_encode_changed_note(ChangedNote self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.guid, serializer);
+    sse_encode_list_prim_u_8_strict(self.contentHash, serializer);
   }
 
   @protected
@@ -1632,9 +1838,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_import_finish(ImportFinish self, SseSerializer serializer) {
+  void sse_encode_import_folder_scan(
+    ImportFolderScan self,
+    SseSerializer serializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_bool(self.residentCalled, serializer);
+    sse_encode_list_String(self.removed, serializer);
+    sse_encode_list_String(self.keptPrepared, serializer);
+    sse_encode_list_String(self.ignored, serializer);
   }
 
   @protected
@@ -1665,6 +1876,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_assigned_import_guid(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_changed_note(
+    List<ChangedNote> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_changed_note(item, serializer);
     }
   }
 
@@ -1714,15 +1937,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_list_note_intent(
-    List<NoteIntent> self,
+  void sse_encode_list_prim_i_64_strict(
+    Int64List self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
-    for (final item in self) {
-      sse_encode_note_intent(item, serializer);
-    }
+    serializer.buffer.putInt64List(self);
   }
 
   @protected
@@ -1748,31 +1969,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_list_resident_deck(
-    List<ResidentDeck> self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_i_32(self.length, serializer);
-    for (final item in self) {
-      sse_encode_resident_deck(item, serializer);
-    }
-  }
-
-  @protected
   void sse_encode_note_facts(NoteFacts self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.guid, serializer);
     sse_encode_i_64(self.notetypeId, serializer);
     sse_encode_i_64(self.mod, serializer);
     sse_encode_list_prim_u_8_strict(self.contentHash, serializer);
-  }
-
-  @protected
-  void sse_encode_note_intent(NoteIntent self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_String(self.guid, serializer);
-    sse_encode_class(self.class_, serializer);
   }
 
   @protected
@@ -1825,9 +2027,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.stagedSha256, serializer);
     sse_encode_bool(self.firstImport, serializer);
     sse_encode_u_32(self.cardlessNotes, serializer);
-    sse_encode_list_note_intent(self.added, serializer);
-    sse_encode_list_note_intent(self.updated, serializer);
-    sse_encode_list_note_intent(self.skipped, serializer);
+    sse_encode_list_String(self.newGuids, serializer);
+    sse_encode_list_changed_note(self.changed, serializer);
+    sse_encode_list_String(self.deckNames, serializer);
+    sse_encode_u_32(self.preNoteCount, serializer);
   }
 
   @protected
@@ -1838,20 +2041,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_resident_deck(ResidentDeck self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_String(self.name, serializer);
-    sse_encode_i_64(self.id, serializer);
-  }
-
-  @protected
-  void sse_encode_resident_objects(
-    ResidentObjects self,
-    SseSerializer serializer,
-  ) {
+  void sse_encode_resident_match(ResidentMatch self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_list_note_facts(self.notes, serializer);
-    sse_encode_list_resident_deck(self.decks, serializer);
+    sse_encode_list_String(self.foundDeckNames, serializer);
   }
 
   @protected
@@ -1912,4 +2105,32 @@ class AnkiBackendImpl extends RustOpaque implements AnkiBackend {
     rustArcDecrementStrongCountPtr:
         RustLib.instance.api.rust_arc_decrement_strong_count_AnkiBackendPtr,
   );
+}
+
+@sealed
+class PendingImportImpl extends RustOpaque implements PendingImport {
+  // Not to be used by end users
+  PendingImportImpl.frbInternalDcoDecode(List<dynamic> wire)
+    : super.frbInternalDcoDecode(wire, _kStaticData);
+
+  // Not to be used by end users
+  PendingImportImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
+    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
+
+  static final _kStaticData = RustArcStaticData(
+    rustArcIncrementStrongCount:
+        RustLib.instance.api.rust_arc_increment_strong_count_PendingImport,
+    rustArcDecrementStrongCount:
+        RustLib.instance.api.rust_arc_decrement_strong_count_PendingImport,
+    rustArcDecrementStrongCountPtr:
+        RustLib.instance.api.rust_arc_decrement_strong_count_PendingImportPtr,
+  );
+
+  /// Normal deck names in E, excluding Default.
+  Future<List<String>> deckNames() =>
+      RustLib.instance.api.crateApiPendingImportDeckNames(that: this);
+
+  /// File note facts after guid normalization, in note-id order.
+  Future<List<NoteFacts>> fileNotes() =>
+      RustLib.instance.api.crateApiPendingImportFileNotes(that: this);
 }

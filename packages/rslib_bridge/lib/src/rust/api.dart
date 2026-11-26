@@ -7,8 +7,8 @@ import 'frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `bridge_facts`, `bridge_index`, `bridge_response`, `call`, `decode_backend_error`, `from_contract_class`, `to_contract_class`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These functions are ignored because they are not marked as `pub`: `bridge_facts`, `bridge_index`, `bridge_response`, `call`, `decode_backend_error`, `from_contract_class`, `new`, `take`, `to_contract_class`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `drop`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `open_backend_with_profile`, `open_import_e_backend`
 
 /// Point rslib's temp files at an app-writable directory.
@@ -138,53 +138,72 @@ Future<List<DeckConfigRow>> inspectExportedDeckConfigs({required String dir}) =>
 Future<String> smokeOpenCollection({required String dir}) =>
     RustLib.instance.api.crateApiSmokeOpenCollection(dir: dir);
 
-/// Copy `source_path` into E, normalize it, and return the plan.
+/// §7.1 steps 1–3. Does not take a resident collection.
 ///
-/// `resident` must already be open. This function only reads it. It does not
-/// import into the resident collection. `max_bytes` is the caller's ceiling
-/// for the package (the product cap is not chosen here).
-Future<PreparedImport> importStageE({
+/// `max_bytes` is the caller's package ceiling. Between this and
+/// [`import_stage_finish`] only the E folder exists.
+Future<PendingImport> importStageE({
   required String dataDir,
   required String sourcePath,
   required BigInt maxBytes,
-  required AnkiBackend resident,
 }) => RustLib.instance.api.crateApiImportStageE(
   dataDir: dataDir,
   sourcePath: sourcePath,
   maxBytes: maxBytes,
-  resident: resident,
 );
 
-/// Read which incoming notes and decks already exist in `resident`.
+/// Read resident notes by id and which deck names already exist.
 ///
-/// This does not write. Notes follow `guids` and decks follow `deck_names`.
-/// A repeated name is returned once. A guid with two resident notes is an error.
-Future<ResidentObjects> residentLookup({
-  required AnkiBackend resident,
-  required List<String> guids,
+/// Uses `GetNote` and `GetDeckIdByName` through [`command`], so a desktop
+/// backend still passes the allowlist. This does not write. `notes` follows
+/// `note_ids` and `found_deck_names` follows `deck_names`, each name once.
+Future<ResidentMatch> residentLookup({
+  required AnkiBackend backend,
+  required Int64List noteIds,
   required List<String> deckNames,
 }) => RustLib.instance.api.crateApiResidentLookup(
-  resident: resident,
-  guids: guids,
+  backend: backend,
+  noteIds: noteIds,
   deckNames: deckNames,
 );
 
-/// Apply `prepared` to the open resident collection.
+/// §7.1 steps 4–7. Does not write the resident collection.
 ///
-/// The request is the resident row: notetypes are not merged, notes update
-/// only `IF_NEWER`, notetype updates are `NEVER`, scheduling is on, and deck
-/// configs follow `first_import`. A no-op plan does not call rslib. This
-/// function does not adopt rows into the side database.
-Future<ImportFinish> importStageFinish({
-  required AnkiBackend resident,
-  required PreparedImport prepared,
+/// `resident_facts` and `found_deck_names` are the result of
+/// [`resident_lookup`]. Classification uses that map. A no-op deletes the
+/// batch folder when `pending` drops.
+Future<PreparedImport> importStageFinish({
+  required PendingImport pending,
+  required List<NoteFacts> residentFacts,
+  required List<String> foundDeckNames,
 }) => RustLib.instance.api.crateApiImportStageFinish(
-  resident: resident,
-  prepared: prepared,
+  pending: pending,
+  residentFacts: residentFacts,
+  foundDeckNames: foundDeckNames,
+);
+
+/// Delete import batches whose id is not in `prepared_batch_ids`.
+///
+/// A prepared id is kept. There is no callback.
+Future<ImportFolderScan> scanImportFolders({
+  required String dataDir,
+  required List<String> preparedBatchIds,
+}) => RustLib.instance.api.crateApiScanImportFolders(
+  dataDir: dataDir,
+  preparedBatchIds: preparedBatchIds,
 );
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AnkiBackend>>
 abstract class AnkiBackend implements RustOpaqueInterface {}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<PendingImport>>
+abstract class PendingImport implements RustOpaqueInterface {
+  /// Normal deck names in E, excluding Default.
+  Future<List<String>> deckNames();
+
+  /// File note facts after guid normalization, in note-id order.
+  Future<List<NoteFacts>> fileNotes();
+}
 
 /// Assigned guid for one import note.
 ///
@@ -218,6 +237,28 @@ class AssignedImportGuid {
           guid == other.guid &&
           dupIndex == other.dupIndex &&
           reassigned == other.reassigned;
+}
+
+/// One changed note. `content_hash` is the file hash the resident import
+/// should land. `hatto_import::PreparedImport` keeps these in a `BTreeMap`;
+/// this list is that map in guid order, because a `BTreeMap` does not cross
+/// the bridge as readable entries.
+class ChangedNote {
+  final String guid;
+  final Uint8List contentHash;
+
+  const ChangedNote({required this.guid, required this.contentHash});
+
+  @override
+  int get hashCode => guid.hashCode ^ contentHash.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ChangedNote &&
+          runtimeType == other.runtimeType &&
+          guid == other.guid &&
+          contentHash == other.contentHash;
 }
 
 /// How one file note relates to the resident collection.
@@ -255,21 +296,30 @@ class DeckConfigRow {
           reviewsPerDay == other.reviewsPerDay;
 }
 
-/// Whether [`import_stage_finish`] called the resident importer.
-class ImportFinish {
-  final bool residentCalled;
+/// One startup scan of `import/{raw,e,staged}`.
+class ImportFolderScan {
+  final List<String> removed;
+  final List<String> keptPrepared;
+  final List<String> ignored;
 
-  const ImportFinish({required this.residentCalled});
+  const ImportFolderScan({
+    required this.removed,
+    required this.keptPrepared,
+    required this.ignored,
+  });
 
   @override
-  int get hashCode => residentCalled.hashCode;
+  int get hashCode =>
+      removed.hashCode ^ keptPrepared.hashCode ^ ignored.hashCode;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is ImportFinish &&
+      other is ImportFolderScan &&
           runtimeType == other.runtimeType &&
-          residentCalled == other.residentCalled;
+          removed == other.removed &&
+          keptPrepared == other.keptPrepared &&
+          ignored == other.ignored;
 }
 
 /// One note from an import file, before guid assignment.
@@ -322,25 +372,6 @@ class NoteFacts {
           contentHash == other.contentHash;
 }
 
-/// One note in [`PreparedImport`]'s added, updated, or skipped list.
-class NoteIntent {
-  final String guid;
-  final Class class_;
-
-  const NoteIntent({required this.guid, required this.class_});
-
-  @override
-  int get hashCode => guid.hashCode ^ class_.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is NoteIntent &&
-          runtimeType == other.runtimeType &&
-          guid == other.guid &&
-          class_ == other.class_;
-}
-
 /// Counts for one file. `no_resident_call` is `new == 0 && changed == 0`.
 class Plan {
   final int new_;
@@ -385,10 +416,10 @@ class Plan {
           noResidentCall == other.noResidentCall;
 }
 
-/// Staged import. The lists are the plan the UI shows before finish.
+/// Plan for one import. The resident collection is not written here.
 ///
-/// `New` is `added`, `Changed` is `updated`, and `Same`, `LocalNewer`, and
-/// `Blocked` are `skipped`. On a no-op the staged file is already deleted.
+/// `new_guids` and `changed` are the intent expected lists. `deck_names` is
+/// the exported package's normal decks. `pre_note_count` is `new` + `changed`.
 class PreparedImport {
   final String importBatchId;
   final Plan plan;
@@ -396,9 +427,10 @@ class PreparedImport {
   final String stagedSha256;
   final bool firstImport;
   final int cardlessNotes;
-  final List<NoteIntent> added;
-  final List<NoteIntent> updated;
-  final List<NoteIntent> skipped;
+  final List<String> newGuids;
+  final List<ChangedNote> changed;
+  final List<String> deckNames;
+  final int preNoteCount;
 
   const PreparedImport({
     required this.importBatchId,
@@ -407,9 +439,10 @@ class PreparedImport {
     required this.stagedSha256,
     required this.firstImport,
     required this.cardlessNotes,
-    required this.added,
-    required this.updated,
-    required this.skipped,
+    required this.newGuids,
+    required this.changed,
+    required this.deckNames,
+    required this.preNoteCount,
   });
 
   @override
@@ -420,9 +453,10 @@ class PreparedImport {
       stagedSha256.hashCode ^
       firstImport.hashCode ^
       cardlessNotes.hashCode ^
-      added.hashCode ^
-      updated.hashCode ^
-      skipped.hashCode;
+      newGuids.hashCode ^
+      changed.hashCode ^
+      deckNames.hashCode ^
+      preNoteCount.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -435,9 +469,10 @@ class PreparedImport {
           stagedSha256 == other.stagedSha256 &&
           firstImport == other.firstImport &&
           cardlessNotes == other.cardlessNotes &&
-          added == other.added &&
-          updated == other.updated &&
-          skipped == other.skipped;
+          newGuids == other.newGuids &&
+          changed == other.changed &&
+          deckNames == other.deckNames &&
+          preNoteCount == other.preNoteCount;
 }
 
 /// Bytes returned by `run_service_method`.
@@ -461,42 +496,23 @@ class ProtoResponse {
           payload == other.payload;
 }
 
-/// A deck name that already exists in the resident collection.
-class ResidentDeck {
-  final String name;
-  final PlatformInt64 id;
-
-  const ResidentDeck({required this.name, required this.id});
-
-  @override
-  int get hashCode => name.hashCode ^ id.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ResidentDeck &&
-          runtimeType == other.runtimeType &&
-          name == other.name &&
-          id == other.id;
-}
-
-/// Notes and decks [`resident_lookup`] found. Missing names are absent.
-class ResidentObjects {
+/// Notes [`resident_lookup`] read, and the deck names that already exist.
+class ResidentMatch {
   final List<NoteFacts> notes;
-  final List<ResidentDeck> decks;
+  final List<String> foundDeckNames;
 
-  const ResidentObjects({required this.notes, required this.decks});
+  const ResidentMatch({required this.notes, required this.foundDeckNames});
 
   @override
-  int get hashCode => notes.hashCode ^ decks.hashCode;
+  int get hashCode => notes.hashCode ^ foundDeckNames.hashCode;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is ResidentObjects &&
+      other is ResidentMatch &&
           runtimeType == other.runtimeType &&
           notes == other.notes &&
-          decks == other.decks;
+          foundDeckNames == other.foundDeckNames;
 }
 
 /// Index of one backend service method for this rslib build.

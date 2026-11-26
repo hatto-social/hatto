@@ -8,7 +8,7 @@
 //! [`ResidentLookup`]. When the plan's `no_resident_call` is true, the raw,
 //! E, and staged files are removed before this function returns.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -46,56 +46,99 @@ pub trait ResidentLookup {
     fn deck_id_by_name(&mut self, name: &str) -> Result<Option<i64>, ImportError>;
 }
 
-/// One note the UI can show before the resident write.
+/// Resident facts and deck-name hits already read by the caller.
 ///
-/// `class` is the contract class that put the note in its list.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct NoteIntent {
-    pub guid: String,
-    pub class: Class,
+/// [`ResidentLookup`] is answered from these maps. This crate still does not
+/// open a resident collection. A deck hit uses `Some(1)` only as presence;
+/// the id is not a resident deck id.
+#[derive(Debug)]
+pub struct PrefetchedLookup {
+    notes: BTreeMap<String, NoteFacts>,
+    found_decks: BTreeSet<String>,
 }
 
-/// The three lists from [`partition_intents`].
-///
-/// This is a plan. It does not name a collection or a path.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ImportIntents {
-    pub added: Vec<NoteIntent>,
-    pub updated: Vec<NoteIntent>,
-    pub skipped: Vec<NoteIntent>,
+impl PrefetchedLookup {
+    /// `notes` is keyed by guid. Two facts with one guid are an error.
+    pub fn new(
+        notes: impl IntoIterator<Item = NoteFacts>,
+        found_deck_names: impl IntoIterator<Item = impl AsRef<str>>,
+    ) -> Result<Self, ImportError> {
+        let mut map = BTreeMap::new();
+        for facts in notes {
+            let guid = facts.guid.clone();
+            if map.insert(guid.clone(), facts).is_some() {
+                return Err(ImportError::new(format!(
+                    "guid {guid} has more than one resident note"
+                )));
+            }
+        }
+        let found_decks = found_deck_names
+            .into_iter()
+            .map(|name| name.as_ref().to_string())
+            .collect();
+        Ok(Self {
+            notes: map,
+            found_decks,
+        })
+    }
 }
 
-/// `New` is added, `Changed` is updated, and `Same`, `LocalNewer`, and
-/// `Blocked` are skipped.
+impl ResidentLookup for PrefetchedLookup {
+    fn note_facts(&mut self, guids: &[String]) -> Result<BTreeMap<String, NoteFacts>, ImportError> {
+        let mut found = BTreeMap::new();
+        for guid in guids {
+            if let Some(facts) = self.notes.get(guid) {
+                found.insert(guid.clone(), facts.clone());
+            }
+        }
+        Ok(found)
+    }
+
+    fn deck_id_by_name(&mut self, name: &str) -> Result<Option<i64>, ImportError> {
+        Ok(self.found_decks.contains(name).then_some(1))
+    }
+}
+
+/// Open E collection for one batch. Drop closes E and deletes the batch
+/// folder while [`PendingImport`] is still armed.
 ///
-/// Order is the input order. This function does not read or write a collection.
-pub fn partition_intents(notes: &[(&str, Class)]) -> ImportIntents {
-    let mut added = Vec::new();
-    let mut updated = Vec::new();
-    let mut skipped = Vec::new();
-    for (guid, class) in notes {
-        let intent = NoteIntent {
-            guid: (*guid).to_string(),
-            class: *class,
-        };
-        match class {
-            Class::New => added.push(intent),
-            Class::Changed => updated.push(intent),
-            Class::Same | Class::LocalNewer | Class::Blocked => skipped.push(intent),
+/// Finish disarms a non-empty plan so the staged package stays. A no-op and
+/// a drop before finish delete `raw`, `e`, and `staged`, the same rule as
+/// the guard around [`prepare_import`].
+pub struct PendingImport {
+    session: Option<ESession>,
+    data_dir: PathBuf,
+    batch_id: Uuid,
+    cardless_notes: u32,
+    dup: u32,
+    armed: bool,
+}
+
+impl Drop for PendingImport {
+    fn drop(&mut self) {
+        self.session.take();
+        if self.armed {
+            let _ = remove_import_batch(&self.data_dir, self.batch_id);
         }
     }
-    ImportIntents {
-        added,
-        updated,
-        skipped,
-    }
+}
+
+/// §7.1 steps 1–3. `notes` are the file facts. `deck_names` is every normal
+/// deck in E except Default, before empty decks are removed.
+pub struct StageOutput {
+    pub pending: PendingImport,
+    pub notes: Vec<NoteFacts>,
+    pub deck_names: Vec<String>,
 }
 
 /// E pipeline output. `staged_path` is where the export was written.
 ///
-/// `added`, `updated`, and `skipped` are the plan for the resident write.
-/// On a no-op (`plan.no_resident_call`) the file is deleted before return.
-/// `staged_sha256` is still the digest of the bytes that were written.
+/// `new_guids` and `changed` are the intent expected lists. `changed` maps a
+/// guid to the file content hash. `deck_names` is the exported package's
+/// normal decks. `pre_note_count` is how many notes are still in E when that
+/// package is written (`new` + `changed`). On a no-op the file is deleted
+/// before return. `staged_sha256` is still the digest of the bytes that were
+/// written.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PreparedImport {
     pub import_batch_id: Uuid,
@@ -104,18 +147,38 @@ pub struct PreparedImport {
     pub staged_sha256: String,
     pub first_import: bool,
     pub cardless_notes: u32,
-    pub added: Vec<NoteIntent>,
-    pub updated: Vec<NoteIntent>,
-    pub skipped: Vec<NoteIntent>,
+    pub new_guids: Vec<String>,
+    pub changed: BTreeMap<String, Vec<u8>>,
+    pub deck_names: Vec<String>,
+    pub pre_note_count: u32,
 }
 
 /// Run §7.1 steps 1–7 for `source` under `data_dir`.
+///
+/// This is [`stage_import`] then [`finish_import`]. The lookup is read while
+/// E is still open.
 pub fn prepare_import(
     data_dir: &Path,
     source: &Path,
     limits: ImportLimits,
     lookup: &mut dyn ResidentLookup,
 ) -> Result<PreparedImport, ImportError> {
+    let staged = stage_import(data_dir, source, limits)?;
+    finish_import(staged.pending, lookup)
+}
+
+/// §7.1 steps 1–3. The returned handle owns the open E collection.
+///
+/// A resident collection handle is not part of this crate's public API.
+///
+/// ```compile_fail
+/// use hatto_import::AnkiBackend;
+/// ```
+pub fn stage_import(
+    data_dir: &Path,
+    source: &Path,
+    limits: ImportLimits,
+) -> Result<StageOutput, ImportError> {
     crate::paths::check_data_dir(data_dir)?;
     if !data_dir.is_dir() {
         return Err(ImportError::new("data_dir is not a directory"));
@@ -127,23 +190,6 @@ pub fn prepare_import(
         batch_id,
         armed: true,
     };
-    let prepared = prepare_with_id(data_dir, source, limits, batch_id, lookup)?;
-    if prepared.plan.no_resident_call {
-        // §15.5: a no-op deletes raw, e, and staged. The guard does that.
-        Ok(prepared)
-    } else {
-        guard.disarm();
-        Ok(prepared)
-    }
-}
-
-fn prepare_with_id(
-    data_dir: &Path,
-    source: &Path,
-    limits: ImportLimits,
-    batch_id: Uuid,
-    lookup: &mut dyn ResidentLookup,
-) -> Result<PreparedImport, ImportError> {
     fs::create_dir_all(raw_dir(data_dir)?).map_err(|err| ImportError::new(err.to_string()))?;
     fs::create_dir_all(e_dir(data_dir)?).map_err(|err| ImportError::new(err.to_string()))?;
     fs::create_dir_all(staged_dir(data_dir)?).map_err(|err| ImportError::new(err.to_string()))?;
@@ -152,49 +198,113 @@ fn prepare_with_id(
     fs::copy(source, &raw).map_err(|err| ImportError::new(format!("copy source: {err}")))?;
     validate_source(&raw, limits)?;
 
-    let cardless_notes = {
-        let session = ESession::open(data_dir, batch_id)?;
-        session.import_source_package(data_dir, batch_id)?;
-        let assigned = rewrite_guids(&session)?;
-        let cardless_notes = delete_cardless_notes(&session)?;
-        delete_filtered_decks(&session)?;
-        let classified = classify_notes(&session, lookup)?;
-        let dup = import_dup_count(&assigned);
-        let intent_input: Vec<(&str, Class)> = classified
-            .iter()
-            .map(|note| (note.guid.as_str(), note.class))
-            .collect();
-        let intents = partition_intents(&intent_input);
-        let class_list: Vec<Class> = classified.iter().map(|note| note.class).collect();
-        let plan = summarize_plan(&class_list, dup);
-        // The plan is fixed before these writes. They do not classify again.
-        remove_skipped_notes(&session, &classified)?;
-        remove_empty_decks(&session)?;
-        // The staged package only contains decks that are still here. This one
-        // judgment is the preset branch, the export flag, and `first_import`.
-        let names = deck_names_except_default(&session)?;
-        let first_import = judge_first_import(lookup, &names)?;
-        if !first_import {
-            clear_matched_descriptions(&session, lookup, &names)?;
-        } else {
-            preset::restore_original_default_preset(&session, data_dir, batch_id)?;
-        }
-        session.export_staged(data_dir, batch_id, first_import)?;
-        let staged = crate::paths::staged_apkg_path(data_dir, batch_id)?;
-        let staged_sha256 = sha256_file(&staged)?;
-        Ok(PreparedImport {
-            import_batch_id: batch_id,
-            plan,
-            staged_path: staged,
-            staged_sha256,
-            first_import,
+    let session = ESession::open(data_dir, batch_id)?;
+    session.import_source_package(data_dir, batch_id)?;
+    let assigned = rewrite_guids(&session)?;
+    let cardless_notes = delete_cardless_notes(&session)?;
+    delete_filtered_decks(&session)?;
+    let stored = read_stored_notes(&session)?;
+    let notes = stored.into_iter().map(|note| note.facts).collect();
+    let deck_names = deck_names_except_default(&session)?;
+    guard.disarm();
+    Ok(StageOutput {
+        pending: PendingImport {
+            session: Some(session),
+            data_dir: data_dir.to_path_buf(),
+            batch_id,
             cardless_notes,
-            added: intents.added,
-            updated: intents.updated,
-            skipped: intents.skipped,
-        })
-    }?;
-    Ok(cardless_notes)
+            dup: import_dup_count(&assigned),
+            armed: true,
+        },
+        notes,
+        deck_names,
+    })
+}
+
+/// §7.1 steps 4–7. Does not open or write a resident collection.
+pub fn finish_import(
+    mut pending: PendingImport,
+    lookup: &mut dyn ResidentLookup,
+) -> Result<PreparedImport, ImportError> {
+    let session = pending
+        .session
+        .take()
+        .ok_or_else(|| ImportError::new("E is already closed"))?;
+    let prepared = finish_session(
+        &session,
+        &pending.data_dir,
+        pending.batch_id,
+        pending.cardless_notes,
+        pending.dup,
+        lookup,
+    );
+    drop(session);
+    match prepared {
+        Ok(prepared) if !prepared.plan.no_resident_call => {
+            pending.armed = false;
+            Ok(prepared)
+        }
+        other => other,
+    }
+}
+
+fn finish_session(
+    session: &ESession,
+    data_dir: &Path,
+    batch_id: Uuid,
+    cardless_notes: u32,
+    dup: u32,
+    lookup: &mut dyn ResidentLookup,
+) -> Result<PreparedImport, ImportError> {
+    let classified = classify_notes(session, lookup)?;
+    let (new_guids, changed, pre_note_count) = intent_fields(&classified);
+    let class_list: Vec<Class> = classified.iter().map(|note| note.class).collect();
+    let plan = summarize_plan(&class_list, dup);
+    // The plan is fixed before these writes. They do not classify again.
+    remove_skipped_notes(session, &classified)?;
+    remove_empty_decks(session)?;
+    // The staged package only contains decks that are still here. This one
+    // judgment is the preset branch, the export flag, and `first_import`.
+    // Names are a subset of the deck names the caller already looked up.
+    let names = deck_names_except_default(session)?;
+    let first_import = judge_first_import(lookup, &names)?;
+    if !first_import {
+        clear_matched_descriptions(session, lookup, &names)?;
+    } else {
+        preset::restore_original_default_preset(session, data_dir, batch_id)?;
+    }
+    session.export_staged(data_dir, batch_id, first_import)?;
+    let staged = crate::paths::staged_apkg_path(data_dir, batch_id)?;
+    let staged_sha256 = sha256_file(&staged)?;
+    Ok(PreparedImport {
+        import_batch_id: batch_id,
+        plan,
+        staged_path: staged,
+        staged_sha256,
+        first_import,
+        cardless_notes,
+        new_guids,
+        changed,
+        deck_names: names,
+        pre_note_count,
+    })
+}
+
+fn intent_fields(notes: &[ClassifiedNote]) -> (Vec<String>, BTreeMap<String, Vec<u8>>, u32) {
+    let mut new_guids = Vec::new();
+    let mut changed = BTreeMap::new();
+    for note in notes {
+        match note.class {
+            Class::New => new_guids.push(note.guid.clone()),
+            Class::Changed => {
+                changed.insert(note.guid.clone(), note.content_hash.to_vec());
+            }
+            Class::Same | Class::LocalNewer | Class::Blocked => {}
+        }
+    }
+    let pre_note_count =
+        u32::try_from(new_guids.len() + changed.len()).expect("prepared note count fits in u32");
+    (new_guids, changed, pre_note_count)
 }
 
 struct BatchGuard {
@@ -413,24 +523,26 @@ fn delete_filtered_decks(session: &ESession) -> Result<(), ImportError> {
     Ok(())
 }
 
+struct StoredNote {
+    id: i64,
+    facts: NoteFacts,
+}
+
 struct ClassifiedNote {
     id: i64,
     guid: String,
     class: Class,
+    content_hash: [u8; 32],
 }
 
-fn classify_notes(
-    session: &ESession,
-    lookup: &mut dyn ResidentLookup,
-) -> Result<Vec<ClassifiedNote>, ImportError> {
+fn read_stored_notes(session: &ESession) -> Result<Vec<StoredNote>, ImportError> {
     let rows = session.db_json(&serde_json::json!({
         "kind": "query",
         "sql": "SELECT id, guid, mid, \"mod\", flds, tags FROM notes ORDER BY id",
         "args": [],
         "first_row_only": false,
     }))?;
-    let mut pending = Vec::new();
-    let mut guids = Vec::new();
+    let mut notes = Vec::new();
     for row in rows.as_array().unwrap_or(&Vec::new()) {
         let cells = row
             .as_array()
@@ -441,18 +553,28 @@ fn classify_notes(
         let mod_secs = cell_i64(&cells[3], "notes.mod")?;
         let flds = cell_string(&cells[4], "notes.flds")?;
         let tags = cell_string(&cells[5], "notes.tags")?;
-        guids.push(guid);
-        pending.push((id, notetype_id, mod_secs, flds, tags));
+        notes.push(StoredNote {
+            id,
+            facts: facts_from_stored_note(&guid, notetype_id, mod_secs, &flds, &tags),
+        });
     }
+    Ok(notes)
+}
+
+fn classify_notes(
+    session: &ESession,
+    lookup: &mut dyn ResidentLookup,
+) -> Result<Vec<ClassifiedNote>, ImportError> {
+    let stored = read_stored_notes(session)?;
+    let guids: Vec<String> = stored.iter().map(|note| note.facts.guid.clone()).collect();
     let resident = lookup.note_facts(&guids)?;
     let mut classes = Vec::new();
-    for (index, (id, notetype_id, mod_secs, flds, tags)) in pending.into_iter().enumerate() {
-        let guid = &guids[index];
-        let file = facts_from_stored_note(guid, notetype_id, mod_secs, &flds, &tags);
-        let class = classify(&file, resident.get(guid));
+    for note in stored {
+        let class = classify(&note.facts, resident.get(&note.facts.guid));
         classes.push(ClassifiedNote {
-            id,
-            guid: guid.clone(),
+            id: note.id,
+            guid: note.facts.guid,
+            content_hash: note.facts.content_hash,
             class,
         });
     }
@@ -641,8 +763,8 @@ fn cell_string(value: &serde_json::Value, label: &str) -> Result<String, ImportE
 #[cfg(test)]
 mod chunk_tests {
     use super::{
-        guid_update_chunks, guid_update_wire_len, partition_intents, Class, GUID_UPDATE_ENVELOPE,
-        GUID_UPDATE_LIMIT, GUID_UPDATE_OUTER_BYTES, GUID_UPDATE_SQL,
+        guid_update_chunks, guid_update_wire_len, intent_fields, Class, ClassifiedNote,
+        GUID_UPDATE_ENVELOPE, GUID_UPDATE_LIMIT, GUID_UPDATE_OUTER_BYTES, GUID_UPDATE_SQL,
     };
 
     fn serialized_len(args: &[Vec<serde_json::Value>]) -> usize {
@@ -672,28 +794,30 @@ mod chunk_tests {
     }
 
     #[test]
-    fn intents_follow_the_class_buckets_in_input_order() {
+    fn intent_fields_keep_new_guids_and_changed_hashes() {
+        let hash = [7u8; 32];
         let notes = [
-            ("n", Class::New),
-            ("s", Class::Same),
-            ("c", Class::Changed),
-            ("l", Class::LocalNewer),
-            ("b", Class::Blocked),
-            ("n2", Class::New),
+            classified("n", Class::New, [1u8; 32]),
+            classified("s", Class::Same, [2u8; 32]),
+            classified("c", Class::Changed, hash),
+            classified("l", Class::LocalNewer, [3u8; 32]),
+            classified("b", Class::Blocked, [4u8; 32]),
+            classified("n2", Class::New, [5u8; 32]),
         ];
-        let intents = partition_intents(&notes);
-        assert_eq!(intent_guids(&intents.added), ["n", "n2"]);
-        assert_eq!(intent_guids(&intents.updated), ["c"]);
-        assert_eq!(intent_guids(&intents.skipped), ["s", "l", "b"]);
-        assert_eq!(intents.added[0].class, Class::New);
-        assert_eq!(intents.updated[0].class, Class::Changed);
-        assert_eq!(intents.skipped[0].class, Class::Same);
-        assert_eq!(intents.skipped[1].class, Class::LocalNewer);
-        assert_eq!(intents.skipped[2].class, Class::Blocked);
+        let (new_guids, changed, pre_note_count) = intent_fields(&notes);
+        assert_eq!(new_guids, ["n", "n2"]);
+        assert_eq!(changed.len(), 1);
+        assert_eq!(changed.get("c").map(Vec::as_slice), Some(hash.as_slice()));
+        assert_eq!(pre_note_count, 3);
     }
 
-    fn intent_guids(rows: &[crate::NoteIntent]) -> Vec<&str> {
-        rows.iter().map(|row| row.guid.as_str()).collect()
+    fn classified(guid: &str, class: Class, content_hash: [u8; 32]) -> ClassifiedNote {
+        ClassifiedNote {
+            id: 0,
+            guid: guid.to_string(),
+            class,
+            content_hash,
+        }
     }
 
     #[test]

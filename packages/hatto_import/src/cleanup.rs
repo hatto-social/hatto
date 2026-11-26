@@ -8,7 +8,7 @@
 //! intent state and deletes `raw`, `e`, and `staged` for a batch. A name that
 //! is not the §15.5 grammar is left in place.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
@@ -48,6 +48,33 @@ pub fn remove_import_batch(data_dir: &Path, batch_id: Uuid) -> Result<(), Import
     remove_path(&staged_apkg_path(data_dir, batch_id)?)?;
     remove_path(&e_directory_path(data_dir, batch_id)?)?;
     Ok(())
+}
+
+/// [`scan_import_folders`] with the batches whose intent row is still prepared.
+///
+/// Any other recognized batch is deleted. A string that is not a lowercase
+/// uuid v4 is an error. This is the form the bridge exposes, because the
+/// scan does not take a callback.
+pub fn scan_prepared_batches(
+    data_dir: &Path,
+    prepared_batch_ids: &[String],
+) -> Result<ImportScan, ImportError> {
+    let mut prepared = BTreeSet::new();
+    for text in prepared_batch_ids {
+        if !crate::paths::is_import_batch_id(text) {
+            return Err(ImportError::new(
+                "prepared batch id is not a lowercase uuid v4",
+            ));
+        }
+        let id = Uuid::parse_str(text)
+            .map_err(|_| ImportError::new("prepared batch id is not a uuid"))?;
+        prepared.insert(id);
+    }
+    scan_import_folders(data_dir, |batch_id| {
+        prepared
+            .contains(&batch_id)
+            .then_some(BatchIntent::Prepared)
+    })
 }
 
 /// Startup scan. `intent` is called once per recognized batch id.

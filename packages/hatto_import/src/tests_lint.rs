@@ -65,6 +65,70 @@ fn source_has_no_temp_hook_and_limits_package_import() {
     );
 }
 
+/// Public items must not name a resident collection handle. `lib.rs` text
+/// alone would miss a public field in another file.
+#[test]
+fn public_items_do_not_name_a_resident_handle() {
+    let needle = concat!("Anki", "Backend");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut files = Vec::new();
+    walk(&root, &mut files);
+    for path in files {
+        let text = fs::read_to_string(&path).unwrap();
+        if text
+            .lines()
+            .take(30)
+            .any(|line| line.trim() == "#![cfg(test)]")
+        {
+            continue;
+        }
+        for (line, item) in public_items(&text) {
+            assert!(
+                !item.contains(needle),
+                "{}:{line} public item names a resident handle",
+                path.display()
+            );
+        }
+    }
+}
+
+fn public_items(text: &str) -> Vec<(usize, String)> {
+    let lines: Vec<&str> = text.lines().collect();
+    let mut items = Vec::new();
+    let mut index = 0;
+    while index < lines.len() {
+        let trimmed = lines[index].trim_start();
+        if !is_public_item(trimmed) {
+            index += 1;
+            continue;
+        }
+        let start = index;
+        let mut depth = i32::try_from(lines[index].chars().filter(|ch| *ch == '{').count())
+            .unwrap_or(i32::MAX)
+            - i32::try_from(lines[index].chars().filter(|ch| *ch == '}').count())
+                .unwrap_or(i32::MAX);
+        index += 1;
+        if depth > 0 {
+            while index < lines.len() && depth > 0 {
+                depth += i32::try_from(lines[index].chars().filter(|ch| *ch == '{').count())
+                    .unwrap_or(i32::MAX);
+                depth -= i32::try_from(lines[index].chars().filter(|ch| *ch == '}').count())
+                    .unwrap_or(i32::MAX);
+                index += 1;
+            }
+        }
+        items.push((start + 1, lines[start..index].join("\n")));
+    }
+    items
+}
+
+fn is_public_item(trimmed: &str) -> bool {
+    if trimmed.starts_with("pub(crate)") || trimmed.starts_with("pub(super)") {
+        return false;
+    }
+    trimmed.starts_with("pub ") || trimmed.starts_with("pub(")
+}
+
 fn call_sites(files: &[std::path::PathBuf], needle: &str) -> Vec<String> {
     let mut hits = Vec::new();
     for path in files {

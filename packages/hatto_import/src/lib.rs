@@ -17,7 +17,9 @@ mod paths;
 mod pipeline;
 mod preset;
 
-pub use cleanup::{remove_import_batch, scan_import_folders, BatchIntent, ImportScan};
+pub use cleanup::{
+    remove_import_batch, scan_import_folders, scan_prepared_batches, BatchIntent, ImportScan,
+};
 pub use error::ImportError;
 pub use hatto_card_contract::{Class, NoteFacts, Plan};
 pub use paths::{
@@ -25,8 +27,8 @@ pub use paths::{
     is_import_batch_id, raw_apkg_path, staged_apkg_path,
 };
 pub use pipeline::{
-    facts_from_stored_note, partition_intents, prepare_import, ImportIntents, ImportLimits,
-    NoteIntent, PreparedImport, ResidentLookup,
+    facts_from_stored_note, finish_import, prepare_import, stage_import, ImportLimits,
+    PendingImport, PrefetchedLookup, PreparedImport, ResidentLookup, StageOutput,
 };
 
 #[cfg(test)]
