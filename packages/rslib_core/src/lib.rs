@@ -13,9 +13,11 @@ pub mod api;
 mod fsrs_init;
 mod index;
 mod policy;
+mod resident;
 
 pub use api::{
     anki_version, command, install_anki_logger, open_backend, open_backend_with_profile,
     open_desktop_backend, open_import_e_backend, prepare_runtime, service_method_index,
     smoke_open_collection, AnkiBackend, BridgeProfile, ProtoResponse, ServiceMethodIndex,
 };
+pub use resident::{read_resident_notes, ResidentNoteRow};

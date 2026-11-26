@@ -7,8 +7,8 @@ import 'frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `bridge_facts`, `bridge_index`, `bridge_response`, `call`, `from_contract_class`, `to_contract_class`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These functions are ignored because they are not marked as `pub`: `bridge_facts`, `bridge_index`, `bridge_response`, `call`, `decode_backend_error`, `from_contract_class`, `to_contract_class`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `open_backend_with_profile`, `open_import_e_backend`
 
 /// Point rslib's temp files at an app-writable directory.
@@ -138,6 +138,51 @@ Future<List<DeckConfigRow>> inspectExportedDeckConfigs({required String dir}) =>
 Future<String> smokeOpenCollection({required String dir}) =>
     RustLib.instance.api.crateApiSmokeOpenCollection(dir: dir);
 
+/// Copy `source_path` into E, normalize it, and return the plan.
+///
+/// `resident` must already be open. This function only reads it. It does not
+/// import into the resident collection. `max_bytes` is the caller's ceiling
+/// for the package (the product cap is not chosen here).
+Future<PreparedImport> importStageE({
+  required String dataDir,
+  required String sourcePath,
+  required BigInt maxBytes,
+  required AnkiBackend resident,
+}) => RustLib.instance.api.crateApiImportStageE(
+  dataDir: dataDir,
+  sourcePath: sourcePath,
+  maxBytes: maxBytes,
+  resident: resident,
+);
+
+/// Read which incoming notes and decks already exist in `resident`.
+///
+/// This does not write. Notes follow `guids` and decks follow `deck_names`.
+/// A repeated name is returned once. A guid with two resident notes is an error.
+Future<ResidentObjects> residentLookup({
+  required AnkiBackend resident,
+  required List<String> guids,
+  required List<String> deckNames,
+}) => RustLib.instance.api.crateApiResidentLookup(
+  resident: resident,
+  guids: guids,
+  deckNames: deckNames,
+);
+
+/// Apply `prepared` to the open resident collection.
+///
+/// The request is the resident row: notetypes are not merged, notes update
+/// only `IF_NEWER`, notetype updates are `NEVER`, scheduling is on, and deck
+/// configs follow `first_import`. A no-op plan does not call rslib. This
+/// function does not adopt rows into the side database.
+Future<ImportFinish> importStageFinish({
+  required AnkiBackend resident,
+  required PreparedImport prepared,
+}) => RustLib.instance.api.crateApiImportStageFinish(
+  resident: resident,
+  prepared: prepared,
+);
+
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AnkiBackend>>
 abstract class AnkiBackend implements RustOpaqueInterface {}
 
@@ -210,6 +255,23 @@ class DeckConfigRow {
           reviewsPerDay == other.reviewsPerDay;
 }
 
+/// Whether [`import_stage_finish`] called the resident importer.
+class ImportFinish {
+  final bool residentCalled;
+
+  const ImportFinish({required this.residentCalled});
+
+  @override
+  int get hashCode => residentCalled.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ImportFinish &&
+          runtimeType == other.runtimeType &&
+          residentCalled == other.residentCalled;
+}
+
 /// One note from an import file, before guid assignment.
 class ImportSourceNote {
   final PlatformInt64 sourceNoteId;
@@ -260,6 +322,25 @@ class NoteFacts {
           contentHash == other.contentHash;
 }
 
+/// One note in [`PreparedImport`]'s added, updated, or skipped list.
+class NoteIntent {
+  final String guid;
+  final Class class_;
+
+  const NoteIntent({required this.guid, required this.class_});
+
+  @override
+  int get hashCode => guid.hashCode ^ class_.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is NoteIntent &&
+          runtimeType == other.runtimeType &&
+          guid == other.guid &&
+          class_ == other.class_;
+}
+
 /// Counts for one file. `no_resident_call` is `new == 0 && changed == 0`.
 class Plan {
   final int new_;
@@ -304,6 +385,61 @@ class Plan {
           noResidentCall == other.noResidentCall;
 }
 
+/// Staged import. The lists are the plan the UI shows before finish.
+///
+/// `New` is `added`, `Changed` is `updated`, and `Same`, `LocalNewer`, and
+/// `Blocked` are `skipped`. On a no-op the staged file is already deleted.
+class PreparedImport {
+  final String importBatchId;
+  final Plan plan;
+  final String stagedPath;
+  final String stagedSha256;
+  final bool firstImport;
+  final int cardlessNotes;
+  final List<NoteIntent> added;
+  final List<NoteIntent> updated;
+  final List<NoteIntent> skipped;
+
+  const PreparedImport({
+    required this.importBatchId,
+    required this.plan,
+    required this.stagedPath,
+    required this.stagedSha256,
+    required this.firstImport,
+    required this.cardlessNotes,
+    required this.added,
+    required this.updated,
+    required this.skipped,
+  });
+
+  @override
+  int get hashCode =>
+      importBatchId.hashCode ^
+      plan.hashCode ^
+      stagedPath.hashCode ^
+      stagedSha256.hashCode ^
+      firstImport.hashCode ^
+      cardlessNotes.hashCode ^
+      added.hashCode ^
+      updated.hashCode ^
+      skipped.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PreparedImport &&
+          runtimeType == other.runtimeType &&
+          importBatchId == other.importBatchId &&
+          plan == other.plan &&
+          stagedPath == other.stagedPath &&
+          stagedSha256 == other.stagedSha256 &&
+          firstImport == other.firstImport &&
+          cardlessNotes == other.cardlessNotes &&
+          added == other.added &&
+          updated == other.updated &&
+          skipped == other.skipped;
+}
+
 /// Bytes returned by `run_service_method`.
 ///
 /// On failure, `payload` is an encoded `anki.backend.BackendError`.
@@ -323,6 +459,44 @@ class ProtoResponse {
           runtimeType == other.runtimeType &&
           success == other.success &&
           payload == other.payload;
+}
+
+/// A deck name that already exists in the resident collection.
+class ResidentDeck {
+  final String name;
+  final PlatformInt64 id;
+
+  const ResidentDeck({required this.name, required this.id});
+
+  @override
+  int get hashCode => name.hashCode ^ id.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ResidentDeck &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          id == other.id;
+}
+
+/// Notes and decks [`resident_lookup`] found. Missing names are absent.
+class ResidentObjects {
+  final List<NoteFacts> notes;
+  final List<ResidentDeck> decks;
+
+  const ResidentObjects({required this.notes, required this.decks});
+
+  @override
+  int get hashCode => notes.hashCode ^ decks.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ResidentObjects &&
+          runtimeType == other.runtimeType &&
+          notes == other.notes &&
+          decks == other.decks;
 }
 
 /// Index of one backend service method for this rslib build.

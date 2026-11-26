@@ -46,8 +46,54 @@ pub trait ResidentLookup {
     fn deck_id_by_name(&mut self, name: &str) -> Result<Option<i64>, ImportError>;
 }
 
+/// One note the UI can show before the resident write.
+///
+/// `class` is the contract class that put the note in its list.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct NoteIntent {
+    pub guid: String,
+    pub class: Class,
+}
+
+/// The three lists from [`partition_intents`].
+///
+/// This is a plan. It does not name a collection or a path.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ImportIntents {
+    pub added: Vec<NoteIntent>,
+    pub updated: Vec<NoteIntent>,
+    pub skipped: Vec<NoteIntent>,
+}
+
+/// `New` is added, `Changed` is updated, and `Same`, `LocalNewer`, and
+/// `Blocked` are skipped.
+///
+/// Order is the input order. This function does not read or write a collection.
+pub fn partition_intents(notes: &[(&str, Class)]) -> ImportIntents {
+    let mut added = Vec::new();
+    let mut updated = Vec::new();
+    let mut skipped = Vec::new();
+    for (guid, class) in notes {
+        let intent = NoteIntent {
+            guid: (*guid).to_string(),
+            class: *class,
+        };
+        match class {
+            Class::New => added.push(intent),
+            Class::Changed => updated.push(intent),
+            Class::Same | Class::LocalNewer | Class::Blocked => skipped.push(intent),
+        }
+    }
+    ImportIntents {
+        added,
+        updated,
+        skipped,
+    }
+}
+
 /// E pipeline output. `staged_path` is where the export was written.
 ///
+/// `added`, `updated`, and `skipped` are the plan for the resident write.
 /// On a no-op (`plan.no_resident_call`) the file is deleted before return.
 /// `staged_sha256` is still the digest of the bytes that were written.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -58,6 +104,9 @@ pub struct PreparedImport {
     pub staged_sha256: String,
     pub first_import: bool,
     pub cardless_notes: u32,
+    pub added: Vec<NoteIntent>,
+    pub updated: Vec<NoteIntent>,
+    pub skipped: Vec<NoteIntent>,
 }
 
 /// Run §7.1 steps 1–7 for `source` under `data_dir`.
@@ -109,11 +158,17 @@ fn prepare_with_id(
         let assigned = rewrite_guids(&session)?;
         let cardless_notes = delete_cardless_notes(&session)?;
         delete_filtered_decks(&session)?;
-        let pairs = classify_notes(&session, lookup)?;
+        let classified = classify_notes(&session, lookup)?;
         let dup = import_dup_count(&assigned);
-        let class_list: Vec<Class> = pairs.iter().map(|(_, class)| *class).collect();
+        let intent_input: Vec<(&str, Class)> = classified
+            .iter()
+            .map(|note| (note.guid.as_str(), note.class))
+            .collect();
+        let intents = partition_intents(&intent_input);
+        let class_list: Vec<Class> = classified.iter().map(|note| note.class).collect();
         let plan = summarize_plan(&class_list, dup);
-        remove_skipped_notes(&session, &pairs)?;
+        // The plan is fixed before these writes. They do not classify again.
+        remove_skipped_notes(&session, &classified)?;
         remove_empty_decks(&session)?;
         // The staged package only contains decks that are still here. This one
         // judgment is the preset branch, the export flag, and `first_import`.
@@ -134,6 +189,9 @@ fn prepare_with_id(
             staged_sha256,
             first_import,
             cardless_notes,
+            added: intents.added,
+            updated: intents.updated,
+            skipped: intents.skipped,
         })
     }?;
     Ok(cardless_notes)
@@ -355,10 +413,16 @@ fn delete_filtered_decks(session: &ESession) -> Result<(), ImportError> {
     Ok(())
 }
 
+struct ClassifiedNote {
+    id: i64,
+    guid: String,
+    class: Class,
+}
+
 fn classify_notes(
     session: &ESession,
     lookup: &mut dyn ResidentLookup,
-) -> Result<Vec<(i64, Class)>, ImportError> {
+) -> Result<Vec<ClassifiedNote>, ImportError> {
     let rows = session.db_json(&serde_json::json!({
         "kind": "query",
         "sql": "SELECT id, guid, mid, \"mod\", flds, tags FROM notes ORDER BY id",
@@ -386,16 +450,20 @@ fn classify_notes(
         let guid = &guids[index];
         let file = facts_from_stored_note(guid, notetype_id, mod_secs, &flds, &tags);
         let class = classify(&file, resident.get(guid));
-        classes.push((id, class));
+        classes.push(ClassifiedNote {
+            id,
+            guid: guid.clone(),
+            class,
+        });
     }
     Ok(classes)
 }
 
-fn remove_skipped_notes(session: &ESession, classes: &[(i64, Class)]) -> Result<(), ImportError> {
+fn remove_skipped_notes(session: &ESession, classes: &[ClassifiedNote]) -> Result<(), ImportError> {
     let ids: Vec<i64> = classes
         .iter()
-        .filter(|(_, class)| matches!(class, Class::Same | Class::LocalNewer | Class::Blocked))
-        .map(|(id, _)| *id)
+        .filter(|note| matches!(note.class, Class::Same | Class::LocalNewer | Class::Blocked))
+        .map(|note| note.id)
         .collect();
     if ids.is_empty() {
         return Ok(());
@@ -573,8 +641,8 @@ fn cell_string(value: &serde_json::Value, label: &str) -> Result<String, ImportE
 #[cfg(test)]
 mod chunk_tests {
     use super::{
-        guid_update_chunks, guid_update_wire_len, GUID_UPDATE_ENVELOPE, GUID_UPDATE_LIMIT,
-        GUID_UPDATE_OUTER_BYTES, GUID_UPDATE_SQL,
+        guid_update_chunks, guid_update_wire_len, partition_intents, Class, GUID_UPDATE_ENVELOPE,
+        GUID_UPDATE_LIMIT, GUID_UPDATE_OUTER_BYTES, GUID_UPDATE_SQL,
     };
 
     fn serialized_len(args: &[Vec<serde_json::Value>]) -> usize {
@@ -601,6 +669,31 @@ mod chunk_tests {
             rows += chunk.len();
         }
         assert_eq!(rows, args.len());
+    }
+
+    #[test]
+    fn intents_follow_the_class_buckets_in_input_order() {
+        let notes = [
+            ("n", Class::New),
+            ("s", Class::Same),
+            ("c", Class::Changed),
+            ("l", Class::LocalNewer),
+            ("b", Class::Blocked),
+            ("n2", Class::New),
+        ];
+        let intents = partition_intents(&notes);
+        assert_eq!(intent_guids(&intents.added), ["n", "n2"]);
+        assert_eq!(intent_guids(&intents.updated), ["c"]);
+        assert_eq!(intent_guids(&intents.skipped), ["s", "l", "b"]);
+        assert_eq!(intents.added[0].class, Class::New);
+        assert_eq!(intents.updated[0].class, Class::Changed);
+        assert_eq!(intents.skipped[0].class, Class::Same);
+        assert_eq!(intents.skipped[1].class, Class::LocalNewer);
+        assert_eq!(intents.skipped[2].class, Class::Blocked);
+    }
+
+    fn intent_guids(rows: &[crate::NoteIntent]) -> Vec<&str> {
+        rows.iter().map(|row| row.guid.as_str()).collect()
     }
 
     #[test]

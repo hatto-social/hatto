@@ -25,7 +25,8 @@ pub use paths::{
     is_import_batch_id, raw_apkg_path, staged_apkg_path,
 };
 pub use pipeline::{
-    facts_from_stored_note, prepare_import, ImportLimits, PreparedImport, ResidentLookup,
+    facts_from_stored_note, partition_intents, prepare_import, ImportIntents, ImportLimits,
+    NoteIntent, PreparedImport, ResidentLookup,
 };
 
 #[cfg(test)]

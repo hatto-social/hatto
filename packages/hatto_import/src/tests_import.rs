@@ -35,6 +35,35 @@ fn note_mod(col: &TestCol, guid: &str) -> (i64, i64, String) {
     (row.mod_secs, row.usn, row.flds)
 }
 
+fn assert_intent_counts(prepared: &crate::PreparedImport) {
+    assert_eq!(prepared.added.len() as u32, prepared.plan.new, "added");
+    assert_eq!(
+        prepared.updated.len() as u32,
+        prepared.plan.changed,
+        "updated"
+    );
+    let skipped = prepared
+        .plan
+        .same
+        .saturating_add(prepared.plan.local_newer)
+        .saturating_add(prepared.plan.blocked);
+    assert_eq!(prepared.skipped.len() as u32, skipped, "skipped");
+    assert!(prepared
+        .added
+        .iter()
+        .all(|row| row.class == crate::Class::New));
+    assert!(prepared
+        .updated
+        .iter()
+        .all(|row| row.class == crate::Class::Changed));
+    assert!(prepared.skipped.iter().all(|row| {
+        matches!(
+            row.class,
+            crate::Class::Same | crate::Class::LocalNewer | crate::Class::Blocked
+        )
+    }));
+}
+
 fn assert_no_empty_named_decks(col: &TestCol) {
     let rows = col
         .sql(
@@ -63,6 +92,9 @@ fn t1_same_file_does_not_call_the_resident_again() {
     let first = commit_import(&data, &file, &mut resident).unwrap();
     assert_eq!(first.plan.new, 1);
     assert!(!first.plan.no_resident_call);
+    assert_intent_counts(&first);
+    assert_eq!(first.added[0].guid, g(1));
+    assert_eq!(first.added[0].class, crate::Class::New);
     let (mod_secs, usn, _) = note_mod(&resident, &g(1));
     assert_eq!(mod_secs, MOD);
     assert_eq!(usn, -1);
@@ -72,6 +104,9 @@ fn t1_same_file_does_not_call_the_resident_again() {
     assert!(second.plan.no_resident_call, "{:?}", second.plan);
     assert_eq!(second.plan.same, 1);
     assert_eq!(second.plan.local_newer, 0);
+    assert_intent_counts(&second);
+    assert_eq!(second.skipped[0].guid, g(1));
+    assert_eq!(second.skipped[0].class, crate::Class::Same);
     assert_eq!(resident.import_count(), calls);
     assert_eq!(resident.snapshot().unwrap(), before);
 }
@@ -163,6 +198,19 @@ fn t3_t4_mixed_plan_keeps_missing_notes_cards_and_revlog() {
     assert_eq!(second.plan.local_newer, 1, "{:?}", second.plan);
     assert_eq!(second.plan.blocked, 0);
     assert!(!second.plan.no_resident_call);
+    assert_intent_counts(&second);
+    assert_eq!(second.added[0].guid, g(5));
+    assert_eq!(second.updated[0].guid, g(2));
+    let mut skipped: Vec<(String, crate::Class)> = second
+        .skipped
+        .iter()
+        .map(|row| (row.guid.clone(), row.class))
+        .collect();
+    skipped.sort_by(|left, right| left.0.cmp(&right.0));
+    assert_eq!(
+        skipped,
+        vec![(g(1), crate::Class::Same), (g(3), crate::Class::LocalNewer),]
+    );
     assert_eq!(resident.card_rows(same_id).unwrap(), cards_before);
     assert_eq!(resident.revlog_for_card(card_id).unwrap(), revlog_before);
     assert_eq!(

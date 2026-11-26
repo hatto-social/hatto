@@ -294,7 +294,7 @@ fn to_contract_class(class: Class) -> hatto_card_contract::Class {
     }
 }
 
-fn from_contract_class(class: hatto_card_contract::Class) -> Class {
+pub(crate) fn from_contract_class(class: hatto_card_contract::Class) -> Class {
     match class {
         hatto_card_contract::Class::New => Class::New,
         hatto_card_contract::Class::Same => Class::Same,
@@ -334,17 +334,145 @@ pub fn smoke_open_collection(dir: String) -> Result<String, String> {
     rslib_core::api::smoke_open_collection(dir)
 }
 
+/// Protobuf call for this crate.
+///
+/// `rslib_core`'s helper stays `pub(crate)`. This one uses the public
+/// `command` path, so a desktop backend still passes the allowlist.
 pub(crate) fn call(
     backend: &AnkiBackend,
     service: &str,
     method: &str,
     message: &impl Message,
 ) -> Result<Vec<u8>, String> {
-    rslib_core::api::call(backend, service, method, message)
+    let Some(index) = service_method_index(service.to_string(), method.to_string()) else {
+        return Err(format!("no index for {service}.{method}"));
+    };
+    let response = command(
+        backend,
+        index.service,
+        index.method,
+        message.encode_to_vec(),
+    );
+    if response.success {
+        Ok(response.payload)
+    } else {
+        Err(decode_backend_error(&response.payload))
+    }
 }
 
-#[cfg(test)]
-pub(crate) use rslib_core::api::decode_backend_error;
+pub(crate) fn decode_backend_error(bytes: &[u8]) -> String {
+    match anki_proto::backend::BackendError::decode(bytes) {
+        Ok(err) => format!("{} (kind={})", err.message, err.kind),
+        Err(_) => format!("undecodable backend error ({} bytes)", bytes.len()),
+    }
+}
+
+/// One note in [`PreparedImport`]'s added, updated, or skipped list.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct NoteIntent {
+    pub guid: String,
+    pub class: Class,
+}
+
+/// Staged import. The lists are the plan the UI shows before finish.
+///
+/// `New` is `added`, `Changed` is `updated`, and `Same`, `LocalNewer`, and
+/// `Blocked` are `skipped`. On a no-op the staged file is already deleted.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PreparedImport {
+    pub import_batch_id: String,
+    pub plan: Plan,
+    pub staged_path: String,
+    pub staged_sha256: String,
+    pub first_import: bool,
+    pub cardless_notes: u32,
+    pub added: Vec<NoteIntent>,
+    pub updated: Vec<NoteIntent>,
+    pub skipped: Vec<NoteIntent>,
+}
+
+/// A deck name that already exists in the resident collection.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ResidentDeck {
+    pub name: String,
+    pub id: i64,
+}
+
+/// Notes and decks [`resident_lookup`] found. Missing names are absent.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ResidentObjects {
+    pub notes: Vec<NoteFacts>,
+    pub decks: Vec<ResidentDeck>,
+}
+
+/// Whether [`import_stage_finish`] called the resident importer.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ImportFinish {
+    pub resident_called: bool,
+}
+
+/// Copy `source_path` into E, normalize it, and return the plan.
+///
+/// `resident` must already be open. This function only reads it. It does not
+/// import into the resident collection. `max_bytes` is the caller's ceiling
+/// for the package (the product cap is not chosen here).
+pub fn import_stage_e(
+    data_dir: String,
+    source_path: String,
+    max_bytes: u64,
+    resident: &AnkiBackend,
+) -> Result<PreparedImport, String> {
+    #[cfg(frb_expand)]
+    {
+        let _ = (data_dir, source_path, max_bytes, resident);
+        return Err(String::new());
+    }
+    #[cfg(not(frb_expand))]
+    {
+        crate::import_stage::import_stage_e(data_dir, source_path, max_bytes, resident)
+    }
+}
+
+/// Read which incoming notes and decks already exist in `resident`.
+///
+/// This does not write. Notes follow `guids` and decks follow `deck_names`.
+/// A repeated name is returned once. A guid with two resident notes is an error.
+pub fn resident_lookup(
+    resident: &AnkiBackend,
+    guids: Vec<String>,
+    deck_names: Vec<String>,
+) -> Result<ResidentObjects, String> {
+    #[cfg(frb_expand)]
+    {
+        let _ = (resident, guids, deck_names);
+        return Err(String::new());
+    }
+    #[cfg(not(frb_expand))]
+    {
+        crate::import_stage::resident_lookup(resident, guids, deck_names)
+    }
+}
+
+/// Apply `prepared` to the open resident collection.
+///
+/// The request is the resident row: notetypes are not merged, notes update
+/// only `IF_NEWER`, notetype updates are `NEVER`, scheduling is on, and deck
+/// configs follow `first_import`. A no-op plan does not call rslib. This
+/// function does not adopt rows into the side database.
+pub fn import_stage_finish(
+    resident: &AnkiBackend,
+    prepared: PreparedImport,
+) -> Result<ImportFinish, String> {
+    #[cfg(frb_expand)]
+    {
+        let _ = (resident, prepared);
+        return Err(String::new());
+    }
+    #[cfg(not(frb_expand))]
+    {
+        crate::import_stage::import_stage_finish(resident, prepared)
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -353,6 +481,7 @@ mod tests {
 
     #[test]
     fn opens_collection_through_protobuf_channel() {
+        let _runtime = crate::lock_bridge_runtime();
         // The smoke helper points TMPDIR at the collection. Later tests must
         // not create their directories through that process-global temp dir.
         let dir = tempfile::TempDir::new_in("/tmp").unwrap();
@@ -379,6 +508,7 @@ mod tests {
 
     #[test]
     fn second_backend_cannot_open_the_same_collection() {
+        let _runtime = crate::lock_bridge_runtime();
         let dir = tempfile::TempDir::new_in("/tmp").unwrap();
         let root = dir.path();
         std::fs::create_dir_all(root.join("collection.media")).unwrap();

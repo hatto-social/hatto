@@ -65,27 +65,9 @@ fn source_has_no_temp_hook_and_limits_package_import() {
     );
 }
 
-fn walk(dir: &Path, out: &mut Vec<std::path::PathBuf>) {
-    for entry in fs::read_dir(dir).unwrap() {
-        let path = entry.unwrap().path();
-        if path.is_dir() {
-            walk(&path, out);
-        } else if path.extension().and_then(|ext| ext.to_str()) == Some("rs") {
-            out.push(path);
-        }
-    }
-}
-
-/// `\bopen_backend\s*\(` once, only in the body of
-/// `#[cfg(test)] fn open_test_collection` in `channel.rs`.
-#[test]
-fn open_backend_call_is_only_inside_the_cfg_test_opener() {
-    let needle = concat!("open_", "backend");
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-    let mut files = Vec::new();
-    walk(&root, &mut files);
+fn call_sites(files: &[std::path::PathBuf], needle: &str) -> Vec<String> {
     let mut hits = Vec::new();
-    for path in &files {
+    for path in files {
         let text = fs::read_to_string(path).unwrap();
         let name = path.file_name().and_then(|name| name.to_str()).unwrap();
         let mut seen = 0;
@@ -100,6 +82,47 @@ fn open_backend_call_is_only_inside_the_cfg_test_opener() {
             seen = at + needle.len();
         }
     }
+    hits
+}
+
+fn walk(dir: &Path, out: &mut Vec<std::path::PathBuf>) {
+    for entry in fs::read_dir(dir).unwrap() {
+        let path = entry.unwrap().path();
+        if path.is_dir() {
+            walk(&path, out);
+        } else if path.extension().and_then(|ext| ext.to_str()) == Some("rs") {
+            out.push(path);
+        }
+    }
+}
+
+/// `\bopen_backend\s*\(` once, only in the body of
+/// `#[cfg(test)] fn open_test_collection` in `channel.rs`.
+/// Calls to open a backend with a profile, and the collection smoke helper,
+/// do not appear.
+#[test]
+fn open_backend_call_is_only_inside_the_cfg_test_opener() {
+    let needle = concat!("open_", "backend");
+    let with_profile = concat!("open_", "backend_with_profile");
+    let smoke = concat!("smoke_", "open_collection");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut files = Vec::new();
+    walk(&root, &mut files);
+    let hits = call_sites(&files, needle);
+    let profile_hits = call_sites(&files, with_profile);
+    let smoke_hits = call_sites(&files, smoke);
+    assert!(
+        profile_hits.is_empty(),
+        "{}( must not appear, found {}",
+        with_profile,
+        profile_hits.join(", ")
+    );
+    assert!(
+        smoke_hits.is_empty(),
+        "{}( must not appear, found {}",
+        smoke,
+        smoke_hits.join(", ")
+    );
     let channel = fs::read_to_string(root.join("channel.rs")).unwrap();
     let rows: Vec<&str> = channel.lines().collect();
     let start = rows
