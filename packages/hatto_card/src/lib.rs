@@ -337,57 +337,19 @@ fn note_outs(notes: &[DerivedNote]) -> Vec<NoteOut> {
         .collect()
 }
 
-/// Opens the temporary collection `export` builds into and resolves the
-/// deck's notetype. A `notetype_legacy.id` other than 0 is rejected before
-/// that collection exists: rslib's `add_notetype` asserts the id is 0 and
-/// the failure otherwise surfaces as `rslib panicked`.
+/// Opens the temporary collection `export` builds into, loads the seed, and
+/// resolves the deck's notetype name to a seed id. A deck that sets
+/// `notetype_legacy` never reaches this: [parse_deck] rejects it first.
 fn open_for_notetype(deck: &DeckFile) -> Result<(tempfile::TempDir, Session, i64), ToolFailure> {
-    reject_nonzero_legacy_id(deck)?;
     let tmp = tempfile::TempDir::new().map_err(|err| ToolFailure::message(err.to_string()))?;
     let session = Session::open(tmp.path()).map_err(ToolFailure::message)?;
-    if deck.notetype_legacy.is_none() {
-        session
-            .load_seed(seed::SEED)
-            .map_err(ToolFailure::message)?;
-    }
-    let notetype = resolve_notetype(&session, deck)?;
-    Ok((tmp, session, notetype))
-}
-
-/// `id` may be a JSON number or a decimal string. Only 0 may be passed to
-/// `add_notetype_legacy`. A missing `id` is left for rslib's own decode.
-fn reject_nonzero_legacy_id(deck: &DeckFile) -> Result<(), ToolFailure> {
-    let Some(model) = deck.notetype_legacy.as_ref() else {
-        return Ok(());
-    };
-    let Some(id) = model.get("id") else {
-        return Ok(());
-    };
-    if legacy_id_is_zero(id) {
-        return Ok(());
-    }
-    Err(ToolFailure::message(format!(
-        "notetype_legacy.id is {id}; add_notetype_legacy requires 0"
-    )))
-}
-
-fn legacy_id_is_zero(id: &Value) -> bool {
-    match id {
-        Value::Number(number) => number.as_i64() == Some(0),
-        Value::String(text) => text.parse::<i64>().ok() == Some(0),
-        _ => false,
-    }
-}
-
-fn resolve_notetype(session: &Session, deck: &DeckFile) -> Result<i64, ToolFailure> {
-    if let Some(model) = &deck.notetype_legacy {
-        return session
-            .add_notetype_legacy(model)
-            .map_err(ToolFailure::message);
-    }
     session
+        .load_seed(seed::SEED)
+        .map_err(ToolFailure::message)?;
+    let notetype = session
         .notetype_id(seed::canonical_notetype(deck.notetype_name()))
-        .map_err(ToolFailure::message)
+        .map_err(ToolFailure::message)?;
+    Ok((tmp, session, notetype))
 }
 
 fn media_root(deck_path: &Path, deck: &DeckFile) -> Option<PathBuf> {
@@ -650,7 +612,6 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let mut value = bare_skeleton();
         value.as_object_mut().unwrap().remove("notetype");
-        value["notetype_legacy"] = json!({"id": 1, "name": "Basic"});
         value["extra"] = json!("keep");
         let path = write_deck(root.path(), &value);
         let before = fs::read(&path).unwrap();
@@ -662,7 +623,7 @@ mod tests {
         assert_eq!(added["path"], out.to_str().unwrap());
         let copy = read_deck(&out);
         assert!(copy.get("notetype").is_none());
-        assert_eq!(copy["notetype_legacy"]["id"], 1);
+        assert!(copy.get("notetype_legacy").is_none());
         assert_eq!(copy["extra"], "keep");
         let note = &copy["notes"][3];
         assert_eq!(note["tags"], json!(["one", "two"]));
@@ -691,60 +652,36 @@ mod tests {
     }
 
     #[test]
-    fn legacy_id_zero_is_an_integer_zero_only() {
-        assert!(legacy_id_is_zero(&json!(0)));
-        assert!(legacy_id_is_zero(&json!("0")));
-        assert!(!legacy_id_is_zero(&json!(1)));
-        assert!(!legacy_id_is_zero(&json!("1")));
-        assert!(!legacy_id_is_zero(&json!(-1)));
-        assert!(!legacy_id_is_zero(&json!(null)));
-        assert!(!legacy_id_is_zero(&json!(true)));
-        assert!(!legacy_id_is_zero(&json!(1.5)));
-    }
-
-    #[test]
-    fn nonzero_legacy_id_is_rejected_before_a_collection_exists() {
+    fn notetype_legacy_is_rejected_by_validate_export_and_add_note() {
         let root = tempfile::tempdir().unwrap();
-        let mut deck = bare_skeleton();
-        deck.as_object_mut().unwrap().remove("notetype");
-        deck["notetype_legacy"] = json!({"id": 1, "name": "Basic"});
-        let path = write_deck(root.path(), &deck);
-        let message = "notetype_legacy.id is 1; add_notetype_legacy requires 0";
-        let err = validate_path(&path).unwrap_err();
-        assert_eq!(err.message.as_deref(), Some(message));
-        assert!(err.errors.is_empty());
-        let err = export_path(&path, &root.path().join("out.apkg")).unwrap_err();
-        assert_eq!(err.message.as_deref(), Some(message));
-        assert!(!root.path().join("out.apkg").exists());
-
-        deck["notetype_legacy"] = json!({"id": "1", "name": "Basic"});
-        let path = write_deck(root.path(), &deck);
-        let err = validate_path(&path).unwrap_err();
-        assert_eq!(
-            err.message.as_deref(),
-            Some("notetype_legacy.id is \"1\"; add_notetype_legacy requires 0")
-        );
-    }
-
-    #[test]
-    fn legacy_id_zero_is_not_the_nonzero_id_error() {
-        let root = tempfile::tempdir().unwrap();
-        let mut deck = bare_skeleton();
-        deck.as_object_mut().unwrap().remove("notetype");
-        deck["notetype_legacy"] = json!({"id": 0, "name": "Basic"});
-        let path = write_deck(root.path(), &deck);
-        let err = validate_path(&path).unwrap_err();
-        let message = err.message.unwrap_or_default();
-        assert!(
-            !message.contains("requires 0"),
-            "id 0 must reach rslib, got {message}"
-        );
-        assert!(!message.contains("panic"), "{message}");
-        let err = export_path(&path, &root.path().join("out.apkg")).unwrap_err();
-        let message = err.message.unwrap_or_default();
-        assert!(!message.contains("requires 0"), "{message}");
-        assert!(!message.contains("panic"), "{message}");
-        assert!(!root.path().join("out.apkg").exists());
+        let cases = [
+            json!(null),
+            json!({"id": 0, "name": "Basic"}),
+            json!({"id": 1, "name": "Basic"}),
+            json!({"name": "Basic"}),
+        ];
+        for legacy in cases {
+            let mut deck = bare_skeleton();
+            deck.as_object_mut().unwrap().remove("notetype");
+            deck["notetype_legacy"] = legacy;
+            let path = write_deck(root.path(), &deck);
+            let before = fs::read(&path).unwrap();
+            let apkg = root.path().join("out.apkg");
+            let failures = [
+                validate_path(&path).unwrap_err(),
+                export_path(&path, &apkg).unwrap_err(),
+                add_note_path(&path, None, &local(None, None)).unwrap_err(),
+            ];
+            for err in &failures {
+                assert!(err.message.is_none(), "{err:?}");
+                assert_eq!(err.errors.len(), 1, "{err:?}");
+                assert_eq!(err.errors[0].code, "NOTETYPE_LEGACY");
+                assert_eq!(err.errors[0].location, "notetype_legacy");
+                assert_eq!(err.errors[0].message, "notetype_legacy is not supported");
+            }
+            assert_eq!(fs::read(&path).unwrap(), before);
+            assert!(!apkg.exists());
+        }
     }
 
     #[test]
