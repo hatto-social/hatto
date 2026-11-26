@@ -4,7 +4,6 @@
 
 import 'dart:io';
 
-import 'package:cross_file/cross_file.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
@@ -61,23 +60,22 @@ class ApkgDrop {
   final Stream<List<int>> Function()? openRead;
 }
 
-ApkgDrop apkgDropFromItem(DropItem item) {
-  switch (item) {
-    case DropFileItem(:final name, :final localPath, :final file):
-      return ApkgDrop.file(
-        name: name,
-        localPath: localPath,
-        openRead: () async* {
-          await for (final chunk in file.openRead()) {
-            yield chunk;
-          }
-        },
-      );
-    case DropDirectoryItem(:final name, :final localPath):
-      return ApkgDrop.directory(name: name, localPath: localPath);
-    case DropStringItem():
-      return const ApkgDrop.unsupported();
+/// `desktop_drop` 0.8.4 hands back a [DropItem], which is an [XFile].
+///
+/// Linux reports a directory as [DropItemFile] whose path is the folder.
+/// macOS uses [DropItemDirectory]. On dart:io, [XFile.name] is the path's
+/// last segment, and a missing path is streamed from [XFile.openRead].
+ApkgDrop apkgDropFromItem(XFile item) {
+  final path = item.path;
+  final localPath = path.isEmpty ? null : path;
+  if (item is DropItemDirectory) {
+    return ApkgDrop.directory(name: item.name, localPath: localPath);
   }
+  return ApkgDrop.file(
+    name: item.name,
+    localPath: localPath,
+    openRead: () => item.openRead(),
+  );
 }
 
 /// Native file dialog. Returns null when the user cancels or the selection
@@ -88,14 +86,10 @@ Future<String?> pickApkgPath() async {
       XTypeGroup(label: 'Anki 덱', extensions: ['apkg', 'APKG', 'Apkg']),
     ],
   );
-  if (picked is FileSystemXFile) {
-    final path = picked.path;
-    if (path.isEmpty) {
-      return null;
-    }
-    return path;
+  if (picked == null || picked.path.isEmpty) {
+    return null;
   }
-  return null;
+  return picked.path;
 }
 
 /// One desktop import session. [startupError] is the gateway's startup

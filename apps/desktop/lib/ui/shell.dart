@@ -249,12 +249,13 @@ class _MainShellState extends State<MainShell> {
     );
     if (imports == null) return shell;
     return DropTarget(
-      enabled: !imports.running,
-      acceptedKinds: const {DropItemKind.file, DropItemKind.directory},
-      onDrop: (details) {
-        return imports.importDropped(_ui, [
-          for (final item in details.items) apkgDropFromItem(item),
-        ]);
+      enable: !imports.running,
+      onDragDone: (details) {
+        unawaited(
+          imports.importDropped(_ui, [
+            for (final item in details.files) apkgDropFromItem(item),
+          ]),
+        );
       },
       child: shell,
     );

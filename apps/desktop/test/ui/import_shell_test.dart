@@ -5,11 +5,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:cross_file_io/cross_file_io.dart';
 import 'package:desktop_drop/desktop_drop.dart';
-// The test transport lives under src/. The public library does not export it.
-// ignore: implementation_imports
-import 'package:desktop_drop/src/native_transport.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -25,36 +21,12 @@ import 'package:path/path.dart' as p;
 
 void main() {
   late Directory root;
-  void Function(FlutterErrorDetails details)? previous;
-
-  setUpAll(CrossFileIO.registerWith);
 
   setUp(() {
     root = Directory.systemTemp.createTempSync('hatto-i5-shell');
-    final transport = NativeTransport.testing()
-      ..invokeHandler = (call) async {
-        if (call.method == 'initialize') {
-          final args = (call.arguments as Map).cast<Object?, Object?>();
-          return {'view': args['view'], 'generation': 1};
-        }
-        return null;
-      };
-    NativeTransport.debugOverride = transport;
-    previous = FlutterError.onError;
-    FlutterError.onError = (details) {
-      final text = details.exceptionAsString();
-      if (details.library == 'desktop_drop' &&
-          (text.contains('libdesktop_drop') ||
-              text.contains('DynamicLibrary') ||
-              text.contains('Failed to load'))) {
-        return;
-      }
-      previous?.call(details);
-    };
   });
 
   tearDown(() {
-    FlutterError.onError = previous;
     if (root.existsSync()) {
       root.deleteSync(recursive: true);
     }
@@ -158,7 +130,7 @@ void main() {
     expect(order, ['flush', 'import']);
     expect(find.text(kStageComparing), findsOneWidget);
     expect(session.running, isTrue);
-    expect(tester.widget<DropTarget>(find.byType(DropTarget)).enabled, isFalse);
+    expect(tester.widget<DropTarget>(find.byType(DropTarget)).enable, isFalse);
     expect(
       tester
           .widget<PillButton>(find.byKey(const ValueKey('import-file')))
@@ -238,12 +210,11 @@ void main() {
       final drop = tester.widget<DropTarget>(find.byType(DropTarget));
       final a = writeApkg('a.apkg');
       final b = writeApkg('b.apkg');
-      await drop.onDrop(
-        DropDetails(
-          items: [DropFileItem.fromPath(a.path), DropFileItem.fromPath(b.path)],
+      drop.onDragDone!(
+        DropDoneDetails(
+          files: [DropItemFile(a.path), DropItemFile(b.path)],
           localPosition: Offset.zero,
           globalPosition: Offset.zero,
-          operation: DropOperation.copy,
         ),
       );
       await tester.pump();
@@ -251,39 +222,48 @@ void main() {
       expect(find.text(kOneFileOnly), findsOneWidget);
 
       final folder = Directory(p.join(root.path, 'folder'))..createSync();
-      await drop.onDrop(
-        DropDetails(
-          items: [
-            DropDirectoryItem(
-              directory: XDirectory.fileSystem(path: folder.path),
-              name: 'folder',
-              localPath: folder.path,
-            ),
-          ],
+      drop.onDragDone!(
+        DropDoneDetails(
+          files: [DropItemDirectory(folder.path, const [])],
           localPosition: Offset.zero,
           globalPosition: Offset.zero,
-          operation: DropOperation.copy,
         ),
       );
       await tester.pump();
       expect(calls, 0);
       expect(find.text(kFormatFailure), findsOneWidget);
 
+      // Linux reports a directory as DropItemFile whose path is the folder.
+      drop.onDragDone!(
+        DropDoneDetails(
+          files: [DropItemFile(folder.path)],
+          localPosition: Offset.zero,
+          globalPosition: Offset.zero,
+        ),
+      );
+      await tester.pump();
+      expect(calls, 0);
+      expect(find.text(kFormatFailure), findsOneWidget);
+
+      // dart:io XFile.name is the path's last segment, and `name:` is ignored.
+      // A path that is not a local file falls through to openRead.
       final streamed = writeApkg('stream.apkg');
       await tester.runAsync(() async {
-        await drop.onDrop(
-          DropDetails(
-            items: [
-              DropFileItem(
-                file: XFile.fileSystem(path: streamed.path),
-                name: 'stream.apkg',
+        drop.onDragDone!(
+          DropDoneDetails(
+            files: [
+              DropItemFile.fromData(
+                streamed.readAsBytesSync(),
+                path: 'virtual/stream.apkg',
               ),
             ],
             localPosition: Offset.zero,
             globalPosition: Offset.zero,
-            operation: DropOperation.copy,
           ),
         );
+        for (var i = 0; i < 50 && calls == 0; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        }
       });
       await tester.pump();
       expect(calls, 1);
