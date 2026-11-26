@@ -1161,8 +1161,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   PreparedImport dco_decode_prepared_import(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 10)
-      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
+    if (arr.length != 9)
+      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
     return PreparedImport(
       importBatchId: dco_decode_String(arr[0]),
       plan: dco_decode_plan(arr[1]),
@@ -1173,7 +1173,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       newGuids: dco_decode_list_String(arr[6]),
       changed: dco_decode_list_changed_note(arr[7]),
       deckNames: dco_decode_list_String(arr[8]),
-      preNoteCount: dco_decode_u_32(arr[9]),
     );
   }
 
@@ -1610,7 +1609,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_newGuids = sse_decode_list_String(deserializer);
     var var_changed = sse_decode_list_changed_note(deserializer);
     var var_deckNames = sse_decode_list_String(deserializer);
-    var var_preNoteCount = sse_decode_u_32(deserializer);
     return PreparedImport(
       importBatchId: var_importBatchId,
       plan: var_plan,
@@ -1621,7 +1619,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       newGuids: var_newGuids,
       changed: var_changed,
       deckNames: var_deckNames,
-      preNoteCount: var_preNoteCount,
     );
   }
 
@@ -2030,7 +2027,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_list_String(self.newGuids, serializer);
     sse_encode_list_changed_note(self.changed, serializer);
     sse_encode_list_String(self.deckNames, serializer);
-    sse_encode_u_32(self.preNoteCount, serializer);
   }
 
   @protected

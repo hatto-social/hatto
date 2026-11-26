@@ -135,10 +135,8 @@ pub struct StageOutput {
 ///
 /// `new_guids` and `changed` are the intent expected lists. `changed` maps a
 /// guid to the file content hash. `deck_names` is the exported package's
-/// normal decks. `pre_note_count` is how many notes are still in E when that
-/// package is written (`new` + `changed`). On a no-op the file is deleted
-/// before return. `staged_sha256` is still the digest of the bytes that were
-/// written.
+/// normal decks. On a no-op the file is deleted before return.
+/// `staged_sha256` is still the digest of the bytes that were written.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PreparedImport {
     pub import_batch_id: Uuid,
@@ -150,7 +148,6 @@ pub struct PreparedImport {
     pub new_guids: Vec<String>,
     pub changed: BTreeMap<String, Vec<u8>>,
     pub deck_names: Vec<String>,
-    pub pre_note_count: u32,
 }
 
 /// Run §7.1 steps 1–7 for `source` under `data_dir`.
@@ -257,7 +254,7 @@ fn finish_session(
     lookup: &mut dyn ResidentLookup,
 ) -> Result<PreparedImport, ImportError> {
     let classified = classify_notes(session, lookup)?;
-    let (new_guids, changed, pre_note_count) = intent_fields(&classified);
+    let (new_guids, changed) = intent_fields(&classified);
     let class_list: Vec<Class> = classified.iter().map(|note| note.class).collect();
     let plan = summarize_plan(&class_list, dup);
     // The plan is fixed before these writes. They do not classify again.
@@ -286,11 +283,10 @@ fn finish_session(
         new_guids,
         changed,
         deck_names: names,
-        pre_note_count,
     })
 }
 
-fn intent_fields(notes: &[ClassifiedNote]) -> (Vec<String>, BTreeMap<String, Vec<u8>>, u32) {
+fn intent_fields(notes: &[ClassifiedNote]) -> (Vec<String>, BTreeMap<String, Vec<u8>>) {
     let mut new_guids = Vec::new();
     let mut changed = BTreeMap::new();
     for note in notes {
@@ -302,9 +298,7 @@ fn intent_fields(notes: &[ClassifiedNote]) -> (Vec<String>, BTreeMap<String, Vec
             Class::Same | Class::LocalNewer | Class::Blocked => {}
         }
     }
-    let pre_note_count =
-        u32::try_from(new_guids.len() + changed.len()).expect("prepared note count fits in u32");
-    (new_guids, changed, pre_note_count)
+    (new_guids, changed)
 }
 
 struct BatchGuard {
@@ -804,11 +798,10 @@ mod chunk_tests {
             classified("b", Class::Blocked, [4u8; 32]),
             classified("n2", Class::New, [5u8; 32]),
         ];
-        let (new_guids, changed, pre_note_count) = intent_fields(&notes);
+        let (new_guids, changed) = intent_fields(&notes);
         assert_eq!(new_guids, ["n", "n2"]);
         assert_eq!(changed.len(), 1);
         assert_eq!(changed.get("c").map(Vec::as_slice), Some(hash.as_slice()));
-        assert_eq!(pre_note_count, 3);
     }
 
     fn classified(guid: &str, class: Class, content_hash: [u8; 32]) -> ClassifiedNote {

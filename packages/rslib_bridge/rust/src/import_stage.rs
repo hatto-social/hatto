@@ -152,7 +152,6 @@ fn bridge_prepared(prepared: hatto_import::PreparedImport) -> Result<PreparedImp
             .map(|(guid, content_hash)| crate::api::ChangedNote { guid, content_hash })
             .collect(),
         deck_names: prepared.deck_names,
-        pre_note_count: prepared.pre_note_count,
     })
 }
 
@@ -510,7 +509,6 @@ mod tests {
         .unwrap();
         assert_eq!(first.new_guids, vec![GUID_1.to_string()]);
         assert!(first.changed.is_empty());
-        assert_eq!(first.pre_note_count, 1);
         assert!(first.first_import);
         assert!(!first.plan.no_resident_call);
         assert!(Path::new(&first.staged_path).is_file());
@@ -529,7 +527,6 @@ mod tests {
         assert!(second.plan.no_resident_call, "{second:?}");
         assert!(second.new_guids.is_empty());
         assert!(second.changed.is_empty());
-        assert_eq!(second.pre_note_count, 0);
         assert_eq!(second.plan.same, 1);
         assert!(!Path::new(&second.staged_path).is_file());
         close(&resident);
@@ -601,7 +598,6 @@ mod tests {
             finished.changed[0].content_hash,
             hash_of(&["changed-now", "back"])
         );
-        assert_eq!(finished.pre_note_count, 2);
         let after = resident_lookup(
             &resident,
             (1..=4)

@@ -1198,7 +1198,6 @@ impl SseDecode for crate::api::PreparedImport {
         let mut var_newGuids = <Vec<String>>::sse_decode(deserializer);
         let mut var_changed = <Vec<crate::api::ChangedNote>>::sse_decode(deserializer);
         let mut var_deckNames = <Vec<String>>::sse_decode(deserializer);
-        let mut var_preNoteCount = <u32>::sse_decode(deserializer);
         return crate::api::PreparedImport {
             import_batch_id: var_importBatchId,
             plan: var_plan,
@@ -1209,7 +1208,6 @@ impl SseDecode for crate::api::PreparedImport {
             new_guids: var_newGuids,
             changed: var_changed,
             deck_names: var_deckNames,
-            pre_note_count: var_preNoteCount,
         };
     }
 }
@@ -1529,7 +1527,6 @@ impl flutter_rust_bridge::IntoDart for crate::api::PreparedImport {
             self.new_guids.into_into_dart().into_dart(),
             self.changed.into_into_dart().into_dart(),
             self.deck_names.into_into_dart().into_dart(),
-            self.pre_note_count.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -1867,7 +1864,6 @@ impl SseEncode for crate::api::PreparedImport {
         <Vec<String>>::sse_encode(self.new_guids, serializer);
         <Vec<crate::api::ChangedNote>>::sse_encode(self.changed, serializer);
         <Vec<String>>::sse_encode(self.deck_names, serializer);
-        <u32>::sse_encode(self.pre_note_count, serializer);
     }
 }
 

@@ -419,7 +419,7 @@ class Plan {
 /// Plan for one import. The resident collection is not written here.
 ///
 /// `new_guids` and `changed` are the intent expected lists. `deck_names` is
-/// the exported package's normal decks. `pre_note_count` is `new` + `changed`.
+/// the exported package's normal decks.
 class PreparedImport {
   final String importBatchId;
   final Plan plan;
@@ -430,7 +430,6 @@ class PreparedImport {
   final List<String> newGuids;
   final List<ChangedNote> changed;
   final List<String> deckNames;
-  final int preNoteCount;
 
   const PreparedImport({
     required this.importBatchId,
@@ -442,7 +441,6 @@ class PreparedImport {
     required this.newGuids,
     required this.changed,
     required this.deckNames,
-    required this.preNoteCount,
   });
 
   @override
@@ -455,8 +453,7 @@ class PreparedImport {
       cardlessNotes.hashCode ^
       newGuids.hashCode ^
       changed.hashCode ^
-      deckNames.hashCode ^
-      preNoteCount.hashCode;
+      deckNames.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -471,8 +468,7 @@ class PreparedImport {
           cardlessNotes == other.cardlessNotes &&
           newGuids == other.newGuids &&
           changed == other.changed &&
-          deckNames == other.deckNames &&
-          preNoteCount == other.preNoteCount;
+          deckNames == other.deckNames;
 }
 
 /// Bytes returned by `run_service_method`.

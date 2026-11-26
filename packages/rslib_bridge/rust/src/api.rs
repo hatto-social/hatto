@@ -429,7 +429,7 @@ pub struct ChangedNote {
 /// Plan for one import. The resident collection is not written here.
 ///
 /// `new_guids` and `changed` are the intent expected lists. `deck_names` is
-/// the exported package's normal decks. `pre_note_count` is `new` + `changed`.
+/// the exported package's normal decks.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PreparedImport {
     pub import_batch_id: String,
@@ -441,7 +441,6 @@ pub struct PreparedImport {
     pub new_guids: Vec<String>,
     pub changed: Vec<ChangedNote>,
     pub deck_names: Vec<String>,
-    pub pre_note_count: u32,
 }
 
 /// Notes [`resident_lookup`] read, and the deck names that already exist.

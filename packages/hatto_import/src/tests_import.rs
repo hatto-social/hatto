@@ -46,10 +46,6 @@ fn assert_intent_fields(prepared: &crate::PreparedImport) {
         prepared.plan.changed,
         "changed"
     );
-    assert_eq!(
-        prepared.pre_note_count,
-        prepared.plan.new + prepared.plan.changed
-    );
     assert!(!prepared.deck_names.iter().any(|name| name == "Default"));
 }
 
@@ -96,7 +92,6 @@ fn t1_same_file_does_not_call_the_resident_again() {
     assert_intent_fields(&second);
     assert!(second.new_guids.is_empty());
     assert!(second.changed.is_empty());
-    assert_eq!(second.pre_note_count, 0);
     assert_eq!(resident.import_count(), calls);
     assert_eq!(resident.snapshot().unwrap(), before);
 }
