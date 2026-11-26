@@ -202,6 +202,53 @@ void main() {
     expect(skipped.skippedNotes.single.rslibNoteId, 11);
     expect(alone.notes(), isEmpty);
   });
+
+  test(
+    'reconcileInTurn runs inside exclusive and rejects a bare call',
+    () async {
+      final db = SideDb.openInMemory();
+      addTearDown(db.close);
+      final collection = FakeCollection();
+      await expectLater(
+        reconcileInTurn(db: db, anki: collection),
+        throwsA(
+          isA<StateError>().having(
+            (err) => err.message,
+            'message',
+            contains('SideDb.exclusive'),
+          ),
+        ),
+      );
+      final result = await db.exclusive(
+        () => reconcileInTurn(db: db, anki: collection),
+      );
+      expect(result.skippedNotes, isEmpty);
+      expect(result.reservedImportNotes, isEmpty);
+      expect(result.reservedImportDecks, isEmpty);
+      expect(db.deckByRslibId(1)!.originKind, 'editor');
+    },
+  );
+
+  test(
+    'a malformed import intent is not settled and reserves nothing',
+    () async {
+      final db = SideDb.openInMemory();
+      addTearDown(db.close);
+      final collection = FakeCollection()
+        ..addNote(id: 4, guid: 'live-guid', cardId: 40);
+      db.beginIntent(op: intentImport, targetKey: 'not-a-batch', expected: '{');
+
+      final result = await reconcileCollection(db: db, anki: collection);
+
+      expect(result.reservedImportNotes, isEmpty);
+      expect(result.reservedImportDecks, isEmpty);
+      expect(db.pendingIntents().single.op, intentImport);
+      expect(db.pendingIntents().single.expected, '{');
+      expect(db.note('live-guid'), isNotNull);
+      expect(db.note('live-guid')!.homeDeckGuid, db.deckByRslibId(1)!.deckGuid);
+      expect(db.deckByRslibId(1)!.originKind, 'editor');
+    },
+  );
 }
 
 String _snapshot(SideDb db) {

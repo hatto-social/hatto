@@ -4,6 +4,7 @@
 
 import 'dart:convert';
 
+import 'import_intent.dart';
 import 'intent_ops.dart';
 import 'schema.dart';
 import 'side_db.dart';
@@ -154,9 +155,23 @@ class SkippedNote {
 
 /// Result of one [reconcileCollection] pass.
 class ReconcileResult {
-  const ReconcileResult({required this.skippedNotes});
+  const ReconcileResult({
+    required this.skippedNotes,
+    this.reservedImportNotes = const {},
+    this.reservedImportDecks = const {},
+  });
 
   final List<SkippedNote> skippedNotes;
+
+  /// Unmapped resident notes reserved by a pending import.
+  ///
+  /// Guid to rslib note id. Reconcile does not adopt these as `editor`.
+  final Map<String, int> reservedImportNotes;
+
+  /// Unmapped resident decks reserved by a pending import.
+  ///
+  /// Deck name to rslib deck id. Reconcile does not adopt these as `editor`.
+  final Map<String, int> reservedImportDecks;
 }
 
 /// Maps [rslibNoteId] to rslib's guid and a home deck.
@@ -247,6 +262,11 @@ Future<NoteMapRow> adoptNote({
 /// in the map. Known intents are then dropped. An intent whose `expected`
 /// JSON is not the v0 object is left in place.
 ///
+/// A pending `import` intent is never settled here. Its `new_guids` and
+/// `deck_names` are reserved: an unmapped resident note or deck that matches
+/// is left unmapped and reported on [ReconcileResult]. Import recovery adopts
+/// those with origin `import` instead of `editor`.
+///
 /// A second call sees the same rows. The module does not delete user data
 /// to get there.
 ///
@@ -259,18 +279,32 @@ Future<ReconcileResult> reconcileCollection({
   required SideDb db,
   required AnkiApi anki,
 }) {
-  return db.exclusive(() => _reconcile(db: db, anki: anki));
+  return db.exclusive(() => reconcileInTurn(db: db, anki: anki));
 }
 
-Future<ReconcileResult> _reconcile({
+/// One reconcile pass. The caller must already be inside [SideDb.exclusive].
+///
+/// [reconcileCollection] takes that turn. Import recovery calls this and
+/// then continues in the same turn. [SideDb.exclusive] is not reentrant, so
+/// this function does not take the queue itself. A call from outside the
+/// turn throws [StateError].
+Future<ReconcileResult> reconcileInTurn({
   required SideDb db,
   required AnkiApi anki,
 }) async {
+  db.requireExclusiveTurn('reconcileInTurn');
   final tree = await anki.deckTree();
-  final reserved = _reservedDeckGuids(db.pendingIntents());
+  final intents = db.pendingIntents();
+  final reserved = _reservedDeckGuids(intents);
+  final imports = _reservedImports(intents);
+  final reservedImportDecks = <String, int>{};
   final mappedDeckIds = {for (final row in db.decks()) row.rslibDeckId};
   for (final deck in tree) {
     if (mappedDeckIds.contains(deck.id)) {
+      continue;
+    }
+    if (imports.deckNames.contains(deck.name)) {
+      reservedImportDecks.putIfAbsent(deck.name, () => deck.id);
       continue;
     }
     await adoptDeck(
@@ -283,9 +317,15 @@ Future<ReconcileResult> _reconcile({
   }
   final liveIds = (await anki.searchNoteIds()).toSet();
   final skipped = <SkippedNote>[];
+  final reservedImportNotes = <String, int>{};
   for (final id in liveIds) {
     final row = db.noteByRslibId(id);
     if (row == null) {
+      final note = await anki.getNote(id);
+      if (imports.newGuids.contains(note.guid)) {
+        reservedImportNotes.putIfAbsent(note.guid, () => id);
+        continue;
+      }
       await _adoptOrSkip(
         skipped: skipped,
         db: db,
@@ -313,7 +353,15 @@ Future<ReconcileResult> _reconcile({
       db.abandonIntent(intent.id);
     }
   }
-  return ReconcileResult(skippedNotes: skipped);
+  return ReconcileResult(
+    skippedNotes: skipped,
+    reservedImportNotes: reservedImportNotes.isEmpty
+        ? const {}
+        : Map<String, int>.unmodifiable(reservedImportNotes),
+    reservedImportDecks: reservedImportDecks.isEmpty
+        ? const {}
+        : Map<String, int>.unmodifiable(reservedImportDecks),
+  );
 }
 
 /// Adopts [rslibNoteId]. A cardless note returned by the search is recorded
@@ -364,6 +412,27 @@ Map<String, String> _reservedDeckGuids(List<IntentRow> intents) {
   return reserved;
 }
 
+class _ImportReservation {
+  final Set<String> newGuids = {};
+  final Set<String> deckNames = {};
+}
+
+_ImportReservation _reservedImports(List<IntentRow> intents) {
+  final reserved = _ImportReservation();
+  for (final intent in intents) {
+    if (intent.op != intentImport) {
+      continue;
+    }
+    final expected = tryDecodeImportIntentExpected(intent.expected);
+    if (expected == null) {
+      continue;
+    }
+    reserved.newGuids.addAll(expected.newGuids);
+    reserved.deckNames.addAll(expected.deckNames);
+  }
+  return reserved;
+}
+
 /// True when the intent is a known v0 op that reconcile has already
 /// accounted for. Unknown ops, and `note.add` / `deck.add` rows whose
 /// `expected` is not a v0 object, stay pending.
@@ -375,6 +444,8 @@ Map<String, String> _reservedDeckGuids(List<IntentRow> intents) {
 /// A note with no cards is not in the desktop empty search, so it does not
 /// reach this check. Appendix C: when v1 import or sync enumerates with
 /// `note:*`, a skipped note must not block this function.
+///
+/// `import` stays pending. Recovery is the only path that deletes it.
 bool _intentIsSettled(
   SideDb db,
   IntentRow intent,
@@ -420,6 +491,8 @@ bool _intentIsSettled(
     case intentUndo:
     case intentRedo:
       return true;
+    case intentImport:
+      return false;
     default:
       return false;
   }

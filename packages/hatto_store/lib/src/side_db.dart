@@ -20,15 +20,23 @@ import 'uuid.dart';
 /// the ord-0 card's deck at import, or the lowest ord when there is no ord-0
 /// card. A filtered card uses its original deck. `import_batch_id` groups
 /// decks from one import. `source_sha256` names the copied apkg under
-/// `<documents>/hatto/imports/`.
+/// `<data_dir>/imports/`.
 class SideDb {
   SideDb._(this._db, this.deviceId);
 
   final Database _db;
   final String deviceId;
   int _hlcCounter = 0;
+  int _notesByGuidsSelects = 0;
 
   static const Object _exclusiveZone = Object();
+
+  /// Bind-parameter chunk for [notesByGuids].
+  ///
+  /// SQLite's default variable limit is 999 on older builds and 32766 on
+  /// current ones. 900 stays under both, so a normal guid list is one
+  /// `SELECT`.
+  static const int notesByGuidsChunk = 900;
 
   /// Tail of the write/reconcile queue. The next caller waits for this.
   Future<void> _turn = Future<void>.value();
@@ -47,6 +55,32 @@ class SideDb {
     });
     _turn = result.then((_) {}, onError: (_) {});
     return result;
+  }
+
+  /// Throws [StateError] unless the caller is inside [exclusive].
+  ///
+  /// The marker is the zone value [exclusive] installs. Reconcile and import
+  /// recovery share that turn. A call from outside it would race the queue.
+  void requireExclusiveTurn(String operation) {
+    if (Zone.current[_exclusiveZone] != true) {
+      throw StateError('$operation must run inside SideDb.exclusive');
+    }
+  }
+
+  /// Runs [body] inside `BEGIN IMMEDIATE` / `COMMIT`.
+  ///
+  /// A throw rolls the transaction back. [body] must not start another
+  /// transaction or call a method that does (`beginIntent`, `completeIntent`,
+  /// `rewriteDeckGuid`, `replaceNote`).
+  void inImmediateTransaction(void Function() body) {
+    _db.execute('BEGIN IMMEDIATE');
+    try {
+      body();
+      _db.execute('COMMIT');
+    } catch (err) {
+      _db.execute('ROLLBACK');
+      rethrow;
+    }
   }
 
   static SideDb open({required String path, required String deviceId}) {
@@ -320,6 +354,48 @@ class SideDb {
     );
   }
 
+  /// Inserts one imported deck, or leaves a conflicting row in place.
+  ///
+  /// `INSERT OR IGNORE`. A conflict does not update the existing row, so a
+  /// soft-deleted deck stays soft-deleted and keeps its guid. The inserted
+  /// row uses `origin_kind` `import`, `origin_role` null, and
+  /// `server_unsynced` 1. [sourceSha256] is the archive file name from
+  /// `expected.source_sha256`.
+  void insertImportedDeck({
+    required String deckGuid,
+    required int rslibDeckId,
+    required String importBatchId,
+    required String sourceSha256,
+  }) {
+    if (deckGuid.isEmpty) {
+      throw const SideDbException('deck guid is empty');
+    }
+    if (!uuidVersion4.hasMatch(importBatchId)) {
+      throw const SideDbException(
+        'import_batch_id must be a lowercase UUID version 4',
+      );
+    }
+    if (!sha256Hex.hasMatch(sourceSha256)) {
+      throw const SideDbException(
+        'source_sha256 must be 64 lowercase hex characters',
+      );
+    }
+    _db.execute(
+      'INSERT OR IGNORE INTO deck_map(deck_guid, rslib_deck_id, '
+      'import_batch_id, origin_kind, origin_role, source_sha256, '
+      'server_unsynced) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [deckGuid, rslibDeckId, importBatchId, 'import', null, sourceSha256, 1],
+    );
+    if (_db.updatedRows != 0) {
+      return;
+    }
+    final existing = deckByRslibId(rslibDeckId);
+    if (existing != null && existing.deckGuid == deckGuid) {
+      return;
+    }
+    throw SideDbException('import deck $rslibDeckId was not inserted');
+  }
+
   void setDeckServerUnsynced({
     required String deckGuid,
     required bool unsynced,
@@ -475,6 +551,35 @@ class SideDb {
     );
   }
 
+  /// Inserts a note map row, or updates `rslib_note_id` and `home_deck_guid`.
+  ///
+  /// [importNote] rejects a second call whose rslib id differs and does not
+  /// change the home deck. This is the re-import path: a note that was
+  /// deleted and imported again keeps its guid and receives the new rslib id
+  /// and home deck. The `ON CONFLICT` target is `note_guid`, so a stale
+  /// `rslib_note_id` on that same row is replaced instead of raising
+  /// `UNIQUE`.
+  void upsertImportedNote({
+    required String noteGuid,
+    required int rslibNoteId,
+    required String homeDeckGuid,
+  }) {
+    if (noteGuid.isEmpty) {
+      throw const SideDbException('note guid is empty');
+    }
+    if (homeDeckGuid.isEmpty) {
+      throw const SideDbException('deck guid is empty');
+    }
+    _db.execute(
+      'INSERT INTO note_map(note_guid, rslib_note_id, home_deck_guid) '
+      'VALUES (?, ?, ?) '
+      'ON CONFLICT(note_guid) DO UPDATE SET '
+      'rslib_note_id = excluded.rslib_note_id, '
+      'home_deck_guid = excluded.home_deck_guid',
+      [noteGuid, rslibNoteId, homeDeckGuid],
+    );
+  }
+
   NoteMapRow? note(String noteGuid) {
     final rows = _db.select(
       'SELECT note_guid, rslib_note_id, home_deck_guid FROM note_map '
@@ -486,6 +591,49 @@ class SideDb {
     }
     return _noteRow(rows.first);
   }
+
+  /// `note_map` rows for [guids], keyed by guid.
+  ///
+  /// One `SELECT` per [notesByGuidsChunk] guids. A normal list is a single
+  /// statement. Guids that are not in the table are omitted. [note] is
+  /// unchanged.
+  Map<String, NoteMapRow> notesByGuids(List<String> guids) {
+    if (guids.isEmpty) {
+      return const {};
+    }
+    final unique = <String>[];
+    final seen = <String>{};
+    for (final guid in guids) {
+      if (seen.add(guid)) {
+        unique.add(guid);
+      }
+    }
+    final out = <String, NoteMapRow>{};
+    for (var start = 0; start < unique.length; start += notesByGuidsChunk) {
+      final end = start + notesByGuidsChunk;
+      final chunk = unique.sublist(
+        start,
+        end > unique.length ? unique.length : end,
+      );
+      final placeholders = List<String>.filled(chunk.length, '?').join(', ');
+      _notesByGuidsSelects += 1;
+      final rows = _db.select(
+        'SELECT note_guid, rslib_note_id, home_deck_guid FROM note_map '
+        'WHERE note_guid IN ($placeholders)',
+        chunk,
+      );
+      for (final row in rows) {
+        final mapped = _noteRow(row);
+        out[mapped.noteGuid] = mapped;
+      }
+    }
+    return out;
+  }
+
+  /// How many `SELECT` statements [notesByGuids] has issued.
+  ///
+  /// Tests use this to lock the batching. Other callers can ignore it.
+  int get notesByGuidsSelects => _notesByGuidsSelects;
 
   NoteMapRow? noteByRslibId(int rslibNoteId) {
     final rows = _db.select(
@@ -534,6 +682,15 @@ class SideDb {
   /// The deck must already be in `deck_map`.
   String homeDeckGuidFor(List<ImportedNoteCard> cards) {
     return _homeDeckGuidAtImport(cards);
+  }
+
+  /// rslib deck id of the home card, before `deck_map` is consulted.
+  ///
+  /// Same card choice as [importNote]: ord 0, otherwise the unique lowest
+  /// ord. A filtered card (`odid` not 0) contributes that original deck.
+  int homeRslibDeckIdFor(List<ImportedNoteCard> cards) {
+    final home = _homeCardAtImport(cards);
+    return home.odid != 0 ? home.odid : home.rslibDeckId;
   }
 
   /// Replaces the `note_map` row for [rslibNoteId].

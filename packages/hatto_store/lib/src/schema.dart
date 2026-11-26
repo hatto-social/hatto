@@ -20,7 +20,7 @@ import 'package:sqlite3/sqlite3.dart';
 /// while the deck is live. The row stays so a later guid rewrite can still
 /// see it. `import_batch_id` groups decks from one import.
 /// `source_sha256` is the file name of the copied apkg under
-/// `<documents>/hatto/imports/`, not a path.
+/// `<data_dir>/imports/`, not a path.
 ///
 /// `note_map.note_guid` is the Hatto guid. For a mapped note it is the same
 /// value as rslib `notes.guid`; there is no second guid column. Anki notes
@@ -38,6 +38,10 @@ import 'package:sqlite3/sqlite3.dart';
 /// `bundled`) into `librslib_bridge.so`. This package does not open the
 /// collection file and does not load SQLite from the process symbol table.
 const int sideDbSchemaVersion = 1;
+
+/// Lowercase SHA-256 hex. `deck_map.source_sha256` and import intent hashes
+/// use this form. The schema column itself is unconstrained `TEXT`.
+final RegExp sha256Hex = RegExp(r'^[0-9a-f]{64}$');
 
 /// Thrown when the side database cannot be opened or a draft write is rejected.
 class SideDbException implements Exception {

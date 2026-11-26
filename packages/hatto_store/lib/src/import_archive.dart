@@ -9,35 +9,45 @@ import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 import 'schema.dart';
+import 'uuid.dart';
 
-final RegExp _sha256Hex = RegExp(r'^[0-9a-f]{64}$');
-
-/// Path of a copied original apkg under the app documents directory.
+/// Path of a copied original apkg: `<dataDir>/imports/<sourceSha256>`.
 ///
 /// The file name is [sourceSha256], the same string stored in
-/// `deck_map.source_sha256`. The side database has no path column.
-String importArchivePath(String documentsDirectory, String sourceSha256) {
-  if (!_sha256Hex.hasMatch(sourceSha256)) {
+/// `deck_map.source_sha256`. The side database has no path column. This file
+/// is not under the working tree `<dataDir>/import/{raw,e,staged}`.
+String importArchivePath(String dataDir, String sourceSha256) {
+  if (!sha256Hex.hasMatch(sourceSha256)) {
     throw const SideDbException(
       'source_sha256 must be 64 lowercase hex characters',
     );
   }
-  return p.join(documentsDirectory, 'hatto', 'imports', sourceSha256);
+  return p.join(dataDir, 'imports', sourceSha256);
 }
 
-/// Copies [source] to `<documents>/hatto/imports/<sha256>`.
+/// `<dataDir>/import/raw/<batchId>.apkg`.
+///
+/// The working copy of the original package. [batchId] is a lowercase UUID
+/// version 4. The content-addressed archive is [importArchivePath].
+String importRawApkgPath(String dataDir, String batchId) {
+  if (!uuidVersion4.hasMatch(batchId)) {
+    throw const SideDbException(
+      'import_batch_id must be a lowercase UUID version 4',
+    );
+  }
+  return p.join(dataDir, 'import', 'raw', '$batchId.apkg');
+}
+
+/// Copies [source] to `<dataDir>/imports/<sha256>`.
 ///
 /// Returns the content sha256 for `deck_map.source_sha256`. A file already
 /// stored under that name is left in place.
-String storeImportArchive({
-  required String documentsDirectory,
-  required File source,
-}) {
+String storeImportArchive({required String dataDir, required File source}) {
   if (!source.existsSync()) {
     throw SideDbException('import archive is missing: ${source.path}');
   }
   final digest = _sha256OfFile(source);
-  final dest = File(importArchivePath(documentsDirectory, digest));
+  final dest = File(importArchivePath(dataDir, digest));
   if (p.equals(source.absolute.path, dest.absolute.path)) {
     return digest;
   }

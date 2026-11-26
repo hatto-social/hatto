@@ -13,3 +13,9 @@ const String intentDeckRename = 'deck.rename';
 const String intentMediaAdd = 'media.add';
 const String intentUndo = 'undo';
 const String intentRedo = 'redo';
+
+/// Import batch. The row is the prepared state.
+///
+/// Recovery deletes it when the resident import committed and when it did
+/// not. Reconcile does not. This name is not `<target>.<verb>`.
+const String intentImport = 'import';
