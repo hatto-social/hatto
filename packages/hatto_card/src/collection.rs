@@ -19,7 +19,6 @@ use rslib_bridge::api::{
     command, open_backend, prepare_runtime, service_method_index, AnkiBackend,
 };
 use rslib_bridge::export_contract::anki_package_export_request;
-use serde_json::Value;
 
 use crate::deck::DerivedNote;
 
@@ -145,20 +144,6 @@ impl Session {
             return Err(format!("notetype {name} is missing"));
         }
         Ok(found.ntid)
-    }
-
-    pub(crate) fn add_notetype_legacy(&self, model: &Value) -> Result<i64, String> {
-        let added: anki_proto::collection::OpChangesWithId = self.call(
-            "BackendNotetypesService",
-            "add_notetype_legacy",
-            &generic::Json {
-                json: serde_json::to_vec(model).map_err(|err| err.to_string())?,
-            },
-        )?;
-        if added.id == 0 {
-            return Err("add_notetype_legacy returned id 0".into());
-        }
-        Ok(added.id)
     }
 
     pub(crate) fn add_deck(&self, name: &str) -> Result<i64, String> {

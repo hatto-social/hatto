@@ -669,37 +669,68 @@ fn validate_exits_nonzero_when_a_note_has_too_many_fields() {
 }
 
 #[test]
-fn validate_and_export_reject_a_nonzero_notetype_legacy_id() {
+fn validate_export_and_add_note_reject_notetype_legacy() {
     let _serial = serial();
     let root = tempfile::tempdir().unwrap();
-    let mut deck = basic_note(serde_json::json!(["a", "b"]));
-    deck.as_object_mut().unwrap().remove("notetype");
-    deck["notetype_legacy"] = serde_json::json!({"id": 1, "name": "Basic"});
-    let deck_path = write_json(root.path(), &deck);
-    let deck_arg = deck_path.to_str().unwrap();
-    let message = "notetype_legacy.id is 1; add_notetype_legacy requires 0";
+    // id 0 used to reach rslib and receive a new id on every export.
+    for legacy in [
+        serde_json::json!({"id": 0, "name": "Basic"}),
+        serde_json::json!({"id": 1, "name": "Basic"}),
+        serde_json::json!(null),
+    ] {
+        let mut deck = basic_note(serde_json::json!(["a", "b"]));
+        deck.as_object_mut().unwrap().remove("notetype");
+        deck["notetype_legacy"] = legacy;
+        let deck_path = write_json(root.path(), &deck);
+        let deck_arg = deck_path.to_str().unwrap();
+        let before = fs::read(&deck_path).unwrap();
 
-    let (code, stdout, stderr) = run(&["--json", "validate", "--deck", deck_arg]);
-    assert_eq!(code, 1, "{stdout}\n{stderr}");
-    let failure: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+        let (code, stdout, stderr) = run(&["--json", "validate", "--deck", deck_arg]);
+        assert_eq!(code, 1, "{stdout}\n{stderr}");
+        assert_legacy_rejected(&stdout);
+        assert!(!format!("{stdout}{stderr}").contains("panic"));
+
+        let apkg = root.path().join("out.apkg");
+        let (code, stdout, stderr) = run(&[
+            "--json",
+            "export",
+            "--deck",
+            deck_arg,
+            "--output",
+            apkg.to_str().unwrap(),
+        ]);
+        assert_eq!(code, 1, "{stdout}\n{stderr}");
+        assert_legacy_rejected(&stdout);
+        assert!(!format!("{stdout}{stderr}").contains("panic"));
+        assert!(!apkg.exists());
+
+        let (code, stdout, stderr) = run(&[
+            "--json",
+            "add-note",
+            "--deck",
+            deck_arg,
+            "--notetype",
+            "Basic",
+            "--field",
+            "front",
+            "--field",
+            "back",
+        ]);
+        assert_eq!(code, 1, "{stdout}\n{stderr}");
+        assert_legacy_rejected(&stdout);
+        assert_eq!(fs::read(&deck_path).unwrap(), before);
+    }
+}
+
+fn assert_legacy_rejected(stdout: &str) {
+    let failure: serde_json::Value = serde_json::from_str(stdout).unwrap();
     assert_eq!(failure["ok"], false);
-    assert_eq!(failure["message"], message);
-    assert!(!format!("{stdout}{stderr}").contains("panic"));
-
-    let apkg = root.path().join("out.apkg");
-    let (code, stdout, stderr) = run(&[
-        "--json",
-        "export",
-        "--deck",
-        deck_arg,
-        "--output",
-        apkg.to_str().unwrap(),
-    ]);
-    assert_eq!(code, 1, "{stdout}\n{stderr}");
-    let failure: serde_json::Value = serde_json::from_str(&stdout).unwrap();
-    assert_eq!(failure["message"], message);
-    assert!(!format!("{stdout}{stderr}").contains("panic"));
-    assert!(!apkg.exists());
+    assert!(failure.get("message").is_none());
+    let errors = failure["errors"].as_array().unwrap();
+    assert_eq!(errors.len(), 1);
+    assert_eq!(errors[0]["code"], "NOTETYPE_LEGACY");
+    assert_eq!(errors[0]["location"], "notetype_legacy");
+    assert_eq!(errors[0]["message"], "notetype_legacy is not supported");
 }
 
 #[test]

@@ -5,10 +5,10 @@
 //! Provisional card-file mapping.
 //!
 //! No document defines this JSON. It is the thinnest map onto Anki: a deck
-//! name, a notetype name or a legacy notetype object, notes that carry either
-//! `source_guid` (imported, [`normalize_import_guid`]) or `op_id`/`k`
-//! (local), fields, tags, and an optional media directory. See the package
-//! README.
+//! name, a notetype name, notes that carry either `source_guid` (imported,
+//! [`normalize_import_guid`]) or `op_id`/`k` (local), fields, tags, and an
+//! optional media directory. A `notetype_legacy` key is rejected. See the
+//! package README.
 
 use hatto_card_contract::{
     is_guid_format, local_note_guid, normalize_import_guid, parse_uuid, validate_deck_file,
@@ -20,14 +20,25 @@ use serde_json::{json, Value};
 /// One validation or derivation failure.
 ///
 /// `code` is a contract id (`GUID_FORMAT` or `NOTE_GUID_DUPLICATE`) when the
-/// failure is one of those. Other input problems leave `code` empty and set
-/// `message` only, so this CLI does not invent a third contract code.
+/// failure is one of those, or [`NOTETYPE_LEGACY`] when the deck sets that
+/// removed key. Other input problems leave `code` empty and set `message`
+/// only. [`NOTETYPE_LEGACY`] is a CLI code, not a contract id.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Problem {
     pub code: String,
     pub location: String,
     pub message: String,
 }
+
+/// A deck JSON key `notetype_legacy` is rejected with this code.
+///
+/// The key used to be sent to rslib `add_notetype_legacy`, which assigns a
+/// new notetype id on every export. Re-importing that package classifies the
+/// existing notes as blocked. Built-in notetype names stay on the seed ids.
+/// This is a CLI code, not a `hatto_card_contract` id.
+pub const NOTETYPE_LEGACY: &str = "NOTETYPE_LEGACY";
+
+const NOTETYPE_LEGACY_MESSAGE: &str = "notetype_legacy is not supported";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DerivedNote {
@@ -45,13 +56,9 @@ pub struct DeckFile {
     pub job_id: Option<String>,
     #[serde(default)]
     pub op_id: Option<String>,
-    /// Stock notetype name. Ignored when [Self::notetype_legacy] is set.
-    /// Defaults to `Basic` when both are absent.
+    /// Stock notetype name. Defaults to `Basic` when absent.
     #[serde(default)]
     pub notetype: Option<String>,
-    /// Anki legacy notetype JSON passed to `add_notetype_legacy`.
-    #[serde(default)]
-    pub notetype_legacy: Option<Value>,
     /// Directory of media files, relative to the deck file unless absolute.
     #[serde(default)]
     pub media_dir: Option<String>,
@@ -116,11 +123,24 @@ pub fn skeleton() -> Value {
 }
 
 pub fn parse_deck(text: &str) -> Result<DeckFile, Problem> {
-    serde_json::from_str(text).map_err(|err| Problem {
+    let value: Value = serde_json::from_str(text).map_err(json_problem)?;
+    // Any value, including null and id 0. The key itself is the removed option.
+    if value.get("notetype_legacy").is_some() {
+        return Err(Problem {
+            code: NOTETYPE_LEGACY.into(),
+            location: "notetype_legacy".into(),
+            message: NOTETYPE_LEGACY_MESSAGE.into(),
+        });
+    }
+    serde_json::from_value(value).map_err(json_problem)
+}
+
+fn json_problem(err: serde_json::Error) -> Problem {
+    Problem {
         code: String::new(),
         location: String::new(),
         message: format!("deck json: {err}"),
-    })
+    }
 }
 
 pub fn derive_notes(deck: &DeckFile) -> Result<Vec<DerivedNote>, Vec<Problem>> {
@@ -250,6 +270,34 @@ mod tests {
         let mut value = skeleton();
         value["notes"] = notes;
         serde_json::from_value(value).unwrap()
+    }
+
+    #[test]
+    fn notetype_legacy_is_rejected_for_any_value() {
+        let values = [
+            json!(null),
+            json!("Basic"),
+            json!({"name": "Basic"}),
+            json!({"id": 0, "name": "Basic"}),
+            json!({"id": "0", "name": "Basic"}),
+            json!({"id": 1, "name": "Basic"}),
+        ];
+        for legacy in values {
+            let mut with_notetype = skeleton();
+            with_notetype["notetype_legacy"] = legacy.clone();
+            let mut without_notetype = with_notetype.clone();
+            without_notetype.as_object_mut().unwrap().remove("notetype");
+            for value in [with_notetype, without_notetype] {
+                let err = parse_deck(&serde_json::to_string(&value).unwrap()).unwrap_err();
+                assert_eq!(err.code, NOTETYPE_LEGACY);
+                assert_eq!(err.location, "notetype_legacy");
+                assert_eq!(err.message, "notetype_legacy is not supported");
+            }
+        }
+        let mut extra = skeleton();
+        extra["extra"] = json!("keep");
+        let parsed = parse_deck(&serde_json::to_string(&extra).unwrap()).unwrap();
+        assert_eq!(parsed.notetype_name(), "Basic");
     }
 
     #[test]
