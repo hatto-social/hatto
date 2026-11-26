@@ -33,6 +33,16 @@ late Directory tmp; late Engine eng; late FlowApi api; late AppController app; l
 Future<void> settle(WidgetTester t, {int rounds = 40}) async {
   for (var i = 0; i < rounds; i++) { await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 8))); await t.pump(const Duration(milliseconds: 20)); }
 }
+
+/// Returns as soon as [finder] matches. A fixed [settle] can finish before a
+/// slow FFI answer paints, which flaked the congrats check on a busy runner.
+Future<void> untilFound(WidgetTester t, Finder finder, {int rounds = 400}) async {
+  for (var i = 0; i < rounds; i++) {
+    if (finder.evaluate().isNotEmpty) return;
+    await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 8)));
+    await t.pump(const Duration(milliseconds: 20));
+  }
+}
 Future<void> tapKey(WidgetTester t, String key, {int rounds = 40}) async { await t.tap(find.byKey(ValueKey(key))); await settle(t, rounds: rounds); }
 T widgetOf<T extends Widget>(WidgetTester t, String key) => t.widget<T>(find.byKey(ValueKey(key)));
 
@@ -167,14 +177,15 @@ void main() {
     expect(find.byKey(const ValueKey('show-answer')), findsOneWidget);
     await tapKey(t, 'show-answer');
     expect(find.byKey(const ValueKey('fsrs-hint')), findsOneWidget);
-    await tapKey(t, 'ans-easy');
+    await t.tap(find.byKey(const ValueKey('ans-easy')));
+    await untilFound(t, find.byKey(const ValueKey('congrats')));
     expect(find.byKey(const ValueKey('congrats')), findsOneWidget);
     await tapKey(t, 'congrats-undo');
     expect(find.byKey(const ValueKey('show-answer')), findsOneWidget);
     await t.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
     await t.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
     await t.sendKeyDownEvent(LogicalKeyboardKey.keyZ);
-    await settle(t);
+    await untilFound(t, find.byKey(const ValueKey('congrats')));
     await t.sendKeyUpEvent(LogicalKeyboardKey.keyZ);
     await t.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
     await t.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
