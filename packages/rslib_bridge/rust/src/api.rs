@@ -294,7 +294,7 @@ fn to_contract_class(class: Class) -> hatto_card_contract::Class {
     }
 }
 
-fn from_contract_class(class: hatto_card_contract::Class) -> Class {
+pub(crate) fn from_contract_class(class: hatto_card_contract::Class) -> Class {
     match class {
         hatto_card_contract::Class::New => Class::New,
         hatto_card_contract::Class::Same => Class::Same,
@@ -334,17 +334,209 @@ pub fn smoke_open_collection(dir: String) -> Result<String, String> {
     rslib_core::api::smoke_open_collection(dir)
 }
 
+/// Protobuf call for this crate.
+///
+/// `rslib_core`'s helper stays `pub(crate)`. This one uses the public
+/// `command` path, so a desktop backend still passes the allowlist.
 pub(crate) fn call(
     backend: &AnkiBackend,
     service: &str,
     method: &str,
     message: &impl Message,
 ) -> Result<Vec<u8>, String> {
-    rslib_core::api::call(backend, service, method, message)
+    let Some(index) = service_method_index(service.to_string(), method.to_string()) else {
+        return Err(format!("no index for {service}.{method}"));
+    };
+    let response = command(
+        backend,
+        index.service,
+        index.method,
+        message.encode_to_vec(),
+    );
+    if response.success {
+        Ok(response.payload)
+    } else {
+        Err(decode_backend_error(&response.payload))
+    }
 }
 
-#[cfg(test)]
-pub(crate) use rslib_core::api::decode_backend_error;
+pub(crate) fn decode_backend_error(bytes: &[u8]) -> String {
+    match anki_proto::backend::BackendError::decode(bytes) {
+        Ok(err) => format!("{} (kind={})", err.message, err.kind),
+        Err(_) => format!("undecodable backend error ({} bytes)", bytes.len()),
+    }
+}
+
+/// Open E collection for one batch. Drop closes E and deletes the batch
+/// folder unless [`import_stage_finish`] kept a non-empty staged package.
+///
+/// E is opened inside `hatto_import`. This handle is not a resident backend.
+/// [`file_notes`] and [`deck_names`] are the §7.1 step-3 facts: every file
+/// note, and every normal deck except Default, before empty decks are removed.
+#[flutter_rust_bridge::frb(opaque)]
+pub struct PendingImport {
+    inner: Option<hatto_import::PendingImport>,
+    notes: Vec<NoteFacts>,
+    deck_names: Vec<String>,
+}
+
+impl PendingImport {
+    pub(crate) fn new(
+        inner: hatto_import::PendingImport,
+        notes: Vec<NoteFacts>,
+        deck_names: Vec<String>,
+    ) -> Self {
+        Self {
+            inner: Some(inner),
+            notes,
+            deck_names,
+        }
+    }
+
+    pub(crate) fn take(mut self) -> Result<hatto_import::PendingImport, String> {
+        self.inner
+            .take()
+            .ok_or_else(|| "E is already closed".to_string())
+    }
+
+    /// File note facts after guid normalization, in note-id order.
+    pub fn file_notes(&self) -> Vec<NoteFacts> {
+        self.notes.clone()
+    }
+
+    /// Normal deck names in E, excluding Default.
+    pub fn deck_names(&self) -> Vec<String> {
+        self.deck_names.clone()
+    }
+}
+
+impl Drop for PendingImport {
+    fn drop(&mut self) {
+        self.inner.take();
+    }
+}
+
+/// One changed note. `content_hash` is the file hash the resident import
+/// should land. `hatto_import::PreparedImport` keeps these in a `BTreeMap`;
+/// this list is that map in guid order, because a `BTreeMap` does not cross
+/// the bridge as readable entries.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ChangedNote {
+    pub guid: String,
+    pub content_hash: Vec<u8>,
+}
+
+/// Plan for one import. The resident collection is not written here.
+///
+/// `new_guids` and `changed` are the intent expected lists. `deck_names` is
+/// the exported package's normal decks.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PreparedImport {
+    pub import_batch_id: String,
+    pub plan: Plan,
+    pub staged_path: String,
+    pub staged_sha256: String,
+    pub first_import: bool,
+    pub cardless_notes: u32,
+    pub new_guids: Vec<String>,
+    pub changed: Vec<ChangedNote>,
+    pub deck_names: Vec<String>,
+}
+
+/// Notes [`resident_lookup`] read, and the deck names that already exist.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ResidentMatch {
+    pub notes: Vec<NoteFacts>,
+    pub found_deck_names: Vec<String>,
+}
+
+/// One startup scan of `import/{raw,e,staged}`.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ImportFolderScan {
+    pub removed: Vec<String>,
+    pub kept_prepared: Vec<String>,
+    pub ignored: Vec<String>,
+}
+
+/// §7.1 steps 1–3. Does not take a resident collection.
+///
+/// `max_bytes` is the caller's package ceiling. Between this and
+/// [`import_stage_finish`] only the E folder exists.
+pub fn import_stage_e(
+    data_dir: String,
+    source_path: String,
+    max_bytes: u64,
+) -> Result<PendingImport, String> {
+    #[cfg(frb_expand)]
+    {
+        let _ = (data_dir, source_path, max_bytes);
+        return Err(String::new());
+    }
+    #[cfg(not(frb_expand))]
+    {
+        crate::import_stage::import_stage_e(data_dir, source_path, max_bytes)
+    }
+}
+
+/// Read resident notes by id and which deck names already exist.
+///
+/// Uses `GetNote` and `GetDeckIdByName` through [`command`], so a desktop
+/// backend still passes the allowlist. This does not write. `notes` follows
+/// `note_ids` and `found_deck_names` follows `deck_names`, each name once.
+pub fn resident_lookup(
+    backend: &AnkiBackend,
+    note_ids: Vec<i64>,
+    deck_names: Vec<String>,
+) -> Result<ResidentMatch, String> {
+    #[cfg(frb_expand)]
+    {
+        let _ = (backend, note_ids, deck_names);
+        return Err(String::new());
+    }
+    #[cfg(not(frb_expand))]
+    {
+        crate::import_stage::resident_lookup(backend, note_ids, deck_names)
+    }
+}
+
+/// §7.1 steps 4–7. Does not write the resident collection.
+///
+/// `resident_facts` and `found_deck_names` are the result of
+/// [`resident_lookup`]. Classification uses that map. A no-op deletes the
+/// batch folder when `pending` drops.
+pub fn import_stage_finish(
+    pending: PendingImport,
+    resident_facts: Vec<NoteFacts>,
+    found_deck_names: Vec<String>,
+) -> Result<PreparedImport, String> {
+    #[cfg(frb_expand)]
+    {
+        let _ = (pending, resident_facts, found_deck_names);
+        return Err(String::new());
+    }
+    #[cfg(not(frb_expand))]
+    {
+        crate::import_stage::import_stage_finish(pending, resident_facts, found_deck_names)
+    }
+}
+
+/// Delete import batches whose id is not in `prepared_batch_ids`.
+///
+/// A prepared id is kept. There is no callback.
+pub fn scan_import_folders(
+    data_dir: String,
+    prepared_batch_ids: Vec<String>,
+) -> Result<ImportFolderScan, String> {
+    #[cfg(frb_expand)]
+    {
+        let _ = (data_dir, prepared_batch_ids);
+        return Err(String::new());
+    }
+    #[cfg(not(frb_expand))]
+    {
+        crate::import_stage::scan_import_folders(data_dir, prepared_batch_ids)
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -353,6 +545,7 @@ mod tests {
 
     #[test]
     fn opens_collection_through_protobuf_channel() {
+        let _runtime = crate::lock_bridge_runtime();
         // The smoke helper points TMPDIR at the collection. Later tests must
         // not create their directories through that process-global temp dir.
         let dir = tempfile::TempDir::new_in("/tmp").unwrap();
@@ -379,6 +572,7 @@ mod tests {
 
     #[test]
     fn second_backend_cannot_open_the_same_collection() {
+        let _runtime = crate::lock_bridge_runtime();
         let dir = tempfile::TempDir::new_in("/tmp").unwrap();
         let root = dir.path();
         std::fs::create_dir_all(root.join("collection.media")).unwrap();

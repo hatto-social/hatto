@@ -173,6 +173,7 @@ mod tests {
 
     #[test]
     fn exported_apkg_deck_config_is_protobuf_inside_zstd_sqlite() {
+        let _runtime = crate::lock_bridge_runtime();
         let dir = tempfile::TempDir::new_in("/tmp").unwrap();
         let rows = inspect_exported_deck_configs(dir.path().to_string_lossy().into_owned())
             .expect("inspect");

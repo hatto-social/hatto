@@ -25,9 +25,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   get rust_arc_decrement_strong_count_AnkiBackendPtr => wire
       ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAnkiBackendPtr;
 
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_PendingImportPtr => wire
+      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImportPtr;
+
   @protected
   AnkiBackend
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAnkiBackend(
+    dynamic raw,
+  );
+
+  @protected
+  PendingImport
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImport(
     dynamic raw,
   );
 
@@ -38,8 +48,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  PendingImport
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImport(
+    dynamic raw,
+  );
+
+  @protected
   AnkiBackend
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAnkiBackend(
+    dynamic raw,
+  );
+
+  @protected
+  PendingImport
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImport(
     dynamic raw,
   );
 
@@ -59,6 +81,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ServiceMethodIndex dco_decode_box_autoadd_service_method_index(dynamic raw);
 
   @protected
+  ChangedNote dco_decode_changed_note(dynamic raw);
+
+  @protected
   Class dco_decode_class(dynamic raw);
 
   @protected
@@ -71,6 +96,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64 dco_decode_i_64(dynamic raw);
 
   @protected
+  ImportFolderScan dco_decode_import_folder_scan(dynamic raw);
+
+  @protected
   ImportSourceNote dco_decode_import_source_note(dynamic raw);
 
   @protected
@@ -80,6 +108,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<AssignedImportGuid> dco_decode_list_assigned_import_guid(dynamic raw);
 
   @protected
+  List<ChangedNote> dco_decode_list_changed_note(dynamic raw);
+
+  @protected
   List<Class> dco_decode_list_class(dynamic raw);
 
   @protected
@@ -87,6 +118,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<ImportSourceNote> dco_decode_list_import_source_note(dynamic raw);
+
+  @protected
+  List<NoteFacts> dco_decode_list_note_facts(dynamic raw);
+
+  @protected
+  Int64List dco_decode_list_prim_i_64_strict(dynamic raw);
 
   @protected
   List<int> dco_decode_list_prim_u_8_loose(dynamic raw);
@@ -109,13 +146,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Plan dco_decode_plan(dynamic raw);
 
   @protected
+  PreparedImport dco_decode_prepared_import(dynamic raw);
+
+  @protected
   ProtoResponse dco_decode_proto_response(dynamic raw);
+
+  @protected
+  ResidentMatch dco_decode_resident_match(dynamic raw);
 
   @protected
   ServiceMethodIndex dco_decode_service_method_index(dynamic raw);
 
   @protected
   int dco_decode_u_32(dynamic raw);
+
+  @protected
+  BigInt dco_decode_u_64(dynamic raw);
 
   @protected
   int dco_decode_u_8(dynamic raw);
@@ -133,14 +179,32 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  PendingImport
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImport(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   AnkiBackend
   sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAnkiBackend(
     SseDeserializer deserializer,
   );
 
   @protected
+  PendingImport
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImport(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   AnkiBackend
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAnkiBackend(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  PendingImport
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImport(
     SseDeserializer deserializer,
   );
 
@@ -164,6 +228,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  ChangedNote sse_decode_changed_note(SseDeserializer deserializer);
+
+  @protected
   Class sse_decode_class(SseDeserializer deserializer);
 
   @protected
@@ -174,6 +241,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
+
+  @protected
+  ImportFolderScan sse_decode_import_folder_scan(SseDeserializer deserializer);
 
   @protected
   ImportSourceNote sse_decode_import_source_note(SseDeserializer deserializer);
@@ -187,6 +257,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<ChangedNote> sse_decode_list_changed_note(SseDeserializer deserializer);
+
+  @protected
   List<Class> sse_decode_list_class(SseDeserializer deserializer);
 
   @protected
@@ -198,6 +271,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ImportSourceNote> sse_decode_list_import_source_note(
     SseDeserializer deserializer,
   );
+
+  @protected
+  List<NoteFacts> sse_decode_list_note_facts(SseDeserializer deserializer);
+
+  @protected
+  Int64List sse_decode_list_prim_i_64_strict(SseDeserializer deserializer);
 
   @protected
   List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer);
@@ -222,7 +301,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Plan sse_decode_plan(SseDeserializer deserializer);
 
   @protected
+  PreparedImport sse_decode_prepared_import(SseDeserializer deserializer);
+
+  @protected
   ProtoResponse sse_decode_proto_response(SseDeserializer deserializer);
+
+  @protected
+  ResidentMatch sse_decode_resident_match(SseDeserializer deserializer);
 
   @protected
   ServiceMethodIndex sse_decode_service_method_index(
@@ -231,6 +316,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int sse_decode_u_32(SseDeserializer deserializer);
+
+  @protected
+  BigInt sse_decode_u_64(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_8(SseDeserializer deserializer);
@@ -250,6 +338,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImport(
+    PendingImport self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAnkiBackend(
     AnkiBackend self,
     SseSerializer serializer,
@@ -257,8 +352,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImport(
+    PendingImport self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAnkiBackend(
     AnkiBackend self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImport(
+    PendingImport self,
     SseSerializer serializer,
   );
 
@@ -287,6 +396,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_changed_note(ChangedNote self, SseSerializer serializer);
+
+  @protected
   void sse_encode_class(Class self, SseSerializer serializer);
 
   @protected
@@ -297,6 +409,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_import_folder_scan(
+    ImportFolderScan self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_import_source_note(
@@ -314,6 +432,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_changed_note(
+    List<ChangedNote> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_class(List<Class> self, SseSerializer serializer);
 
   @protected
@@ -325,6 +449,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_import_source_note(
     List<ImportSourceNote> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_note_facts(
+    List<NoteFacts> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_prim_i_64_strict(
+    Int64List self,
     SseSerializer serializer,
   );
 
@@ -356,7 +492,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_plan(Plan self, SseSerializer serializer);
 
   @protected
+  void sse_encode_prepared_import(
+    PreparedImport self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_proto_response(ProtoResponse self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_resident_match(ResidentMatch self, SseSerializer serializer);
 
   @protected
   void sse_encode_service_method_index(
@@ -366,6 +511,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_u_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_u_64(BigInt self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_8(int self, SseSerializer serializer);
@@ -423,5 +571,39 @@ class RustLibWire implements BaseWire {
       );
   late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAnkiBackend =
       _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAnkiBackendPtr
+          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+
+  void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImport(
+    ffi.Pointer<ffi.Void> ptr,
+  ) {
+    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImport(
+      ptr,
+    );
+  }
+
+  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImportPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
+        'frbgen_rslib_bridge_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImport',
+      );
+  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImport =
+      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImportPtr
+          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+
+  void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImport(
+    ffi.Pointer<ffi.Void> ptr,
+  ) {
+    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImport(
+      ptr,
+    );
+  }
+
+  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImportPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
+        'frbgen_rslib_bridge_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImport',
+      );
+  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImport =
+      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPendingImportPtr
           .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
 }

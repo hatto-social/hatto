@@ -115,7 +115,7 @@ pub fn open_backend_with_profile(
             Some(prepare_data_dir(data_dir)?)
         }
     };
-    let inner = init_backend(&init_msg).map_err(|err| err)?;
+    let inner = init_backend(&init_msg)?;
     Ok(AnkiBackend {
         inner,
         profile,
@@ -316,7 +316,7 @@ pub fn smoke_open_collection(dir: String) -> Result<String, String> {
     ))
 }
 
-pub fn call(
+pub(crate) fn call(
     backend: &AnkiBackend,
     service: &str,
     method: &str,
@@ -341,7 +341,7 @@ pub fn call(
     }
 }
 
-pub fn decode_backend_error(bytes: &[u8]) -> String {
+pub(crate) fn decode_backend_error(bytes: &[u8]) -> String {
     match anki_proto::backend::BackendError::decode(bytes) {
         Ok(err) => format!("{} (kind={:?})", err.message, err.kind),
         Err(_) => format!("undecodable backend error ({} bytes)", bytes.len()),
