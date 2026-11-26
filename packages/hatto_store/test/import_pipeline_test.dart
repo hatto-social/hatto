@@ -22,6 +22,8 @@ const residentHash =
 const fileHash =
     '2222222222222222222222222222222222222222222222222222222222222222';
 
+const _limits = ImportLimits(maxBytes: 1000, maxUncompressedBytes: 1000);
+
 void main() {
   test('T1 a second import of the same file is a no-op', () async {
     final ctx = await _open();
@@ -38,8 +40,8 @@ void main() {
     ];
 
     final first = await _pipeline(ctx)
-        .run(sourcePath: ctx.source.path, maxBytes: 1000);
-    expect(first, ImportOutcome.committed);
+        .run(sourcePath: ctx.source.path, limits: _limits);
+    expect(first.outcome, ImportOutcome.committed);
     expect(ctx.engine.commitCalls, 1);
     final snapshot = _dump(ctx.db);
     final archived = File(importArchivePath(ctx.dataDir, ctx.sourceSha));
@@ -48,8 +50,8 @@ void main() {
 
     ctx.engine.plan = _noopPlan(ctx);
     final second = await _pipeline(ctx)
-        .run(sourcePath: ctx.source.path, maxBytes: 1000);
-    expect(second, ImportOutcome.noop);
+        .run(sourcePath: ctx.source.path, limits: _limits);
+    expect(second.outcome, ImportOutcome.noop);
     expect(ctx.engine.commitCalls, 1);
     expect(_dump(ctx.db), snapshot);
     expect(archived.readAsBytesSync(), archiveBytes);
@@ -64,9 +66,9 @@ void main() {
     _watchBatches(ctx);
 
     final outcome = await _pipeline(ctx)
-        .run(sourcePath: ctx.source.path, maxBytes: 1000);
+        .run(sourcePath: ctx.source.path, limits: _limits);
 
-    expect(outcome, ImportOutcome.failedBeforeCommit);
+    expect(outcome.outcome, ImportOutcome.failedBeforeCommit);
     expect(ctx.engine.commitCalls, 0);
     expect(ctx.db.pendingIntents(), isEmpty);
     expect(ctx.collection.notes.containsKey(20), isFalse);
@@ -87,7 +89,7 @@ void main() {
       },
     );
     await expectLater(
-      pipeline.run(sourcePath: ctx.source.path, maxBytes: 1000),
+      pipeline.run(sourcePath: ctx.source.path, limits: _limits),
       throwsA(isA<StateError>().having((e) => e.message, 'message', 'T9b')),
     );
     expect(ctx.engine.commitCalls, 1);
@@ -119,8 +121,11 @@ void main() {
       engine: ctx.engine,
       dataDir: ctx.dataDir,
     );
-    final second = await again.run(sourcePath: ctx.source.path, maxBytes: 1000);
-    expect(second, ImportOutcome.noop);
+    final second = await again.run(
+      sourcePath: ctx.source.path,
+      limits: _limits,
+    );
+    expect(second.outcome, ImportOutcome.noop);
     expect(ctx.engine.commitCalls, 1);
   });
 
@@ -131,9 +136,9 @@ void main() {
     _armNewNote(ctx);
 
     final outcome = await _pipeline(ctx)
-        .run(sourcePath: ctx.source.path, maxBytes: 1000);
+        .run(sourcePath: ctx.source.path, limits: _limits);
 
-    expect(outcome, ImportOutcome.failedAfterCommit);
+    expect(outcome.outcome, ImportOutcome.failedAfterCommit);
     expect(ctx.engine.commitCalls, 1);
     expect(ctx.db.pendingIntents(), hasLength(1));
     expect(ctx.db.pendingIntents().single.op, intentImport);
@@ -152,9 +157,9 @@ void main() {
           ctx.db.abandonIntent(row.id);
         }
       },
-    ).run(sourcePath: ctx.source.path, maxBytes: 1000);
+    ).run(sourcePath: ctx.source.path, limits: _limits);
 
-    expect(outcome, ImportOutcome.failedBeforeCommit);
+    expect(outcome.outcome, ImportOutcome.failedBeforeCommit);
     expect(ctx.engine.commitCalls, 0);
     expect(ctx.db.pendingIntents(), isEmpty);
   });
@@ -176,9 +181,9 @@ void main() {
       );
 
       final outcome = await _pipeline(ctx)
-          .run(sourcePath: ctx.source.path, maxBytes: 1000);
+          .run(sourcePath: ctx.source.path, limits: _limits);
 
-      expect(outcome, ImportOutcome.failedBeforeCommit);
+      expect(outcome.outcome, ImportOutcome.failedBeforeCommit);
       expect(ctx.engine.commitCalls, 0);
       expect(ctx.db.pendingIntents(), isEmpty);
     },
@@ -206,7 +211,7 @@ void main() {
               throw StateError('T23 ${phase.name}');
             }
           },
-        ).run(sourcePath: ctx.source.path, maxBytes: 1000),
+        ).run(sourcePath: ctx.source.path, limits: _limits),
         throwsA(
           isA<StateError>().having(
             (err) => err.message,
@@ -310,9 +315,9 @@ void main() {
 
     final selects = ctx.db.notesByGuidsSelects;
     final outcome = await _pipeline(ctx)
-        .run(sourcePath: ctx.source.path, maxBytes: 1000);
+        .run(sourcePath: ctx.source.path, limits: _limits);
 
-    expect(outcome, ImportOutcome.committed);
+    expect(outcome.outcome, ImportOutcome.committed);
     expect(ctx.db.notesByGuidsSelects, selects + 1);
     expect(seen!.pre.noteCount, 4);
     expect(seen!.pre.changed.keys.toList(), seen!.changed.keys.toList());
@@ -349,9 +354,9 @@ void main() {
       );
 
       final outcome = await _pipeline(ctx)
-          .run(sourcePath: ctx.source.path, maxBytes: 1000);
+          .run(sourcePath: ctx.source.path, limits: _limits);
 
-      expect(outcome, ImportOutcome.failedBeforeCommit);
+      expect(outcome.outcome, ImportOutcome.failedBeforeCommit);
       expect(ctx.engine.commitCalls, 0);
       expect(ctx.db.pendingIntents(), isEmpty);
     },
@@ -376,7 +381,7 @@ void main() {
       },
     );
     final importFuture = _pipeline(ctx)
-        .run(sourcePath: ctx.source.path, maxBytes: 1000);
+        .run(sourcePath: ctx.source.path, limits: _limits);
     await entered.future;
     final writeFuture = wrapper.run(
       op: intentNoteAdd,
@@ -389,7 +394,7 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     expect(wrote, isFalse);
     hold.complete();
-    expect(await importFuture, ImportOutcome.committed);
+    expect((await importFuture).outcome, ImportOutcome.committed);
     await writeFuture;
     expect(wrote, isTrue);
   });
@@ -413,7 +418,7 @@ void main() {
       },
     );
     final importFuture = _pipeline(ctx)
-        .run(sourcePath: ctx.source.path, maxBytes: 1000);
+        .run(sourcePath: ctx.source.path, limits: _limits);
     await entered.future;
     final writeFuture = wrapper.run(
       op: intentNoteAdd,
@@ -426,7 +431,7 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     expect(wrote, isFalse);
     hold.complete();
-    expect(await importFuture, ImportOutcome.noop);
+    expect((await importFuture).outcome, ImportOutcome.noop);
     await writeFuture;
     expect(wrote, isTrue);
     expect(ctx.engine.commitCalls, 0);
@@ -443,16 +448,16 @@ void main() {
     final cancelled = await _pipeline(
       cancelCtx,
       cancel: token,
-    ).run(sourcePath: cancelCtx.source.path, maxBytes: 1000);
-    expect(cancelled, ImportOutcome.cancelled);
+    ).run(sourcePath: cancelCtx.source.path, limits: _limits);
+    expect(cancelled.outcome, ImportOutcome.cancelled);
     expect(cancelCtx.engine.lastStaged!.disposeCount, 1);
     expect(cancelCtx.engine.commitCalls, 0);
 
     final failCtx = await _open();
     failCtx.engine.lookupError = StateError('resident lookup');
     final failed = await _pipeline(failCtx)
-        .run(sourcePath: failCtx.source.path, maxBytes: 1000);
-    expect(failed, ImportOutcome.failedBeforeCommit);
+        .run(sourcePath: failCtx.source.path, limits: _limits);
+    expect(failed.outcome, ImportOutcome.failedBeforeCommit);
     expect(failCtx.engine.lastStaged!.disposeCount, 1);
     expect(failCtx.engine.commitCalls, 0);
   });
@@ -476,9 +481,9 @@ void main() {
     ctx.engine.lookupError = StateError('missing note 99');
 
     final outcome = await _pipeline(ctx)
-        .run(sourcePath: ctx.source.path, maxBytes: 1000);
+        .run(sourcePath: ctx.source.path, limits: _limits);
 
-    expect(outcome, ImportOutcome.failedBeforeCommit);
+    expect(outcome.outcome, ImportOutcome.failedBeforeCommit);
     expect(ctx.engine.commitCalls, 0);
     expect(ctx.db.pendingIntents(), isEmpty);
     expect(ctx.engine.lastStaged!.disposeCount, 1);
@@ -495,9 +500,9 @@ void main() {
     };
 
     final outcome = await _pipeline(ctx)
-        .run(sourcePath: ctx.source.path, maxBytes: 1000);
+        .run(sourcePath: ctx.source.path, limits: _limits);
 
-    expect(outcome, ImportOutcome.failedBeforeCommit);
+    expect(outcome.outcome, ImportOutcome.failedBeforeCommit);
     expect(ctx.engine.commitCalls, 1);
     expect(ctx.db.pendingIntents(), isEmpty);
     expect(ctx.collection.notes.containsKey(20), isFalse);
@@ -516,9 +521,9 @@ void main() {
     };
 
     final outcome = await _pipeline(ctx)
-        .run(sourcePath: ctx.source.path, maxBytes: 1000);
+        .run(sourcePath: ctx.source.path, limits: _limits);
 
-    expect(outcome, ImportOutcome.committed);
+    expect(outcome.outcome, ImportOutcome.committed);
     expect(ctx.db.pendingIntents(), isEmpty);
     expect(ctx.db.note(newGuid)!.rslibNoteId, 20);
     expect(ctx.collection.notes.containsKey(20), isTrue);
@@ -533,8 +538,8 @@ void main() {
       ctx.engine.commitError = StateError('rejected');
       _watchBatches(ctx);
       final first = await _pipeline(ctx)
-          .run(sourcePath: ctx.source.path, maxBytes: 1000);
-      expect(first, ImportOutcome.failedBeforeCommit);
+          .run(sourcePath: ctx.source.path, limits: _limits);
+      expect(first.outcome, ImportOutcome.failedBeforeCommit);
       expect(ctx.db.pendingIntents(), isEmpty);
       expect(ctx.collection.notes.containsKey(20), isFalse);
 
@@ -542,8 +547,8 @@ void main() {
       _armNewNote(ctx);
       _ensureRaw(ctx);
       final second = await _pipeline(ctx)
-          .run(sourcePath: ctx.source.path, maxBytes: 1000);
-      expect(second, ImportOutcome.committed);
+          .run(sourcePath: ctx.source.path, limits: _limits);
+      expect(second.outcome, ImportOutcome.committed);
       final home = ctx.db.note(newGuid)!.homeDeckGuid;
 
       ctx.collection.cards[200] = const CollectionCard(id: 200, deckId: 9);
@@ -568,6 +573,174 @@ void main() {
       expect(reopened.pendingIntents(), isEmpty);
     },
   );
+
+  test('a failure before finish keeps the error and has no plan', () async {
+    final ctx = await _open();
+    ctx.engine.onStage = () => throw StateError('missing notetype');
+
+    final result = await _pipeline(ctx)
+        .run(sourcePath: ctx.source.path, limits: _limits);
+
+    expect(result.outcome, ImportOutcome.failedBeforeCommit);
+    expect(result.plan, isNull);
+    expect(result.error, isA<StateError>());
+    expect(result.stack, isNotNull);
+    expect(result.errorKind, isNull);
+  });
+
+  test('noop and committed results carry the plan', () async {
+    final ctx = await _open();
+    ctx.engine.plan = _commitPlan(ctx);
+    _armNewNote(ctx);
+    final committed = await _pipeline(ctx)
+        .run(sourcePath: ctx.source.path, limits: _limits);
+    expect(committed.outcome, ImportOutcome.committed);
+    expect(committed.plan?.batchId, batch);
+    expect(committed.error, isNull);
+
+    ctx.engine.plan = _noopPlan(ctx);
+    final noop = await _pipeline(ctx)
+        .run(sourcePath: ctx.source.path, limits: _limits);
+    expect(noop.outcome, ImportOutcome.noop);
+    expect(noop.plan?.counts.noResidentCall, isTrue);
+    expect(noop.error, isNull);
+  });
+
+  test('adoption failure keeps the error and the plan', () async {
+    final ctx = await _open();
+    ctx.engine.plan = _commitPlan(ctx);
+    ctx.engine.deckIds = const {};
+    _armNewNote(ctx);
+
+    final result = await _pipeline(ctx)
+        .run(sourcePath: ctx.source.path, limits: _limits);
+
+    expect(result.outcome, ImportOutcome.failedAfterCommit);
+    expect(result.plan?.batchId, batch);
+    expect(result.error, isA<SideDbException>());
+    expect(result.stack, isNotNull);
+    expect(ctx.db.pendingIntents(), hasLength(1));
+  });
+
+  test('a rejected commit keeps the commit error', () async {
+    final ctx = await _open();
+    ctx.engine.plan = _commitPlan(ctx);
+    ctx.engine.commitError = StateError('rejected');
+
+    final result = await _pipeline(ctx)
+        .run(sourcePath: ctx.source.path, limits: _limits);
+
+    expect(result.outcome, ImportOutcome.failedBeforeCommit);
+    expect(result.plan?.batchId, batch);
+    expect(result.error, isA<StateError>());
+    expect((result.error! as StateError).message, 'rejected');
+    expect(result.stack, isNotNull);
+    expect(ctx.db.pendingIntents(), isEmpty);
+  });
+
+  test('an error after the intent is persisted is failedUnknown', () async {
+    final ctx = await _open();
+    ctx.engine.plan = _commitPlan(ctx);
+    final result = await _pipeline(
+      ctx,
+      fault: (phase) {
+        if (phase == ImportPhase.afterIntent) {
+          // The file still exists, so the hash read is attempted, and the
+          // permission error is not a SideDbException.
+          Process.runSync('chmod', ['000', ctx.staged.path]);
+        }
+      },
+    ).run(sourcePath: ctx.source.path, limits: _limits);
+
+    expect(result.outcome, ImportOutcome.failedUnknown);
+    expect(result.plan?.batchId, batch);
+    expect(result.error, isA<FileSystemException>());
+    expect(result.stack, isNotNull);
+    expect(ctx.engine.commitCalls, 0);
+    expect(ctx.db.pendingIntents(), hasLength(1));
+  });
+
+  test('reconcile throwing after a rejected commit is failedUnknown', () async {
+    final ctx = await _open();
+    ctx.engine.plan = _commitPlan(ctx);
+    ctx.engine.commitError = StateError('rejected');
+    final anki = _SecondDeckTreeThrows(ctx.collection);
+
+    final result = await ImportPipeline(
+      db: ctx.db,
+      anki: anki,
+      engine: ctx.engine,
+      dataDir: ctx.dataDir,
+    ).run(sourcePath: ctx.source.path, limits: _limits);
+
+    expect(result.outcome, ImportOutcome.failedUnknown);
+    expect(result.plan?.batchId, batch);
+    expect(result.error, isA<StateError>());
+    expect((result.error! as StateError).message, 'reconcile blew up');
+    expect(result.stack, isNotNull);
+    expect(ctx.db.pendingIntents(), hasLength(1));
+    expect(ctx.engine.commitCalls, 1);
+  });
+
+  test(
+    'onPhase is ordered, skips adoption, and cannot break the import',
+    () async {
+      final ctx = await _open();
+      ctx.engine.plan = _commitPlan(ctx);
+      _armNewNote(ctx);
+      final phases = <ImportPhase>[];
+      var commitsAtIntent = -1;
+      final result = await _pipeline(ctx).run(
+        sourcePath: ctx.source.path,
+        limits: _limits,
+        onPhase: (phase) {
+          if (phase == ImportPhase.afterStage) {
+            throw StateError('ui blew up');
+          }
+          phases.add(phase);
+          if (phase == ImportPhase.afterIntent) {
+            commitsAtIntent = ctx.engine.commitCalls;
+          }
+        },
+      );
+
+      expect(result.outcome, ImportOutcome.committed);
+      expect(phases, isNot(contains(ImportPhase.duringAdoption)));
+      expect(phases.first, ImportPhase.afterReconcile);
+      expect(
+        phases,
+        containsAllInOrder([
+          ImportPhase.afterNoteMap,
+          ImportPhase.afterResidentLookup,
+          ImportPhase.afterFinish,
+          ImportPhase.afterPre,
+          ImportPhase.afterIntent,
+          ImportPhase.beforeResidentCommit,
+          ImportPhase.afterResidentCommit,
+          ImportPhase.afterArchive,
+        ]),
+      );
+      for (var i = 1; i < phases.length; i++) {
+        expect(phases[i].index, greaterThan(phases[i - 1].index));
+      }
+      expect(commitsAtIntent, 0);
+    },
+  );
+
+  test('cancel before finish has no plan', () async {
+    final ctx = await _open();
+    final token = ImportCancellationToken();
+    ctx.engine.onStage = () {
+      token.cancel();
+    };
+    final result = await _pipeline(
+      ctx,
+      cancel: token,
+    ).run(sourcePath: ctx.source.path, limits: _limits);
+    expect(result.outcome, ImportOutcome.cancelled);
+    expect(result.plan, isNull);
+    expect(result.error, isNull);
+  });
 }
 
 class _Ctx {
@@ -769,6 +942,35 @@ Future<void> _startup(SideDb db, _Ctx ctx) {
     );
     await ctx.engine.scan(preparedBatchIds: preparedImportBatchIds(db));
   });
+}
+
+class _SecondDeckTreeThrows implements AnkiApi {
+  _SecondDeckTreeThrows(this.inner);
+
+  final FakeCollection inner;
+  var deckTreeCalls = 0;
+
+  @override
+  Future<List<CollectionDeck>> deckTree() async {
+    deckTreeCalls += 1;
+    if (deckTreeCalls > 1) {
+      throw StateError('reconcile blew up');
+    }
+    return inner.deckTree();
+  }
+
+  @override
+  Future<List<int>> searchNoteIds() => inner.searchNoteIds();
+
+  @override
+  Future<CollectionNote> getNote(int id) => inner.getNote(id);
+
+  @override
+  Future<List<CollectionCardRef>> cardsOfNote(int noteId) =>
+      inner.cardsOfNote(noteId);
+
+  @override
+  Future<CollectionCard> getCard(int cardId) => inner.getCard(cardId);
 }
 
 String _dump(SideDb db) {

@@ -2,16 +2,30 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+/// Caller's package ceilings (O4). This library does not pick the numbers.
+class ImportLimits {
+  const ImportLimits({
+    required this.maxBytes,
+    required this.maxUncompressedBytes,
+  });
+
+  /// Compressed file size, in bytes.
+  final int maxBytes;
+
+  /// Sum of zip central-directory uncompressed sizes, in bytes.
+  final int maxUncompressedBytes;
+}
+
 /// Resident-collection and E-pipeline operations import recovery calls.
 ///
 /// The host implements this with its bridge. This library has no FRB types.
 /// Content hashes are lowercase hex strings. Callers do not compare hash
 /// bytes.
 abstract interface class ImportEngine {
-  /// §7.1 steps 1–3. [maxBytes] is the caller's package ceiling.
+  /// §7.1 steps 1–3. [limits] is the caller's package ceiling.
   Future<StagedImport> stageE({
     required String sourcePath,
-    required int maxBytes,
+    required ImportLimits limits,
   });
 
   /// Resident notes for [noteIds], and which of [deckNames] already exist.

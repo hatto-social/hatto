@@ -51,7 +51,7 @@ class FakeImportEngine implements ImportEngine {
   @override
   Future<StagedImport> stageE({
     required String sourcePath,
-    required int maxBytes,
+    required ImportLimits limits,
   }) async {
     stageCalls += 1;
     final hook = onStage;
@@ -60,7 +60,7 @@ class FakeImportEngine implements ImportEngine {
     }
     final staged = FakeStagedImport(
       sourcePath: sourcePath,
-      maxBytes: maxBytes,
+      limits: limits,
       fileNotes: fileNotes,
       deckNames: stagedDeckNames,
     );
@@ -164,13 +164,13 @@ class FakeImportEngine implements ImportEngine {
 class FakeStagedImport implements StagedImport {
   FakeStagedImport({
     required this.sourcePath,
-    required this.maxBytes,
+    required this.limits,
     required this.fileNotes,
     required this.deckNames,
   });
 
   final String sourcePath;
-  final int maxBytes;
+  final ImportLimits limits;
 
   @override
   final List<StagedFileNote> fileNotes;

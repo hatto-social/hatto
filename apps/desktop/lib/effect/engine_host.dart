@@ -156,28 +156,6 @@ class EngineHost {
     return File(p.join(dataDir, 'collection.anki2')).absolute.path;
   }
 
-  /// True when an import intent exists or a working import folder is not empty.
-  ///
-  /// Absent directories count as empty. This does not take the side-database
-  /// lock and does not delete anything.
-  static bool importStartupNeeded(SideDb db, String dataDir) {
-    for (final intent in db.pendingIntents()) {
-      if (intent.op == intentImport) {
-        return true;
-      }
-    }
-    for (final name in const ['raw', 'e', 'staged']) {
-      final dir = Directory(p.join(dataDir, 'import', name));
-      if (!dir.existsSync()) {
-        continue;
-      }
-      if (dir.listSync(followLinks: false).isNotEmpty) {
-        return true;
-      }
-    }
-    return false;
-  }
-
   bool get markerPresent {
     final path = _collectionPath;
     if (path == null) {

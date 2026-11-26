@@ -322,11 +322,16 @@ fn wire__crate__api__import_stage_e_impl(
             let api_data_dir = <String>::sse_decode(&mut deserializer);
             let api_source_path = <String>::sse_decode(&mut deserializer);
             let api_max_bytes = <u64>::sse_decode(&mut deserializer);
+            let api_max_uncompressed_bytes = <u64>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, String>((move || {
-                    let output_ok =
-                        crate::api::import_stage_e(api_data_dir, api_source_path, api_max_bytes)?;
+                    let output_ok = crate::api::import_stage_e(
+                        api_data_dir,
+                        api_source_path,
+                        api_max_bytes,
+                        api_max_uncompressed_bytes,
+                    )?;
                     std::result::Result::Ok(output_ok)
                 })())
             }

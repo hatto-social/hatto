@@ -20,7 +20,9 @@ mod preset;
 pub use cleanup::{
     remove_import_batch, scan_import_folders, scan_prepared_batches, BatchIntent, ImportScan,
 };
-pub use error::ImportError;
+pub use error::{
+    ImportError, FORMAT_ERROR_PREFIX, TOO_LARGE_COMPRESSED_PREFIX, TOO_LARGE_UNCOMPRESSED_PREFIX,
+};
 pub use hatto_card_contract::{Class, NoteFacts, Plan};
 pub use paths::{
     e_collection_path, e_directory_path, e_media_db_path, e_media_directory_path,
@@ -39,3 +41,5 @@ mod tests_import;
 mod tests_lint;
 #[cfg(test)]
 mod tests_paths;
+#[cfg(test)]
+mod tests_validate;

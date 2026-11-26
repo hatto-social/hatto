@@ -460,21 +460,29 @@ pub struct ImportFolderScan {
 
 /// §7.1 steps 1–3. Does not take a resident collection.
 ///
-/// `max_bytes` is the caller's package ceiling. Between this and
-/// [`import_stage_finish`] only the E folder exists.
+/// `max_bytes` is the caller's compressed package ceiling.
+/// `max_uncompressed_bytes` is the ceiling on the sum of zip entry
+/// uncompressed sizes. Between this and [`import_stage_finish`] only the E
+/// folder exists.
 pub fn import_stage_e(
     data_dir: String,
     source_path: String,
     max_bytes: u64,
+    max_uncompressed_bytes: u64,
 ) -> Result<PendingImport, String> {
     #[cfg(frb_expand)]
     {
-        let _ = (data_dir, source_path, max_bytes);
+        let _ = (data_dir, source_path, max_bytes, max_uncompressed_bytes);
         return Err(String::new());
     }
     #[cfg(not(frb_expand))]
     {
-        crate::import_stage::import_stage_e(data_dir, source_path, max_bytes)
+        crate::import_stage::import_stage_e(
+            data_dir,
+            source_path,
+            max_bytes,
+            max_uncompressed_bytes,
+        )
     }
 }
 
