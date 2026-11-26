@@ -53,7 +53,7 @@ Future<void> recoverImports({
     final expected = decodeImportIntentExpected(intent.expected ?? '');
     // staged_sha256 and first_import are validated by the codec. Schema v1
     // has no column for them. pre is not read.
-    final committed = await _importCommitted(
+    final committed = await importCommitted(
       db: db,
       engine: engine,
       reconcile: reconcile,
@@ -187,7 +187,13 @@ Future<void> adoptCommittedImport({
   });
 }
 
-Future<bool> _importCommitted({
+/// Whether [expected] is already in the resident collection.
+///
+/// [recoverImports] and [ImportPipeline] both use this after
+/// [reconcileInTurn]. Branch 1 is a live guid in
+/// [ReconcileResult.residentImportNotes]. Branch 2 is an empty `new_guids`
+/// list whose `changed` hashes all match the resident notes.
+Future<bool> importCommitted({
   required SideDb db,
   required ImportEngine engine,
   required ReconcileResult reconcile,

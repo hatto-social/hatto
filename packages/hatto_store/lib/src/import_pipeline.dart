@@ -138,9 +138,19 @@ class ImportPipeline {
   }) async {
     db.requireExclusiveTurn('ImportPipeline');
     StagedImport? staged;
+    var stagedTaken = false;
     var intentId = 0;
     var inserted = false;
     var residentCommitted = false;
+    Future<void> releaseThenScan() async {
+      if (!stagedTaken) {
+        final open = staged;
+        staged = null;
+        open?.dispose();
+      }
+      await _scan();
+    }
+
     try {
       await reconcileInTurn(db: db, anki: anki);
       if (await _cancelled(ImportPhase.afterReconcile)) {
@@ -148,50 +158,74 @@ class ImportPipeline {
       }
 
       staged = await engine.stageE(sourcePath: sourcePath, maxBytes: maxBytes);
+      final opened = staged!;
       if (await _cancelled(ImportPhase.afterStage)) {
-        return await _cancelTurn(inserted: inserted, intentId: intentId);
+        return await _cancelTurn(
+          inserted: inserted,
+          intentId: intentId,
+          scan: releaseThenScan,
+        );
       }
 
       final mapped = db.notesByGuids([
-        for (final note in staged.fileNotes) note.guid,
+        for (final note in opened.fileNotes) note.guid,
       ]);
       if (await _cancelled(ImportPhase.afterNoteMap)) {
-        return await _cancelTurn(inserted: inserted, intentId: intentId);
+        return await _cancelTurn(
+          inserted: inserted,
+          intentId: intentId,
+          scan: releaseThenScan,
+        );
       }
 
-      final ids = _residentIds(staged.fileNotes, mapped);
+      final ids = _residentIds(opened.fileNotes, mapped);
       final match = await engine.residentLookup(
         noteIds: ids,
-        deckNames: staged.deckNames,
+        deckNames: opened.deckNames,
       );
       if (await _cancelled(ImportPhase.afterResidentLookup)) {
-        return await _cancelTurn(inserted: inserted, intentId: intentId);
+        return await _cancelTurn(
+          inserted: inserted,
+          intentId: intentId,
+          scan: releaseThenScan,
+        );
       }
 
       final plan = await engine.finish(
-        staged: staged,
+        staged: opened,
         residentFacts: match.notes,
         foundDeckNames: match.foundDeckNames,
       );
+      stagedTaken = true;
       if (await _cancelled(ImportPhase.afterFinish)) {
-        return await _cancelTurn(inserted: inserted, intentId: intentId);
+        return await _cancelTurn(
+          inserted: inserted,
+          intentId: intentId,
+          scan: releaseThenScan,
+        );
       }
       if (plan.counts.noResidentCall) {
-        await _scan();
+        await releaseThenScan();
         return ImportOutcome.noop;
       }
 
       final noteCount = await engine.notetypeUseCountSum();
       final preChanged = _preChanged(plan.changed.keys, match.notes);
       if (preChanged == null) {
-        await _scan();
+        await releaseThenScan();
         return ImportOutcome.failedBeforeCommit;
       }
       if (await _cancelled(ImportPhase.afterPre)) {
-        return await _cancelTurn(inserted: inserted, intentId: intentId);
+        return await _cancelTurn(
+          inserted: inserted,
+          intentId: intentId,
+          scan: releaseThenScan,
+        );
       }
 
-      final sourceSha = sha256OfFile(File(sourcePath));
+      final sourceSha = sha256OfFile(
+        File(importRawApkgPath(dataDir, plan.batchId)),
+      );
       final expected = ImportIntentExpected(
         sourceSha256: sourceSha,
         stagedSha256: plan.stagedSha256,
@@ -208,7 +242,11 @@ class ImportPipeline {
       );
       inserted = true;
       if (await _cancelled(ImportPhase.afterIntent)) {
-        return await _cancelTurn(inserted: inserted, intentId: intentId);
+        return await _cancelTurn(
+          inserted: inserted,
+          intentId: intentId,
+          scan: releaseThenScan,
+        );
       }
       if (!_layerW(
         batchId: plan.batchId,
@@ -216,17 +254,33 @@ class ImportPipeline {
         stagedPath: plan.stagedPath,
       )) {
         _abandon(intentId);
-        await _scan();
+        await releaseThenScan();
         return ImportOutcome.failedBeforeCommit;
       }
       if (await _cancelled(ImportPhase.beforeResidentCommit)) {
-        return await _cancelTurn(inserted: inserted, intentId: intentId);
+        return await _cancelTurn(
+          inserted: inserted,
+          intentId: intentId,
+          scan: releaseThenScan,
+        );
       }
 
-      final committed = await engine.commitResident(
-        stagedPath: plan.stagedPath,
-        firstImport: plan.firstImport,
-      );
+      final ResidentImportResult committed;
+      try {
+        committed = await engine.commitResident(
+          stagedPath: plan.stagedPath,
+          firstImport: plan.firstImport,
+        );
+      } on _FaultEscape {
+        rethrow;
+      } catch (_) {
+        return await _settleRejectedCommit(
+          expected: expected,
+          intentId: intentId,
+          batchId: plan.batchId,
+          scan: releaseThenScan,
+        );
+      }
       residentCommitted = true;
       await _fault(ImportPhase.afterResidentCommit);
 
@@ -244,7 +298,6 @@ class ImportPipeline {
           intentId: intentId,
           dataDir: dataDir,
           noteIdsByGuid: landed,
-          sourceFile: File(sourcePath),
           afterArchive: () => _fault(ImportPhase.afterArchive),
           beforeWrites: () {
             try {
@@ -257,22 +310,22 @@ class ImportPipeline {
       } on _FaultEscape {
         rethrow;
       } catch (_) {
-        await _scan();
+        await releaseThenScan();
         return ImportOutcome.failedAfterCommit;
       }
-      await _scan();
+      await releaseThenScan();
       return ImportOutcome.committed;
     } on _FaultEscape catch (err) {
       Error.throwWithStackTrace(err.cause, err.stack);
     } catch (err, stack) {
       if (residentCommitted) {
-        await _scan();
+        await releaseThenScan();
         return ImportOutcome.failedAfterCommit;
       }
       if (inserted) {
         Error.throwWithStackTrace(err, stack);
       }
-      await _scan();
+      await releaseThenScan();
       return ImportOutcome.failedBeforeCommit;
     } finally {
       staged?.dispose();
@@ -282,12 +335,62 @@ class ImportPipeline {
   Future<ImportOutcome> _cancelTurn({
     required bool inserted,
     required int intentId,
+    required Future<void> Function() scan,
   }) async {
     if (inserted) {
       _abandon(intentId);
     }
-    await _scan();
+    await scan();
     return ImportOutcome.cancelled;
+  }
+
+  /// [commitResident] threw. Reconcile and either drop the intent or adopt.
+  Future<ImportOutcome> _settleRejectedCommit({
+    required ImportIntentExpected expected,
+    required int intentId,
+    required String batchId,
+    required Future<void> Function() scan,
+  }) async {
+    final again = await reconcileInTurn(db: db, anki: anki);
+    final didCommit = await importCommitted(
+      db: db,
+      engine: engine,
+      reconcile: again,
+      expected: expected,
+    );
+    if (!didCommit) {
+      _abandon(intentId);
+      await scan();
+      return ImportOutcome.failedBeforeCommit;
+    }
+    try {
+      await adoptCommittedImport(
+        db: db,
+        anki: anki,
+        engine: engine,
+        expected: expected,
+        batchId: batchId,
+        intentId: intentId,
+        dataDir: dataDir,
+        noteIdsByGuid: again.residentImportNotes,
+        reservedDeckIds: again.reservedImportDecks,
+        afterArchive: () => _fault(ImportPhase.afterArchive),
+        beforeWrites: () {
+          try {
+            _faultSync(ImportPhase.duringAdoption);
+          } catch (err, stack) {
+            throw _FaultEscape(err, stack);
+          }
+        },
+      );
+    } on _FaultEscape {
+      rethrow;
+    } catch (_) {
+      await scan();
+      return ImportOutcome.failedAfterCommit;
+    }
+    await scan();
+    return ImportOutcome.committed;
   }
 
   Future<bool> _cancelled(ImportPhase phase) async {

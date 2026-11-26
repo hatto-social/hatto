@@ -551,14 +551,6 @@ class SideDb {
     );
   }
 
-  /// Inserts a note map row, or updates `rslib_note_id` and `home_deck_guid`.
-  ///
-  /// [importNote] rejects a second call whose rslib id differs and does not
-  /// change the home deck. This is the re-import path: a note that was
-  /// deleted and imported again keeps its guid and receives the new rslib id
-  /// and home deck. The `ON CONFLICT` target is `note_guid`, so a stale
-  /// `rslib_note_id` on that same row is replaced instead of raising
-  /// `UNIQUE`.
   /// Removes the `note_map` row for [rslibNoteId], if one exists.
   ///
   /// Does not start a transaction. Import adoption calls this inside
@@ -568,6 +560,14 @@ class SideDb {
     _db.execute('DELETE FROM note_map WHERE rslib_note_id = ?', [rslibNoteId]);
   }
 
+  /// Inserts a note map row, or updates `rslib_note_id` and `home_deck_guid`.
+  ///
+  /// [importNote] rejects a second call whose rslib id differs and does not
+  /// change the home deck. This is the re-import path: a note that was
+  /// deleted and imported again keeps its guid and receives the new rslib id
+  /// and home deck. The `ON CONFLICT` target is `note_guid`, so a stale
+  /// `rslib_note_id` on that same row is replaced instead of raising
+  /// `UNIQUE`.
   void upsertImportedNote({
     required String noteGuid,
     required int rslibNoteId,

@@ -36,6 +36,8 @@ class FakeImportEngine implements ImportEngine {
   FutureOr<void> Function()? onStage;
   Object? lookupError;
   int commitCalls = 0;
+  Object? commitError;
+  bool applyCommitBeforeError = false;
   int stageCalls = 0;
   FakeStagedImport? lastStaged;
   void Function()? onCommit;
@@ -143,6 +145,13 @@ class FakeImportEngine implements ImportEngine {
     committedPath = stagedPath;
     committedFirstImport = firstImport;
     commitCalls += 1;
+    final error = commitError;
+    if (error != null) {
+      if (applyCommitBeforeError) {
+        onCommit?.call();
+      }
+      throw error;
+    }
     onCommit?.call();
     return ResidentImportResult(newNoteIds: newNoteIds);
   }

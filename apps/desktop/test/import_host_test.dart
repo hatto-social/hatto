@@ -7,6 +7,7 @@ import 'dart:io';
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hatto_desktop/effect/engine_host.dart';
+import 'package:hatto_desktop/store/import_engine_desktop.dart';
 import 'package:hatto_desktop/src/gen/anki/cards.pb.dart';
 import 'package:hatto_desktop/src/gen/anki/collection.pb.dart';
 import 'package:hatto_desktop/src/gen/anki/generic.pb.dart' as generic;
@@ -93,6 +94,55 @@ void main() {
       db.close();
     }
   });
+
+  test(
+    'pre note_count matches the resident sum and grows by new guids',
+    () async {
+      final root = Directory.systemTemp.createTempSync('hatto-pre').absolute;
+      addTearDown(() => root.deleteSync(recursive: true));
+      final sourceDir = Directory(p.join(root.path, 'source'))..createSync();
+      final v1 = File(p.join(root.path, 'v1.apkg'));
+      final v2 = File(p.join(root.path, 'v2.apkg'));
+      await _exportChangedPair(sourceDir, v1, v2);
+
+      final dataDir = Directory(p.join(root.path, 'resident'))..createSync();
+      final host = EngineHost();
+      addTearDown(host.close);
+      await host.open(dataDir: dataDir.path);
+      final counter = DesktopImportEngine(
+        engine: host.engine!,
+        dataDir: dataDir.path,
+      );
+      final first = await host.writes!.importFile(
+        sourcePath: v1.path,
+        maxBytes: 20 * 1024 * 1024,
+      );
+      expect(first, ImportOutcome.committed);
+      final before = await counter.notetypeUseCountSum();
+
+      ImportIntentExpected? seen;
+      final second = await host.writes!.importFile(
+        sourcePath: v2.path,
+        maxBytes: 20 * 1024 * 1024,
+        fault: (phase) {
+          if (phase == ImportPhase.afterIntent) {
+            seen = decodeImportIntentExpected(
+              host.sideDb!.pendingIntents().single.expected!,
+            );
+          }
+        },
+      );
+      expect(second, ImportOutcome.committed);
+      expect(seen, isNotNull);
+      expect(seen!.pre.noteCount, before);
+      expect(seen!.newGuids, hasLength(1));
+      expect(seen!.changed, isNotEmpty);
+      expect(
+        await counter.notetypeUseCountSum(),
+        before + seen!.newGuids.length,
+      );
+    },
+  );
 }
 
 class _Orphan {
@@ -235,4 +285,145 @@ _Orphan _orphanTheCard(String collectionPath, int sourceCardId) {
   } finally {
     db.close();
   }
+}
+
+const _changedGuid = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+
+Future<void> _exportChangedPair(Directory dir, File v1, File v2) async {
+  final media = Directory(p.join(dir.path, 'collection.media'))..createSync();
+  final collectionPath = p.join(dir.path, 'collection.anki2');
+  final mediaDb = p.join(dir.path, 'collection.media.db');
+
+  Future<List<int>> invoke(
+    AnkiBackend backend,
+    String service,
+    String method,
+    GeneratedMessage req,
+  ) async {
+    final index = serviceMethodIndex(service: service, method: method);
+    if (index == null) {
+      throw StateError('no index for $service.$method');
+    }
+    final response = await command(
+      backend: backend,
+      service: index.service,
+      method: index.method,
+      input: req.writeToBuffer(),
+    );
+    if (!response.success) {
+      throw StateError('$service.$method failed: ${response.payload}');
+    }
+    return response.payload;
+  }
+
+  Future<void> open(AnkiBackend backend) {
+    return invoke(
+      backend,
+      'BackendCollectionService',
+      'open_collection',
+      OpenCollectionRequest(
+        collectionPath: collectionPath,
+        mediaFolderPath: media.path,
+        mediaDbPath: mediaDb,
+      ),
+    );
+  }
+
+  Future<void> close(AnkiBackend backend) {
+    return invoke(
+      backend,
+      'BackendCollectionService',
+      'close_collection',
+      CloseCollectionRequest(),
+    );
+  }
+
+  Future<void> export(AnkiBackend backend, File out) {
+    return invoke(
+      backend,
+      'BackendImportExportService',
+      'export_anki_package',
+      ExportAnkiPackageRequest(
+        outPath: out.path,
+        options: ExportAnkiPackageOptions(
+          withScheduling: true,
+          withDeckConfigs: true,
+          withMedia: true,
+          legacy: false,
+        ),
+        limit: ExportLimit(wholeCollection: generic.Empty()),
+      ),
+    );
+  }
+
+  final created = await openBackend(initMsg: encodeBackendInit());
+  await open(created);
+  final notetype = NotetypeId.fromBuffer(
+    await invoke(
+      created,
+      'BackendNotetypesService',
+      'get_notetype_id_by_name',
+      generic.String(val: 'Basic'),
+    ),
+  );
+  final fresh = Note.fromBuffer(
+    await invoke(created, 'BackendNotesService', 'new_note', notetype),
+  );
+  fresh.fields
+    ..clear()
+    ..addAll(['front', 'back']);
+  final added = AddNoteResponse.fromBuffer(
+    await invoke(
+      created,
+      'BackendNotesService',
+      'add_note',
+      AddNoteRequest(note: fresh, deckId: Int64(1)),
+    ),
+  );
+  final noteId = added.noteId.toInt();
+  await close(created);
+
+  final sql = sqlite3.open(collectionPath);
+  sql.execute('UPDATE notes SET guid = ?, mod = 1000 WHERE id = ?', [
+    _changedGuid,
+    noteId,
+  ]);
+  sql.close();
+
+  final first = await openBackend(initMsg: encodeBackendInit());
+  await open(first);
+  await export(first, v1);
+  await close(first);
+
+  final second = await openBackend(initMsg: encodeBackendInit());
+  await open(second);
+  final stored = Note.fromBuffer(
+    await invoke(
+      second,
+      'BackendNotesService',
+      'get_note',
+      NoteId(nid: Int64(noteId)),
+    ),
+  );
+  stored.fields[0] = 'front-changed';
+  await invoke(
+    second,
+    'BackendNotesService',
+    'update_notes',
+    UpdateNotesRequest(notes: [stored], skipUndoEntry: true),
+  );
+  final extra = Note.fromBuffer(
+    await invoke(second, 'BackendNotesService', 'new_note', notetype),
+  );
+  extra.fields
+    ..clear()
+    ..addAll(['new-front', 'new-back']);
+  await invoke(
+    second,
+    'BackendNotesService',
+    'add_note',
+    AddNoteRequest(note: extra, deckId: Int64(1)),
+  );
+  await export(second, v2);
+  await close(second);
 }

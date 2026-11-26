@@ -11,16 +11,18 @@ import 'package:path/path.dart' as p;
 const _ruleA = <String>[
   'Rpcs.importAnkiPackage',
   "'import_anki_package'",
+  '"import_anki_package"',
   'importAnkiPackage',
+  'ImportAnkiPackageRequest(',
 ];
 
-/// Temporary I7 pins. A new pattern in one of these files fails.
-const _i7 = <String, Set<String>>{
+/// Temporary I7 pins: exact occurrence counts. One extra match fails.
+const _i7Counts = <String, Map<String, int>>{
   'apps/mobile/integration_test/smoke_flow.dart': {
-    "'import_anki_package'",
-    'importAnkiPackage',
+    "'import_anki_package'": 1,
+    'importAnkiPackage': 1,
   },
-  'apps/mobile/integration_test/smoke_support.dart': {'importAnkiPackage'},
+  'apps/mobile/integration_test/smoke_support.dart': {'importAnkiPackage': 3},
 };
 
 const _adapter = 'apps/desktop/lib/store/import_engine_desktop.dart';
@@ -58,7 +60,9 @@ void main() {
       ..writeAsStringSync(
         "final rpc = Rpcs.importAnkiPackage;\n"
         "const name = 'import_anki_package';\n"
-        'void sneak() => importAnkiPackage();\n',
+        'const other = "import_anki_package";\n'
+        'void sneak() => importAnkiPackage();\n'
+        'final req = ImportAnkiPackageRequest();\n',
       );
     final ruleB =
         File(p.join(root.path, 'packages/hatto_store/lib/sneak_b.dart'))
@@ -73,6 +77,21 @@ void main() {
       _ruleA.toSet(),
     );
     expect(violations.where((hit) => hit.startsWith('b ')), isNotEmpty);
+  });
+
+  test('an extra prepare_runtime call fails the lint', () {
+    final root = Directory.systemTemp.createTempSync('hatto-prep-lint');
+    addTearDown(() => root.deleteSync(recursive: true));
+    File(p.join(root.path, 'apps/desktop/lib/main.dart'))
+      ..createSync(recursive: true)
+      ..writeAsStringSync('prepareRuntime(tmpDir: cache.path);\n');
+    File(p.join(root.path, 'apps/desktop/lib/extra.dart'))
+        .writeAsStringSync('prepareRuntime(tmpDir: other.path);\n');
+
+    expect(prepareRuntimeCallSites(root, 'apps/desktop'), [
+      'apps/desktop/lib/main.dart',
+      'apps/desktop/lib/extra.dart',
+    ]);
   });
 }
 
@@ -108,11 +127,12 @@ List<String> importCallSiteViolations(Directory repo, {List<File>? files}) {
       continue;
     }
     for (final pattern in _ruleA) {
-      if (!text.contains(pattern)) {
+      final count = pattern.allMatches(text).length;
+      if (count == 0) {
         continue;
       }
-      final pinned = _i7[relative];
-      if (pinned != null && pinned.contains(pattern)) {
+      final allowed = _i7Counts[relative]?[pattern] ?? 0;
+      if (count == allowed) {
         continue;
       }
       hits.add(_Hit('a', pattern, relative));

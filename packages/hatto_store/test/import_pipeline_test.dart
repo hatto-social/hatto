@@ -305,7 +305,6 @@ void main() {
         const CollectionDeck(id: 7, name: 'Spanish'),
       ];
       ctx.collection.addNote(id: 20, guid: newGuid, cardId: 200, deckId: 7);
-      ctx.engine.notetypeUseCount = seen!.pre.noteCount + seen!.newGuids.length;
     };
     ctx.engine.newNoteIds = const [20];
 
@@ -319,7 +318,6 @@ void main() {
     expect(seen!.pre.changed.keys.toList(), seen!.changed.keys.toList());
     expect(seen!.pre.changed[changedGuid], residentHash);
     expect(seen!.changed[changedGuid], fileHash);
-    expect(await ctx.engine.notetypeUseCountSum(), 5);
     expect(ctx.db.note(changedGuid)!.homeDeckGuid, 'home');
     expect(
       ctx.db.note(newGuid)!.homeDeckGuid,
@@ -486,6 +484,90 @@ void main() {
     expect(ctx.engine.lastStaged!.disposeCount, 1);
     expect(ctx.db.note('stale')!.rslibNoteId, 99);
   });
+
+  test('B1 a rejected commit with no mutation drops the intent', () async {
+    final ctx = await _open();
+    ctx.engine.plan = _commitPlan(ctx);
+    ctx.engine.commitError = StateError('rejected');
+    _watchBatches(ctx);
+    ctx.engine.onStage = () {
+      _createBatch(ctx);
+    };
+
+    final outcome = await _pipeline(ctx)
+        .run(sourcePath: ctx.source.path, maxBytes: 1000);
+
+    expect(outcome, ImportOutcome.failedBeforeCommit);
+    expect(ctx.engine.commitCalls, 1);
+    expect(ctx.db.pendingIntents(), isEmpty);
+    expect(ctx.collection.notes.containsKey(20), isFalse);
+    _expectNoBatch(ctx);
+  });
+
+  test('B1 a commit that mutates and then throws is adopted', () async {
+    final ctx = await _open();
+    ctx.engine.plan = _commitPlan(ctx);
+    _armNewNote(ctx);
+    ctx.engine.commitError = StateError('rejected after write');
+    ctx.engine.applyCommitBeforeError = true;
+    _watchBatches(ctx);
+    ctx.engine.onStage = () {
+      _createBatch(ctx);
+    };
+
+    final outcome = await _pipeline(ctx)
+        .run(sourcePath: ctx.source.path, maxBytes: 1000);
+
+    expect(outcome, ImportOutcome.committed);
+    expect(ctx.db.pendingIntents(), isEmpty);
+    expect(ctx.db.note(newGuid)!.rslibNoteId, 20);
+    expect(ctx.collection.notes.containsKey(20), isTrue);
+    _expectNoBatch(ctx);
+  });
+
+  test(
+    'B1 a rejected import does not rewrite home after a later move',
+    () async {
+      final ctx = await _open();
+      ctx.engine.plan = _commitPlan(ctx);
+      ctx.engine.commitError = StateError('rejected');
+      _watchBatches(ctx);
+      final first = await _pipeline(ctx)
+          .run(sourcePath: ctx.source.path, maxBytes: 1000);
+      expect(first, ImportOutcome.failedBeforeCommit);
+      expect(ctx.db.pendingIntents(), isEmpty);
+      expect(ctx.collection.notes.containsKey(20), isFalse);
+
+      ctx.engine.commitError = null;
+      _armNewNote(ctx);
+      _ensureRaw(ctx);
+      final second = await _pipeline(ctx)
+          .run(sourcePath: ctx.source.path, maxBytes: 1000);
+      expect(second, ImportOutcome.committed);
+      final home = ctx.db.note(newGuid)!.homeDeckGuid;
+
+      ctx.collection.cards[200] = const CollectionCard(id: 200, deckId: 9);
+      ctx.collection.decks = [
+        ...ctx.collection.decks,
+        const CollectionDeck(id: 9, name: 'other'),
+      ];
+      ctx.db.putDeck(
+        deckGuid: 'other-deck',
+        rslibDeckId: 9,
+        originKind: 'editor',
+      );
+
+      final path = ctx.dbPath;
+      ctx.db.close();
+      final reopened = SideDb.open(path: path, deviceId: 'dev');
+      addTearDown(reopened.close);
+      await _startup(reopened, ctx);
+
+      expect(reopened.note(newGuid)!.homeDeckGuid, home);
+      expect(reopened.note(newGuid)!.homeDeckGuid, isNot('other-deck'));
+      expect(reopened.pendingIntents(), isEmpty);
+    },
+  );
 }
 
 class _Ctx {
@@ -529,6 +611,9 @@ Future<_Ctx> _open() async {
   final sourceBytes = <int>[1, 2, 3, 4];
   final stagedBytes = <int>[9, 9, 9];
   final source = File(p.join(root.path, 'source.apkg'))
+    ..writeAsBytesSync(sourceBytes);
+  File(importRawApkgPath(root.path, batch))
+    ..parent.createSync(recursive: true)
     ..writeAsBytesSync(sourceBytes);
   final staged = File(p.join(root.path, 'staged.apkg'))
     ..writeAsBytesSync(stagedBytes);
@@ -605,6 +690,12 @@ PreparedPlan _noopPlan(_Ctx ctx) {
       noResidentCall: true,
     ),
   );
+}
+
+void _ensureRaw(_Ctx ctx) {
+  final raw = File(importRawApkgPath(ctx.dataDir, batch));
+  raw.parent.createSync(recursive: true);
+  raw.writeAsBytesSync(ctx.sourceBytes);
 }
 
 void _armNewNote(_Ctx ctx) {
