@@ -158,6 +158,7 @@ class ReconcileResult {
   const ReconcileResult({
     required this.skippedNotes,
     this.reservedImportNotes = const {},
+    this.residentImportNotes = const {},
     this.reservedImportDecks = const {},
   });
 
@@ -167,6 +168,14 @@ class ReconcileResult {
   ///
   /// Guid to rslib note id. Reconcile does not adopt these as `editor`.
   final Map<String, int> reservedImportNotes;
+
+  /// Live resident notes whose guid is in a pending import's `new_guids`.
+  ///
+  /// Guid to rslib note id. This is [reservedImportNotes] plus notes that
+  /// are already in `note_map` and still present in the collection with the
+  /// same guid. A stale `note_map` row whose note is gone is absent.
+  /// Recovery treats branch 1 as committed only from this map.
+  final Map<String, int> residentImportNotes;
 
   /// Unmapped resident decks reserved by a pending import.
   ///
@@ -264,8 +273,12 @@ Future<NoteMapRow> adoptNote({
 ///
 /// A pending `import` intent is never settled here. Its `new_guids` and
 /// `deck_names` are reserved: an unmapped resident note or deck that matches
-/// is left unmapped and reported on [ReconcileResult]. Import recovery adopts
-/// those with origin `import` instead of `editor`.
+/// is left unmapped and reported on [ReconcileResult]. Live notes already
+/// in `note_map` whose guid is in `new_guids` are reported on
+/// [ReconcileResult.residentImportNotes] and are not adopted again. Import
+/// recovery adopts from that live map with origin `import` instead of
+/// `editor`. A `note_map` row whose note is not in the collection is not
+/// live.
 ///
 /// A second call sees the same rows. The module does not delete user data
 /// to get there.
@@ -318,12 +331,14 @@ Future<ReconcileResult> reconcileInTurn({
   final liveIds = (await anki.searchNoteIds()).toSet();
   final skipped = <SkippedNote>[];
   final reservedImportNotes = <String, int>{};
+  final residentImportNotes = <String, int>{};
   for (final id in liveIds) {
     final row = db.noteByRslibId(id);
     if (row == null) {
       final note = await anki.getNote(id);
       if (imports.newGuids.contains(note.guid)) {
         reservedImportNotes.putIfAbsent(note.guid, () => id);
+        residentImportNotes.putIfAbsent(note.guid, () => id);
         continue;
       }
       await _adoptOrSkip(
@@ -337,16 +352,20 @@ Future<ReconcileResult> reconcileInTurn({
       continue;
     }
     final note = await anki.getNote(id);
-    if (note.guid != row.noteGuid) {
-      await _adoptOrSkip(
-        skipped: skipped,
-        db: db,
-        anki: anki,
-        rslibNoteId: id,
-        decks: tree,
-        reservedGuids: reserved,
-      );
+    if (note.guid == row.noteGuid) {
+      if (imports.newGuids.contains(note.guid)) {
+        residentImportNotes.putIfAbsent(note.guid, () => id);
+      }
+      continue;
     }
+    await _adoptOrSkip(
+      skipped: skipped,
+      db: db,
+      anki: anki,
+      rslibNoteId: id,
+      decks: tree,
+      reservedGuids: reserved,
+    );
   }
   for (final intent in db.pendingIntents()) {
     if (_intentIsSettled(db, intent, tree, liveIds)) {
@@ -358,6 +377,9 @@ Future<ReconcileResult> reconcileInTurn({
     reservedImportNotes: reservedImportNotes.isEmpty
         ? const {}
         : Map<String, int>.unmodifiable(reservedImportNotes),
+    residentImportNotes: residentImportNotes.isEmpty
+        ? const {}
+        : Map<String, int>.unmodifiable(residentImportNotes),
     reservedImportDecks: reservedImportDecks.isEmpty
         ? const {}
         : Map<String, int>.unmodifiable(reservedImportDecks),

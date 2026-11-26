@@ -19,7 +19,8 @@ import 'uuid.dart';
 /// each pending `import` row this reads `expected` and not `pre`:
 ///
 /// 1. `new_guids` is non-empty and at least one guid is in
-///    [ReconcileResult.reservedImportNotes] or `note_map`. The resident
+///    [ReconcileResult.residentImportNotes]. That map is live resident
+///    notes only. A stale `note_map` row does not count. The resident
 ///    import committed. Copy the raw package when it exists, then run the
 ///    adoption transaction.
 /// 2. `new_guids` is empty, `changed` is not, and every resident content
@@ -32,8 +33,10 @@ import 'uuid.dart';
 /// `<dataDir>/imports/<source_sha256>` before the database transaction, and
 /// only when that raw file exists. The transaction upserts notes, inserts
 /// decks with `INSERT OR IGNORE`, then deletes the intent. It does not
-/// write `edit_journal`. A second pass sees the same rows: the intent is
-/// already gone, and a deck that is already mapped is not inserted again.
+/// write `edit_journal`. `note_map` is upserted only for `new_guids`.
+/// `changed` notes keep the home deck written at first mapping. A second
+/// pass sees the same rows: the intent is already gone, and a deck that is
+/// already mapped is not inserted again.
 Future<void> recoverImports({
   required SideDb db,
   required AnkiApi anki,
@@ -81,8 +84,7 @@ Future<bool> _importCommitted({
 }) async {
   if (expected.newGuids.isNotEmpty) {
     for (final guid in expected.newGuids) {
-      if (reconcile.reservedImportNotes.containsKey(guid) ||
-          db.note(guid) != null) {
+      if (reconcile.residentImportNotes.containsKey(guid)) {
         return true;
       }
     }
@@ -143,8 +145,7 @@ Future<void> _adoptImport({
     }
     final existing = db.deckByRslibId(id);
     if (existing != null) {
-      // A live row is reused. A soft-deleted row keeps this rslib id, so a
-      // second row cannot be inserted. The soft-deleted row is not updated.
+      // v0 reuses this soft-deleted row; clearing deleted_at waits for v1 sync.
       guidByDeckId[id] = existing.deckGuid;
       continue;
     }
@@ -155,12 +156,11 @@ Future<void> _adoptImport({
 
   final notes = <_PendingNote>[];
   final seenGuids = <String>{};
-  for (final guid in [...expected.newGuids, ...expected.changed.keys]) {
+  for (final guid in expected.newGuids) {
     if (!seenGuids.add(guid)) {
       continue;
     }
-    final id =
-        reconcile.reservedImportNotes[guid] ?? db.note(guid)?.rslibNoteId;
+    final id = reconcile.residentImportNotes[guid];
     if (id == null) {
       continue;
     }
@@ -204,6 +204,7 @@ void _copyRawArchive({
   }
   final digest = storeImportArchive(dataDir: dataDir, source: raw);
   if (digest != sourceSha256) {
+    // v0 leaves the orphan copy under the actual digest.
     throw SideDbException(
       'raw apkg sha256 does not match expected.source_sha256',
     );

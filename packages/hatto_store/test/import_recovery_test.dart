@@ -426,6 +426,228 @@ void main() {
     },
   );
 
+  test('a stale note_map row is not a committed import', () async {
+    final db = SideDb.openInMemory();
+    addTearDown(db.close);
+    db.putDeck(deckGuid: 'old-deck', rslibDeckId: 1, originKind: 'editor');
+    db.importNote(
+      noteGuid: 'n-old',
+      rslibNoteId: 10,
+      cards: const [ImportedNoteCard(ord: 0, rslibDeckId: 1)],
+    );
+    final collection = FakeCollection()..decks = const [];
+    _insertImport(
+      db,
+      _expected(sourceSha256: 'aa' * 32, newGuids: const ['n-old']),
+    );
+
+    await _turn(
+      db: db,
+      collection: collection,
+      engine: FakeImportEngine(),
+      dataDir: '/unused',
+    );
+
+    expect(db.pendingIntents(), isEmpty);
+    expect(db.note('n-old')!.rslibNoteId, 10);
+    expect(db.note('n-old')!.homeDeckGuid, 'old-deck');
+    expect(db.decks(), hasLength(1));
+    expect(db.journalRows(), isEmpty);
+  });
+
+  test('a revived mapped note updates its home deck', () async {
+    final db = SideDb.openInMemory();
+    addTearDown(db.close);
+    final sourceSha = 'bb' * 32;
+    db.putDeck(deckGuid: 'old-deck', rslibDeckId: 1, originKind: 'editor');
+    db.importNote(
+      noteGuid: 'n-old',
+      rslibNoteId: 10,
+      cards: const [ImportedNoteCard(ord: 0, rslibDeckId: 1)],
+    );
+    final collection = FakeCollection()
+      ..decks = const [CollectionDeck(id: 8, name: 'Spanish')]
+      ..addNote(id: 10, guid: 'n-old', cardId: 100, deckId: 8);
+    final engine = FakeImportEngine(deckIds: const {'Spanish': 8});
+    _insertImport(
+      db,
+      _expected(
+        sourceSha256: sourceSha,
+        newGuids: const ['n-old'],
+        deckNames: const ['Spanish'],
+      ),
+    );
+
+    late ReconcileResult reconcile;
+    await db.exclusive(() async {
+      reconcile = await reconcileInTurn(db: db, anki: collection);
+      expect(reconcile.reservedImportNotes, isEmpty);
+      expect(reconcile.residentImportNotes, {'n-old': 10});
+      expect(db.note('n-old')!.homeDeckGuid, 'old-deck');
+      await recoverImports(
+        db: db,
+        anki: collection,
+        engine: engine,
+        reconcile: reconcile,
+        dataDir: '/unused',
+      );
+    });
+
+    final created = db.deckByRslibId(8)!;
+    expect(created.deckGuid, isNot('old-deck'));
+    expect(created.originKind, 'import');
+    expect(db.note('n-old')!.rslibNoteId, 10);
+    expect(db.note('n-old')!.homeDeckGuid, created.deckGuid);
+    expect(db.deck('old-deck')!.rslibDeckId, 1);
+    expect(db.pendingIntents(), isEmpty);
+    expect(db.journalRows(), isEmpty);
+  });
+
+  test(
+    'a changed note keeps its original home deck after the card moves',
+    () async {
+      final db = SideDb.openInMemory();
+      addTearDown(db.close);
+      final sourceSha = 'cc' * 32;
+      final fileHash = sha256.convert(utf8.encode('file')).toString();
+      db.putDeck(deckGuid: 'deck-old', rslibDeckId: 3, originKind: 'editor');
+      db.putDeck(deckGuid: 'deck-other', rslibDeckId: 4, originKind: 'editor');
+      db.importNote(
+        noteGuid: 'g-old',
+        rslibNoteId: 5,
+        cards: const [ImportedNoteCard(ord: 0, rslibDeckId: 3)],
+      );
+      final collection = FakeCollection()
+        ..decks = const [
+          CollectionDeck(id: 3, name: 'Old'),
+          CollectionDeck(id: 4, name: 'Other'),
+        ]
+        ..addNote(id: 5, guid: 'g-old', cardId: 50, deckId: 4);
+      final engine = FakeImportEngine(
+        notes: [
+          ResidentNoteFacts(guid: 'g-old', id: 5, contentHashHex: fileHash),
+        ],
+        deckIds: const {'Old': 3, 'Other': 4},
+      );
+      _insertImport(
+        db,
+        _expected(
+          sourceSha256: sourceSha,
+          changed: {'g-old': fileHash},
+          deckNames: const ['Old', 'Other'],
+          firstImport: false,
+        ),
+      );
+
+      await _turn(
+        db: db,
+        collection: collection,
+        engine: engine,
+        dataDir: '/unused',
+      );
+
+      expect(db.note('g-old')!.rslibNoteId, 5);
+      expect(db.note('g-old')!.homeDeckGuid, 'deck-old');
+      expect(db.deck('deck-other')!.rslibDeckId, 4);
+      expect(db.decks(), hasLength(2));
+      expect(db.pendingIntents(), isEmpty);
+      expect(db.journalRows(), isEmpty);
+    },
+  );
+
+  test('a raw digest mismatch leaves the intent pending', () async {
+    final db = SideDb.openInMemory();
+    addTearDown(db.close);
+    final dir = await Directory.systemTemp.createTemp('hatto-raw-mismatch');
+    addTearDown(() => dir.delete(recursive: true));
+    final bytes = Uint8List.fromList([7, 7, 7]);
+    final actual = sha256.convert(bytes).toString();
+    final expectedSha = 'dd' * 32;
+    _writeRaw(dir.path, batchId, bytes);
+    final collection = FakeCollection()
+      ..decks = const [CollectionDeck(id: 7, name: 'Spanish')]
+      ..addNote(id: 42, guid: 'g-new', cardId: 420, deckId: 7);
+    final engine = FakeImportEngine(deckIds: const {'Spanish': 7});
+    _insertImport(
+      db,
+      _expected(
+        sourceSha256: expectedSha,
+        newGuids: const ['g-new'],
+        deckNames: const ['Spanish'],
+      ),
+    );
+
+    await expectLater(
+      db.exclusive(() async {
+        final reconcile = await reconcileInTurn(db: db, anki: collection);
+        await recoverImports(
+          db: db,
+          anki: collection,
+          engine: engine,
+          reconcile: reconcile,
+          dataDir: dir.path,
+        );
+      }),
+      throwsA(isA<SideDbException>()),
+    );
+
+    expect(db.pendingIntents(), hasLength(1));
+    expect(db.note('g-new'), isNull);
+    expect(db.deckByRslibId(7), isNull);
+    expect(db.journalRows(), isEmpty);
+    expect(File(importArchivePath(dir.path, actual)).existsSync(), isTrue);
+    expect(
+      File(importArchivePath(dir.path, expectedSha)).existsSync(),
+      isFalse,
+    );
+  });
+
+  test('a soft-deleted deck row is reused for the same rslib id', () async {
+    final db = SideDb.openInMemory();
+    addTearDown(db.close);
+    const deletedAt = '2020-01-01T00:00:00Z';
+    db.putDeck(
+      deckGuid: 'old-deck',
+      rslibDeckId: 7,
+      originKind: 'import',
+      originRole: 'primary',
+      sourceSha256: 'ee' * 32,
+    );
+    db.markDeckDeleted(deckGuid: 'old-deck', deletedAt: deletedAt);
+    final collection = FakeCollection()
+      ..decks = const [CollectionDeck(id: 7, name: 'Spanish')]
+      ..addNote(id: 42, guid: 'g-new', cardId: 420, deckId: 7);
+    final engine = FakeImportEngine(deckIds: const {'Spanish': 7});
+    _insertImport(
+      db,
+      _expected(
+        sourceSha256: 'ff' * 32,
+        newGuids: const ['g-new'],
+        deckNames: const ['Spanish'],
+      ),
+    );
+
+    await _turn(
+      db: db,
+      collection: collection,
+      engine: engine,
+      dataDir: '/unused',
+    );
+
+    expect(db.decks(), hasLength(1));
+    final deck = db.deck('old-deck')!;
+    expect(deck.rslibDeckId, 7);
+    expect(deck.deletedAt, deletedAt);
+    expect(deck.originKind, 'import');
+    expect(deck.originRole, 'primary');
+    expect(deck.sourceSha256, 'ee' * 32);
+    expect(db.deckByRslibId(7)!.deckGuid, 'old-deck');
+    expect(db.note('g-new')!.rslibNoteId, 42);
+    expect(db.note('g-new')!.homeDeckGuid, 'old-deck');
+    expect(db.pendingIntents(), isEmpty);
+    expect(db.journalRows(), isEmpty);
+  });
+
   test('recoverImports outside an exclusive turn throws', () async {
     final db = SideDb.openInMemory();
     addTearDown(db.close);
