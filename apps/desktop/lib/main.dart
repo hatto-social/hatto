@@ -11,6 +11,7 @@ import 'package:rslib_bridge/rslib_bridge.dart';
 
 import 'app.dart';
 import 'editor/anki_ui.dart';
+import 'effect/apkg_import.dart';
 import 'effect/engine_host.dart';
 import 'services/audio_service.dart';
 import 'state/app_controller.dart';
@@ -45,13 +46,37 @@ Future<void> main() async {
   final api = desktopHost.flow!;
   final controller = AppController(api, audio: AudioplayersAudioService());
   await controller.refreshDecks();
-  runApp(FlowDesktopApp(controller: controller));
+  final gateway = desktopHost.writes;
+  final openedDir = desktopHost.dataDir;
+  if (gateway == null || openedDir == null) {
+    throw StateError('import is not attached');
+  }
+  final imports = ApkgImportSession(
+    importFile: ({required sourcePath, required limits, cancel, onPhase}) {
+      return gateway.importFile(
+        sourcePath: sourcePath,
+        limits: limits,
+        cancel: cancel,
+        onPhase: onPhase,
+      );
+    },
+    dataDir: openedDir,
+    startupError: desktopHost.importStartupError,
+    refreshDecks: controller.refreshDecks,
+    flushEditor: controller.flushPendingEdits,
+  );
+  runApp(FlowDesktopApp(controller: controller, imports: imports));
 }
 
 class FlowDesktopApp extends StatelessWidget {
-  const FlowDesktopApp({super.key, required this.controller});
+  const FlowDesktopApp({
+    super.key,
+    required this.controller,
+    required this.imports,
+  });
 
   final AppController controller;
+  final ApkgImportSession imports;
 
   @override
   Widget build(BuildContext context) {
@@ -62,7 +87,7 @@ class FlowDesktopApp extends StatelessWidget {
         fontFamily: kUiFont,
         fontFamilyFallback: const ['Noto Sans KR'],
       ),
-      home: MainShell(app: controller, colors: colors),
+      home: MainShell(app: controller, colors: colors, imports: imports),
     );
   }
 }

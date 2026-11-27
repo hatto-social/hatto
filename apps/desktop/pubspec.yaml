@@ -29,6 +29,10 @@ dependencies:
   flutter_widget_from_html_core: ^0.17.0
   audioplayers: ^6.4.0
   flutter_math_fork: 0.7.4
+  # 0.9 needs cross_file 0.4, which file_selector 1.1.0 does not resolve.
+  # 0.8.4 stays on cross_file 0.3 with file_selector.
+  desktop_drop: ^0.8.4
+  file_selector: ^1.1.0
 
 dev_dependencies:
   flutter_test:

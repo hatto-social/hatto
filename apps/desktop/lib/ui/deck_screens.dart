@@ -12,7 +12,7 @@ import 'common.dart';
 
 class DeckBrowserScreen extends StatelessWidget {
   const DeckBrowserScreen({super.key, required this.app, required this.onImport});
-  final AppController app; final VoidCallback onImport;
+  final AppController app; final VoidCallback? onImport;
 
   @override
   Widget build(BuildContext context) {

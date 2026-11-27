@@ -14,9 +14,26 @@ import '../effect/sound_gate.dart';
 enum Screen { decks, overview, review, browse, stats }
 
 class AppController extends ChangeNotifier {
-  AppController(this.api, {AudioService? audio}) : audio = audio ?? FakeAudioService();
-  final FlowApi api;
+  AppController(FlowApi api, {AudioService? audio}) : _api = api, audio = audio ?? FakeAudioService();
+
+  /// Widget tests that never open a collection.
+  @visibleForTesting
+  AppController.bare({AudioService? audio}) : _api = null, audio = audio ?? FakeAudioService();
+
+  final FlowApi? _api;
+  FlowApi get api {
+    final value = _api;
+    if (value == null) throw StateError('no collection is open');
+    return value;
+  }
   final AudioService audio;
+
+  /// Saves unsaved editor edits before an import.
+  Future<void> Function()? flushEditor;
+  Future<void> flushPendingEdits() async {
+    final flush = flushEditor;
+    if (flush != null) await flush();
+  }
   Screen screen = Screen.decks;
   DeckTreeNode? tree;
   int? deckId; String deckName = '';
