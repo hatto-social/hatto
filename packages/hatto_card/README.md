@@ -24,6 +24,8 @@ Anki and can change:
 | `notes[].k` | Local note. Guid is `local_note_guid(op_id, k)`. |
 | `notes[].fields` | Field strings, one per notetype field. |
 | `notes[].tags` | Tag list. |
+| `notes[].notetype` | Optional. Overrides the deck `notetype` for this note. Same stock or Hatto names. |
+| `notes[].deck_name` | Optional. The deck `deck_name`, or `{deck_name}::...` with no empty segment. |
 
 A note sets `source_guid` or `k`, not both. `source_guid` is not trimmed,
 case-folded, or Unicode-normalized. An empty `source_guid` is `GUID_FORMAT`.
@@ -33,14 +35,16 @@ Duplicates against a collection or `note_map` are not checked here.
 CLI `source_guid` mode is an input generator that mimics an external apkg: `normalize_import_guid` is idempotent, so a guid written here is the same guid a later import would assign.
 
 `hatto-card new` writes this shape with a new UUIDv4 `job_id` and `op_id`.
-`--deck-name` sets `deck_name` (default `Example`). With `--output`, it also
-writes `media/dot.png` beside the deck file when that file is missing, so
-`validate` and `export` can run next. An existing `dot.png` is left unchanged.
-`examples/with-media/` is the same shape with the fixed ids in that file, plus
-the png `new` copies. Local note guids are uuid5 values from the fresh
-`op_id`. The `source_guid` note uses `normalize_import_guid`, so the fresh
-`job_id` is stored and does not change that guid. A deck with no notes is
-still rejected.
+`--deck-name` sets `deck_name` (default `Example`). `--notetype` sets a seed
+notetype (stock or Hatto spelling). Without it, the 3-note deck keeps
+`Basic`. `--empty` writes `notes: []` and, when `--notetype` is omitted,
+`Hatto Basic`. With `--output`, it also writes `media/dot.png` beside the
+deck file when that file is missing, so `validate` and `export` can run next.
+An existing `dot.png` is left unchanged. `examples/with-media/` is the same
+shape with the fixed ids in that file, plus the png `new` copies. Local note
+guids are uuid5 values from the fresh `op_id`. The `source_guid` note uses
+`normalize_import_guid`, so the fresh `job_id` is stored and does not change
+that guid. A deck with no notes is still rejected by `validate` and `export`.
 
 ## Commands
 
@@ -48,34 +52,57 @@ still rejected.
 hatto-card --help
 hatto-card new --help
 hatto-card --json new --output deck.json --deck-name "My deck"
+hatto-card --json new --empty --output deck.json --notetype "Hatto Basic"
 hatto-card --json validate --deck deck.json
+hatto-card --json validate --deck -
 hatto-card --json export --deck deck.json --output out.apkg
+hatto-card --json export --deck - --output out.apkg
 hatto-card --json add-note --deck deck.json --notetype Basic --field front --field back
+hatto-card --json add-note --deck deck.json --notetype Basic --field "--foo" --field=--bar --tag "-v"
+hatto-card --json add-note --deck deck.json --notetype Basic --field front --field back --deck-name "My deck::Sub"
 hatto-card --json add-note --deck deck.json --notetype Basic --field front --field back --op-id UUID --k 0
 hatto-card --json add-note --deck deck.json --notetype Basic --field front --field back --tag example --job-id UUID --source-guid TEXT
+hatto-card --json add-notes --deck deck.json --input notes.jsonl --op-id UUID --start-k 0
 hatto-card inspect deck.apkg
 hatto-card --json inspect deck.apkg
 ```
 
 `-h` and `--help` print help on stdout and exit 0, for the top level and for
 each command (`hatto-card new --help`, and the same for `validate`, `export`,
-`add-note`, and `inspect`). A missing or unknown command still exits 2.
+`add-note`, `add-notes`, and `inspect`). A missing or unknown command still
+exits 2. `--flag=value` is the same as `--flag value`. A value may start with
+`-` or `--`.
 
 `export` validates, writes the notes into a temporary collection, and exports
-that one deck. `validate` runs the same notetype gate first: it opens a
-temporary collection, checks that the notetype exists, and checks that each
-note has one field per notetype field. It does not write an apkg. `--json`
-prints one JSON object. Exit status is non-zero when the deck JSON is invalid,
-a guid check fails, a media file is missing, a note's field count does not
-match the notetype, or the deck sets `notetype_legacy`.
+the root deck. rslib's deck-id limit includes child decks (`DeckIdWithChildren`),
+so a note on `{deck_name}::Sub` is in the package with the root. `validate`
+runs the same gate first: seed notetype, one field per notetype field, cloze
+syntax, and media references. It does not write an apkg. `--deck -` reads the
+deck JSON from stdin and resolves a relative `media_dir` from the current
+directory. `--json` prints one JSON object. Exit status is non-zero when the
+deck JSON is invalid, a guid check fails, a media file is missing, a note's
+field count does not match the notetype, a Cloze note's first field has no
+`{{c1::...}}` deletion, a note deck is outside the root, or the deck sets
+`notetype_legacy`.
 
 `add-note` appends one note. There is no add-card command; Anki builds the
 cards from the note and the notetype. `--notetype` must name the same notetype as the deck's
 `notetype` string, or `Basic` when that field is absent (`Basic` and
 `Hatto Basic` are the same notetype). The note does not
-store a notetype. Each `--field` is one field string, in notetype order.
+store a notetype. `--deck-name` stores that deck on the note when set. It
+must be the deck's `deck_name` or `{deck_name}::...` with no empty segment.
+Each `--field` is one field string, in notetype order.
 `--tag` may be repeated and is omitted from the note when absent. `--output`
 writes that path instead of the input file.
+
+`add-notes` appends every object from `--input`. The file is a JSON array or
+JSONL (one object per line, blank lines skipped). `--input -` reads stdin.
+Each object has `fields` and may set `tags`, `notetype`, `deck_name`, `op_id`
+and `k`, or `job_id` and `source_guid`. An object that sets none of `op_id`,
+`k`, and `source_guid` uses the command's `--op-id` (one new UUIDv4 when the
+flag is omitted) and `k` starting at `--start-k` (default 0), increasing by
+1 for each such object. `--notetype` is the default for objects that omit
+it. A notetype that differs from the deck is stored on that note.
 
 With no guid flags, `add-note` makes a UUIDv4 `op_id` and sets `k` to 0.
 `k` is the index of the note inside this write, not the index in the file.
@@ -86,15 +113,17 @@ flags cannot be combined with `--op-id` or `--k`. The id is stored on the
 new note, so the deck-level `op_id` or `job_id` of the other notes stays
 as it was.
 
-The file is written only after the guid checks and the media-directory check.
-A failure leaves every deck file unchanged. `add-note` does not open a
-collection, so it does not apply the notetype field-count check; `validate`
-and `export` do. All three commands reject a deck that sets `notetype_legacy`
-before those checks. The error code is `NOTETYPE_LEGACY`. Any value is
-rejected, including `null` and an object whose `id` is 0.
+The file is written only after the same checks as `validate` and `export`.
+A failure leaves every deck file unchanged. All of these commands reject a
+deck that sets `notetype_legacy` before those checks. The error code is
+`NOTETYPE_LEGACY`. Any value is rejected, including `null` and an object
+whose `id` is 0.
 
 Checks kept here are the deck JSON shape, `GUID_FORMAT`, `NOTE_GUID_DUPLICATE`
-inside this file, a missing media path, the notetype's field count, and
+inside this file, a missing media path, a local `<img src>` or `[sound:...]`
+name that is not in `media_dir` (`http://`, `https://`, and `data:` are
+skipped), the notetype's field count, a Cloze first field with no
+`{{cN::...}}` deletion (`N` ≥ 1), a note `deck_name` outside the root, and
 `NOTETYPE_LEGACY` when the deck sets `notetype_legacy`. Media bytes are copied
 as-is.
 

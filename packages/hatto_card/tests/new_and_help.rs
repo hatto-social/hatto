@@ -36,7 +36,11 @@ fn help_exits_zero_for_the_top_level_and_each_command() {
         ),
         (&["-h"], &["hatto-card"]),
         (&["help"], &["--json"]),
-        (&["new", "--help"], &["--deck-name", "--output"]),
+        (
+            &["new", "--help"],
+            &["--deck-name", "--output", "--empty", "--notetype"],
+        ),
+        (&["add-notes", "--help"], &["--input", "--start-k", "JSONL"]),
         (&["new", "-h"], &["--deck-name"]),
         (&["--help", "new"], &["--deck-name"]),
         (&["help", "new"], &["job_id"]),

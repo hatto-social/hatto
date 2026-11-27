@@ -9,6 +9,7 @@
 //! `rslib_bridge`'s unrestricted backend (`open_backend`, then
 //! `run_service_method` by service and method name).
 
+use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use std::sync::{Mutex, MutexGuard};
@@ -192,19 +193,26 @@ impl Session {
         Ok(added.note_id)
     }
 
-    /// Rejects notes whose field count is not the one rslib builds for `notetype`.
-    pub(crate) fn check_note_fields(
-        &self,
-        notetype: i64,
-        notes: &[DerivedNote],
-    ) -> Result<(), String> {
-        let fresh: anki_proto::notes::Note = self.call(
-            "BackendNotesService",
-            "new_note",
-            &anki_proto::notetypes::NotetypeId { ntid: notetype },
-        )?;
+    /// Rejects notes whose field count is not the one rslib builds for that
+    /// note's notetype. Each distinct notetype is resolved once.
+    pub(crate) fn check_note_fields(&self, notes: &[DerivedNote]) -> Result<(), String> {
+        let mut counts: HashMap<String, usize> = HashMap::new();
         for note in notes {
-            field_count_matches(note, fresh.fields.len())?;
+            let name = crate::seed::canonical_notetype(&note.notetype);
+            let count = if let Some(count) = counts.get(name) {
+                *count
+            } else {
+                let ntid = self.notetype_id(name)?;
+                let fresh: anki_proto::notes::Note = self.call(
+                    "BackendNotesService",
+                    "new_note",
+                    &anki_proto::notetypes::NotetypeId { ntid },
+                )?;
+                let count = fresh.fields.len();
+                counts.insert(name.to_string(), count);
+                count
+            };
+            field_count_matches(note, count)?;
         }
         Ok(())
     }

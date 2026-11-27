@@ -2,20 +2,21 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `hatto-card` library: validate a provisional deck file, append one note,
-//! export one deck from a temporary collection, and inspect an apkg through
-//! Stage E without opening a user collection.
+//! `hatto-card` library: validate a provisional deck file, append notes,
+//! export one deck (and its subdecks) from a temporary collection, and
+//! inspect an apkg through Stage E without opening a user collection.
 
 mod collection;
 mod deck;
 mod inspect;
 mod seed;
 
+use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use hatto_card_contract::NoteGuid;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::collection::Session;
@@ -79,20 +80,62 @@ pub fn failure_json(failure: &ToolFailure) -> Value {
     value
 }
 
+/// Options for [`write_new_deck`].
+pub struct NewDeck<'a> {
+    pub deck_name: Option<&'a str>,
+    pub notetype: Option<&'a str>,
+    /// `notes: []` instead of the three example notes.
+    pub empty: bool,
+}
+
 /// Writes the example deck with a new UUIDv4 `job_id` and `op_id`.
 ///
 /// `deck_name` replaces the example name when set. An empty name is rejected
 /// so the file is not written in a shape `validate` already refuses. With
 /// `path` set, `media/dot.png` is created beside the file when that file is
 /// missing. The note still references that image, and `validate` requires the
-/// media directory.
+/// media directory. This is [`write_new_deck`] with the example notetype and
+/// the three sample notes.
 pub fn write_skeleton(path: Option<&Path>, deck_name: Option<&str>) -> Result<Value, ToolFailure> {
+    write_new_deck(
+        path,
+        NewDeck {
+            deck_name,
+            notetype: None,
+            empty: false,
+        },
+    )
+}
+
+/// Writes a deck file. Without [`NewDeck::empty`], the three example notes
+/// stay and `notetype` stays `Basic` unless `notetype` is set. `--empty`
+/// writes `notes: []` and, when `notetype` is omitted, `Hatto Basic`.
+///
+/// `notetype`, when set, must be a seed notetype name (stock or Hatto). An
+/// unknown name does not write the file.
+pub fn write_new_deck(path: Option<&Path>, spec: NewDeck<'_>) -> Result<Value, ToolFailure> {
     let mut value = skeleton();
-    if let Some(name) = deck_name {
+    if let Some(name) = spec.deck_name {
         if name.is_empty() {
             return Err(ToolFailure::message("deck_name is empty"));
         }
         value["deck_name"] = json!(name);
+    }
+    if let Some(notetype) = spec.notetype {
+        if notetype.is_empty() {
+            return Err(ToolFailure::message("notetype is empty"));
+        }
+        if !seed::is_seed_notetype(notetype) {
+            return Err(ToolFailure::message(format!(
+                "notetype {notetype} is not a seed notetype"
+            )));
+        }
+        value["notetype"] = json!(notetype);
+    } else if spec.empty {
+        value["notetype"] = json!("Hatto Basic");
+    }
+    if spec.empty {
+        value["notes"] = json!([]);
     }
     value["job_id"] = json!(new_op_id());
     value["op_id"] = json!(new_op_id());
@@ -136,13 +179,47 @@ fn write_example_media(deck_path: &Path, deck: &Value) -> Result<(), ToolFailure
         .map_err(|err| ToolFailure::message(format!("write {}: {err}", png.display())))
 }
 
-/// One note to append. `notetype` is the deck's notetype name, not a new field.
+/// One note to append. `notetype` must be the deck's notetype (either spelling).
+/// `deck_name`, when set, is stored on the note and must be the deck root or a child.
 #[derive(Clone, Debug)]
 pub struct AddNoteRequest {
     pub notetype: String,
     pub fields: Vec<String>,
     pub tags: Vec<String>,
     pub guid: AddNoteGuid,
+    pub deck_name: Option<String>,
+}
+
+/// One batch of notes for [`add_notes_path`].
+///
+/// Notes whose [`BatchGuid`] is [`BatchGuid::Omitted`] share one `op_id`
+/// (the request's, or one new UUIDv4 for the call) and take `k` from
+/// `start_k` upward.
+#[derive(Clone, Debug)]
+pub struct AddNotesRequest {
+    pub notetype: Option<String>,
+    pub op_id: Option<String>,
+    pub start_k: u32,
+    pub notes: Vec<BatchNote>,
+}
+
+/// One note inside [`AddNotesRequest`].
+#[derive(Clone, Debug)]
+pub struct BatchNote {
+    pub fields: Vec<String>,
+    pub tags: Vec<String>,
+    pub notetype: Option<String>,
+    pub deck_name: Option<String>,
+    pub guid: BatchGuid,
+}
+
+/// How a batch note chooses its guid.
+#[derive(Clone, Debug)]
+pub enum BatchGuid {
+    /// No `op_id`, `k`, `job_id`, or `source_guid` on the item.
+    Omitted,
+    /// The item named a local or imported guid.
+    Specified(AddNoteGuid),
 }
 
 /// How to derive the new note's guid. The two arms cannot be combined.
@@ -165,30 +242,33 @@ enum AddedNote {
 }
 
 pub fn validate_path(deck_path: &Path) -> Result<Value, ToolFailure> {
-    let (deck, derived) = load(deck_path)?;
-    require_media(deck_path, &deck)?;
-    // The same notetype gate as export, so a deck that cannot be built does
-    // not pass here. An empty `notes` array already failed in `load`.
-    let (_root, session, notetype) = open_for_notetype(&deck)?;
-    session
-        .check_note_fields(notetype, &derived)
-        .map_err(ToolFailure::message)?;
+    let text = read_deck_file(deck_path)?;
+    validate_text(&text, media_base_of(deck_path))
+}
+
+/// Checks `text` the same way as [`validate_path`].
+///
+/// A relative `media_dir` is resolved from `media_base`. For a deck file that
+/// is the file's parent. For stdin it is the current directory.
+pub fn validate_text(text: &str, media_base: &Path) -> Result<Value, ToolFailure> {
+    let (deck, derived) = load_text(text)?;
+    let _checked = check_deck(media_base, &deck, &derived)?;
     Ok(json!({
         "ok": true,
         "notes": note_outs(&derived),
     }))
 }
 
-/// Appends one note. The deck file is written only after [validate_path]'s
-/// checks succeed: guid format, an in-file duplicate, and a missing media
-/// directory. `output` defaults to `deck_path`.
+/// Appends one note. The deck file is written only after the same checks as
+/// [`validate_path`]: guid format, an in-file duplicate, the media directory,
+/// media references, the seed notetype, the field count, and cloze syntax.
+/// `output` defaults to `deck_path`. `--notetype` must name the deck's notetype.
 pub fn add_note_path(
     deck_path: &Path,
     output: Option<&Path>,
     request: &AddNoteRequest,
 ) -> Result<Value, ToolFailure> {
-    let text = fs::read_to_string(deck_path)
-        .map_err(|err| ToolFailure::message(format!("read {}: {err}", deck_path.display())))?;
+    let text = read_deck_file(deck_path)?;
     let deck = parse_deck(&text).map_err(|problem| ToolFailure::problems(vec![problem]))?;
     if seed::canonical_notetype(deck.notetype_name()) != seed::canonical_notetype(&request.notetype)
     {
@@ -199,47 +279,143 @@ pub fn add_note_path(
         )));
     }
     let added = resolve_added(&request.guid);
-    let updated = append_note(&text, &note_json(request, &added))?;
+    let updated = append_notes(&text, &[note_json(request, &added)])?;
     let updated_deck =
         parse_deck(&updated).map_err(|problem| ToolFailure::problems(vec![problem]))?;
     let derived = derive_notes(&updated_deck).map_err(ToolFailure::problems)?;
     let dest = output.unwrap_or(deck_path);
-    require_media(dest, &updated_deck)?;
-    fs::write(dest, &updated)
-        .map_err(|err| ToolFailure::message(format!("write {}: {err}", dest.display())))?;
+    checked_write(dest, &updated, &updated_deck, &derived)?;
     Ok(added_json(dest, &added, &derived))
 }
 
+/// Appends every note in `request`, or writes nothing.
+///
+/// A failure of any note (guid, subdeck, notetype, field count, cloze, or
+/// media) leaves `deck_path` and `output` unchanged.
+pub fn add_notes_path(
+    deck_path: &Path,
+    output: Option<&Path>,
+    request: &AddNotesRequest,
+) -> Result<Value, ToolFailure> {
+    if request.notes.is_empty() {
+        return Err(ToolFailure::message("input is empty"));
+    }
+    if let Some(notetype) = request.notetype.as_deref() {
+        if notetype.is_empty() {
+            return Err(ToolFailure::message("notetype is empty"));
+        }
+        if !seed::is_seed_notetype(notetype) {
+            return Err(ToolFailure::message(format!(
+                "notetype {notetype} is not a seed notetype"
+            )));
+        }
+    }
+    let text = read_deck_file(deck_path)?;
+    let deck = parse_deck(&text).map_err(|problem| ToolFailure::problems(vec![problem]))?;
+    let mut auto_op = request.op_id.clone();
+    let mut next_k = Some(request.start_k);
+    let mut used_auto = false;
+    let mut notes = Vec::with_capacity(request.notes.len());
+    for item in &request.notes {
+        let requested = item.notetype.clone().or_else(|| request.notetype.clone());
+        let stored_notetype = stored_notetype(&deck, requested)?;
+        let added = resolve_batch_guid(&item.guid, &mut auto_op, &mut next_k, &mut used_auto)?;
+        notes.push(batch_note_json(item, &added, stored_notetype.as_deref()));
+    }
+    let updated = append_notes(&text, &notes)?;
+    let updated_deck =
+        parse_deck(&updated).map_err(|problem| ToolFailure::problems(vec![problem]))?;
+    let derived = derive_notes(&updated_deck).map_err(ToolFailure::problems)?;
+    let dest = output.unwrap_or(deck_path);
+    checked_write(dest, &updated, &updated_deck, &derived)?;
+    let mut value = json!({
+        "ok": true,
+        "path": dest,
+        "added": request.notes.len(),
+        "notes": note_outs(&derived),
+    });
+    if used_auto {
+        value["op_id"] = json!(auto_op.expect("auto op_id"));
+        value["start_k"] = json!(request.start_k);
+    }
+    Ok(value)
+}
+
+/// Parses a JSON array or JSONL batch. Blank JSONL lines are skipped.
+pub fn parse_notes_input(text: &str) -> Result<Vec<BatchNote>, ToolFailure> {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return Err(ToolFailure::message("input is empty"));
+    }
+    let raws: Vec<BatchNoteJson> = if trimmed.starts_with('[') {
+        serde_json::from_str(trimmed)
+            .map_err(|err| ToolFailure::message(format!("input json: {err}")))?
+    } else {
+        let mut raws = Vec::new();
+        for (index, line) in text.lines().enumerate() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+            let note: BatchNoteJson = serde_json::from_str(line)
+                .map_err(|err| ToolFailure::message(format!("input line {}: {err}", index + 1)))?;
+            raws.push(note);
+        }
+        raws
+    };
+    if raws.is_empty() {
+        return Err(ToolFailure::message("input is empty"));
+    }
+    raws.into_iter()
+        .enumerate()
+        .map(|(index, raw)| batch_from_json(index, raw))
+        .collect()
+}
+
 pub fn export_path(deck_path: &Path, out_path: &Path) -> Result<Value, ToolFailure> {
-    let (deck, derived) = load(deck_path)?;
-    let media_dir = require_media(deck_path, &deck)?;
-    let (_root, session, notetype) = open_for_notetype(&deck)?;
-    session
-        .check_note_fields(notetype, &derived)
-        .map_err(ToolFailure::message)?;
-    let deck_id = session
-        .add_deck(&deck.deck_name)
-        .map_err(ToolFailure::message)?;
+    let text = read_deck_file(deck_path)?;
+    export_text(&text, media_base_of(deck_path), out_path)
+}
+
+/// Exports `text`. A relative `media_dir` is resolved from `media_base`.
+///
+/// The root deck id is what `export_anki_package` receives. rslib turns that
+/// id into `DeckIdWithChildren`, so notes on `{root}::...` are in the package
+/// with the root.
+pub fn export_text(text: &str, media_base: &Path, out_path: &Path) -> Result<Value, ToolFailure> {
+    let (deck, derived) = load_text(text)?;
+    let (session_root, media_dir) = check_deck(media_base, &deck, &derived)?;
+    let (_tmp, session) = session_root;
+    let deck_ids = ensure_decks(&session, &deck.deck_name, &derived)?;
     if let Some(dir) = media_dir {
         add_media(&session, &dir)?;
     }
     for note in &derived {
+        let notetype = session
+            .notetype_id(seed::canonical_notetype(&note.notetype))
+            .map_err(ToolFailure::message)?;
+        let deck_id = deck_ids.get(&note.deck_name).copied().ok_or_else(|| {
+            ToolFailure::message(format!("deck {} was not created", note.deck_name))
+        })?;
         session
             .add_note(notetype, deck_id, note)
             .map_err(ToolFailure::message)?;
     }
+    let root_id = *deck_ids
+        .get(&deck.deck_name)
+        .ok_or_else(|| ToolFailure::message(format!("deck {} was not created", deck.deck_name)))?;
     if let Some(parent) = out_path.parent() {
         if !parent.as_os_str().is_empty() {
             fs::create_dir_all(parent).map_err(|err| ToolFailure::message(err.to_string()))?;
         }
     }
     session
-        .export_deck(out_path, deck_id)
+        .export_deck(out_path, root_id)
         .map_err(ToolFailure::message)?;
     Ok(json!({
         "ok": true,
         "apkg": out_path,
-        "deck_id": deck_id,
+        "deck_id": root_id,
         "notes": note_outs(&derived),
     }))
 }
@@ -288,19 +464,269 @@ fn note_json(request: &AddNoteRequest, added: &AddedNote) -> Value {
     if !request.tags.is_empty() {
         note["tags"] = json!(request.tags);
     }
+    if let Some(name) = &request.deck_name {
+        note["deck_name"] = json!(name);
+    }
     note
 }
 
-fn append_note(text: &str, note: &Value) -> Result<String, ToolFailure> {
+fn batch_note_json(item: &BatchNote, added: &AddedNote, notetype: Option<&str>) -> Value {
+    let request = AddNoteRequest {
+        notetype: String::new(),
+        fields: item.fields.clone(),
+        tags: item.tags.clone(),
+        guid: AddNoteGuid::Local {
+            op_id: None,
+            k: None,
+        },
+        deck_name: item.deck_name.clone(),
+    };
+    let mut note = note_json(&request, added);
+    if let Some(notetype) = notetype {
+        note["notetype"] = json!(notetype);
+    }
+    note
+}
+
+fn append_notes(text: &str, notes: &[Value]) -> Result<String, ToolFailure> {
     let mut value: Value = serde_json::from_str(text)
         .map_err(|err| ToolFailure::message(format!("deck json: {err}")))?;
-    let Some(notes) = value.get_mut("notes").and_then(Value::as_array_mut) else {
+    let Some(existing) = value.get_mut("notes").and_then(Value::as_array_mut) else {
         return Err(ToolFailure::message("notes is not an array"));
     };
-    notes.push(note.clone());
+    for note in notes {
+        existing.push(note.clone());
+    }
     let pretty = serde_json::to_string_pretty(&value)
         .map_err(|err| ToolFailure::message(err.to_string()))?;
     Ok(pretty + "\n")
+}
+
+#[derive(Debug, Deserialize)]
+struct BatchNoteJson {
+    fields: Vec<String>,
+    #[serde(default)]
+    tags: Vec<String>,
+    #[serde(default)]
+    notetype: Option<String>,
+    #[serde(default)]
+    deck_name: Option<String>,
+    #[serde(default)]
+    op_id: Option<String>,
+    #[serde(default)]
+    k: Option<u32>,
+    #[serde(default)]
+    job_id: Option<String>,
+    #[serde(default)]
+    source_guid: Option<String>,
+}
+
+fn batch_from_json(index: usize, raw: BatchNoteJson) -> Result<BatchNote, ToolFailure> {
+    let location = format!("input[{index}]");
+    if raw.notetype.as_deref().is_some_and(str::is_empty) {
+        return Err(ToolFailure::message(format!(
+            "{location} notetype is empty"
+        )));
+    }
+    if raw.fields.is_empty() {
+        return Err(ToolFailure::message(format!("{location} fields is empty")));
+    }
+    let local = raw.op_id.is_some() || raw.k.is_some();
+    let imported = raw.job_id.is_some() || raw.source_guid.is_some();
+    if local && imported {
+        return Err(ToolFailure::message(format!(
+            "{location} sets op_id/k and job_id/source_guid"
+        )));
+    }
+    let guid = if imported {
+        let job_id = raw
+            .job_id
+            .ok_or_else(|| ToolFailure::message(format!("{location} is missing job_id")))?;
+        let source_guid = raw
+            .source_guid
+            .ok_or_else(|| ToolFailure::message(format!("{location} is missing source_guid")))?;
+        BatchGuid::Specified(AddNoteGuid::Imported {
+            job_id,
+            source_guid,
+        })
+    } else if local {
+        BatchGuid::Specified(AddNoteGuid::Local {
+            op_id: raw.op_id,
+            k: raw.k,
+        })
+    } else {
+        BatchGuid::Omitted
+    };
+    Ok(BatchNote {
+        fields: raw.fields,
+        tags: raw.tags,
+        notetype: raw.notetype,
+        deck_name: raw.deck_name,
+        guid,
+    })
+}
+
+fn resolve_batch_guid(
+    guid: &BatchGuid,
+    auto_op: &mut Option<String>,
+    next_k: &mut Option<u32>,
+    used_auto: &mut bool,
+) -> Result<AddedNote, ToolFailure> {
+    match guid {
+        BatchGuid::Omitted => {
+            let op_id = auto_op.get_or_insert_with(new_op_id).clone();
+            let k = next_k.ok_or_else(|| ToolFailure::message("k overflowed u32"))?;
+            *next_k = k.checked_add(1);
+            *used_auto = true;
+            Ok(AddedNote::Local { op_id, k })
+        }
+        BatchGuid::Specified(specified) => Ok(resolve_added(specified)),
+    }
+}
+
+/// Stores a notetype on the note only when it is not the deck's notetype.
+fn stored_notetype(
+    deck: &DeckFile,
+    requested: Option<String>,
+) -> Result<Option<String>, ToolFailure> {
+    let Some(name) = requested else {
+        return Ok(None);
+    };
+    if name.is_empty() {
+        return Err(ToolFailure::message("notetype is empty"));
+    }
+    if seed::canonical_notetype(&name) == seed::canonical_notetype(deck.notetype_name()) {
+        return Ok(None);
+    }
+    Ok(Some(name))
+}
+
+fn checked_write(
+    dest: &Path,
+    text: &str,
+    deck: &DeckFile,
+    derived: &[DerivedNote],
+) -> Result<(), ToolFailure> {
+    let _checked = check_deck(media_base_of(dest), deck, derived)?;
+    fs::write(dest, text)
+        .map_err(|err| ToolFailure::message(format!("write {}: {err}", dest.display())))
+}
+
+/// The notetype, field-count, cloze, and media gates shared by validate,
+/// export, add-note, and add-notes. The session stays open so export can
+/// add the same notes without importing the seed twice.
+fn check_deck(
+    media_base: &Path,
+    deck: &DeckFile,
+    derived: &[DerivedNote],
+) -> Result<((tempfile::TempDir, Session), Option<PathBuf>), ToolFailure> {
+    let media = require_media(media_base, deck)?;
+    let opened = open_seeded()?;
+    opened
+        .1
+        .check_note_fields(derived)
+        .map_err(ToolFailure::message)?;
+    check_cloze(derived)?;
+    check_media_refs(media.as_deref(), derived)?;
+    Ok((opened, media))
+}
+
+fn check_cloze(notes: &[DerivedNote]) -> Result<(), ToolFailure> {
+    let mut problems = Vec::new();
+    for note in notes {
+        if !seed::is_cloze_notetype(&note.notetype) {
+            continue;
+        }
+        let field = note.fields.first().map(String::as_str).unwrap_or("");
+        if deck::has_valid_cloze(field) {
+            continue;
+        }
+        let note_at = note
+            .location
+            .strip_suffix(".guid")
+            .unwrap_or(note.location.as_str());
+        problems.push(Problem {
+            code: String::new(),
+            location: format!("{note_at}.fields[0]"),
+            message: "no cloze deletion; Hatto Cloze needs {{c1::...}} in the first field".into(),
+        });
+    }
+    if problems.is_empty() {
+        Ok(())
+    } else {
+        Err(ToolFailure::problems(problems))
+    }
+}
+
+fn check_media_refs(media_dir: Option<&Path>, notes: &[DerivedNote]) -> Result<(), ToolFailure> {
+    let mut problems = Vec::new();
+    for note in notes {
+        let note_at = note
+            .location
+            .strip_suffix(".guid")
+            .unwrap_or(note.location.as_str());
+        for (index, field) in note.fields.iter().enumerate() {
+            for name in deck::media_references(field) {
+                let location = format!("{note_at}.fields[{index}]");
+                let Some(dir) = media_dir else {
+                    problems.push(Problem {
+                        code: String::new(),
+                        location,
+                        message: format!("media file missing: {name} (media_dir is not set)"),
+                    });
+                    continue;
+                };
+                if !local_media_file(dir, &name).is_some_and(|path| path.is_file()) {
+                    problems.push(Problem {
+                        code: String::new(),
+                        location,
+                        message: format!("media file missing: {name}"),
+                    });
+                }
+            }
+        }
+    }
+    if problems.is_empty() {
+        Ok(())
+    } else {
+        Err(ToolFailure::problems(problems))
+    }
+}
+
+fn local_media_file(dir: &Path, name: &str) -> Option<PathBuf> {
+    if name.is_empty() {
+        return None;
+    }
+    let path = Path::new(name);
+    if path.is_absolute() {
+        return None;
+    }
+    if path.components().any(|component| {
+        matches!(
+            component,
+            Component::ParentDir | Component::RootDir | Component::Prefix(_)
+        )
+    }) {
+        return None;
+    }
+    Some(dir.join(path))
+}
+
+fn ensure_decks(
+    session: &Session,
+    root: &str,
+    notes: &[DerivedNote],
+) -> Result<HashMap<String, i64>, ToolFailure> {
+    let mut names: Vec<&str> = notes.iter().map(|note| note.deck_name.as_str()).collect();
+    names.push(root);
+    names.sort_by_key(|name| (name.matches("::").count(), *name));
+    names.dedup();
+    let mut ids = HashMap::new();
+    for name in names {
+        let id = session.add_deck(name).map_err(ToolFailure::message)?;
+        ids.insert(name.to_string(), id);
+    }
+    Ok(ids)
 }
 
 fn added_json(path: &Path, added: &AddedNote, notes: &[DerivedNote]) -> Value {
@@ -325,12 +751,22 @@ fn added_json(path: &Path, added: &AddedNote, notes: &[DerivedNote]) -> Value {
     value
 }
 
-fn load(deck_path: &Path) -> Result<(DeckFile, Vec<DerivedNote>), ToolFailure> {
-    let text = fs::read_to_string(deck_path)
-        .map_err(|err| ToolFailure::message(format!("read {}: {err}", deck_path.display())))?;
-    let deck = parse_deck(&text).map_err(|problem| ToolFailure::problems(vec![problem]))?;
+fn read_deck_file(deck_path: &Path) -> Result<String, ToolFailure> {
+    fs::read_to_string(deck_path)
+        .map_err(|err| ToolFailure::message(format!("read {}: {err}", deck_path.display())))
+}
+
+fn load_text(text: &str) -> Result<(DeckFile, Vec<DerivedNote>), ToolFailure> {
+    let deck = parse_deck(text).map_err(|problem| ToolFailure::problems(vec![problem]))?;
     let derived = derive_notes(&deck).map_err(ToolFailure::problems)?;
     Ok((deck, derived))
+}
+
+fn media_base_of(deck_path: &Path) -> &Path {
+    deck_path
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or(Path::new("."))
 }
 
 fn note_outs(notes: &[DerivedNote]) -> Vec<NoteOut> {
@@ -343,36 +779,28 @@ fn note_outs(notes: &[DerivedNote]) -> Vec<NoteOut> {
         .collect()
 }
 
-/// Opens the temporary collection `export` builds into, loads the seed, and
-/// resolves the deck's notetype name to a seed id. A deck that sets
-/// `notetype_legacy` never reaches this: [parse_deck] rejects it first.
-fn open_for_notetype(deck: &DeckFile) -> Result<(tempfile::TempDir, Session, i64), ToolFailure> {
+/// Opens the temporary collection, loads the seed, and deletes the seed notes.
+/// A deck that sets `notetype_legacy` never reaches this: [parse_deck] rejects it first.
+fn open_seeded() -> Result<(tempfile::TempDir, Session), ToolFailure> {
     let tmp = tempfile::TempDir::new().map_err(|err| ToolFailure::message(err.to_string()))?;
     let session = Session::open(tmp.path()).map_err(ToolFailure::message)?;
     session
         .load_seed(seed::SEED)
         .map_err(ToolFailure::message)?;
-    let notetype = session
-        .notetype_id(seed::canonical_notetype(deck.notetype_name()))
-        .map_err(ToolFailure::message)?;
-    Ok((tmp, session, notetype))
+    Ok((tmp, session))
 }
 
-fn media_root(deck_path: &Path, deck: &DeckFile) -> Option<PathBuf> {
-    let raw = deck.media_dir.as_deref()?;
-    let path = PathBuf::from(raw);
-    if path.is_absolute() {
-        Some(path)
-    } else {
-        Some(deck_path.parent().unwrap_or(Path::new(".")).join(path))
-    }
-}
-
-/// `media_dir`, when set, must exist. Files inside it are copied as-is.
-/// There is no type, magic-byte, or size check.
-fn require_media(deck_path: &Path, deck: &DeckFile) -> Result<Option<PathBuf>, ToolFailure> {
-    let Some(dir) = media_root(deck_path, deck) else {
+/// `media_dir`, when set, must exist. A relative path is joined to `media_base`.
+/// Files inside it are copied as-is. There is no type, magic-byte, or size check.
+fn require_media(media_base: &Path, deck: &DeckFile) -> Result<Option<PathBuf>, ToolFailure> {
+    let Some(raw) = deck.media_dir.as_deref() else {
         return Ok(None);
+    };
+    let path = PathBuf::from(raw);
+    let dir = if path.is_absolute() {
+        path
+    } else {
+        media_base.join(path)
     };
     if !dir.is_dir() {
         return Err(ToolFailure::message(format!(
@@ -419,6 +847,8 @@ mod tests {
     fn bare_skeleton() -> Value {
         let mut value = skeleton();
         value.as_object_mut().unwrap().remove("media_dir");
+        // The sample note references dot.png. These tests are not about media.
+        value["notes"][0]["fields"][0] = json!("front");
         value
     }
 
@@ -437,6 +867,7 @@ mod tests {
                 op_id: op_id.map(str::to_string),
                 k,
             },
+            deck_name: None,
         }
     }
 
@@ -449,6 +880,7 @@ mod tests {
                 job_id: job_id.into(),
                 source_guid: source_guid.into(),
             },
+            deck_name: None,
         }
     }
 
@@ -821,5 +1253,255 @@ mod tests {
                 .any(|error| error.location == "notes" && error.message == "notes is empty"),
             "{err:?}"
         );
+    }
+
+    #[test]
+    fn empty_new_deck_uses_hatto_basic_and_rejects_unknown_notetypes() {
+        let empty = write_new_deck(
+            None,
+            NewDeck {
+                deck_name: Some("Root"),
+                notetype: None,
+                empty: true,
+            },
+        )
+        .unwrap();
+        assert_eq!(empty["deck"]["notes"], json!([]));
+        assert_eq!(empty["deck"]["notetype"], "Hatto Basic");
+        assert_eq!(empty["deck"]["deck_name"], "Root");
+        assert_uuid_v4(empty["deck"]["op_id"].as_str().unwrap());
+
+        let err = write_new_deck(
+            None,
+            NewDeck {
+                deck_name: None,
+                notetype: Some("Nope"),
+                empty: true,
+            },
+        )
+        .unwrap_err();
+        assert_eq!(
+            err.message.as_deref(),
+            Some("notetype Nope is not a seed notetype")
+        );
+
+        let named = write_new_deck(
+            None,
+            NewDeck {
+                deck_name: None,
+                notetype: Some("Cloze"),
+                empty: false,
+            },
+        )
+        .unwrap();
+        assert_eq!(named["deck"]["notetype"], "Cloze");
+        assert_eq!(named["deck"]["notes"].as_array().unwrap().len(), 3);
+    }
+
+    #[test]
+    fn add_note_checks_fields_cloze_media_and_subdeck_before_writing() {
+        let root = tempfile::tempdir().unwrap();
+        let path = write_deck(root.path(), &bare_skeleton());
+        let before = fs::read(&path).unwrap();
+
+        let mut short = local(None, None);
+        short.fields = vec!["only".into()];
+        let err = add_note_path(&path, None, &short).unwrap_err();
+        assert!(
+            err.message
+                .as_deref()
+                .is_some_and(|message| message.contains("has 1 fields")),
+            "{err:?}"
+        );
+        assert_eq!(fs::read(&path).unwrap(), before);
+
+        let mut foreign = local(None, None);
+        foreign.deck_name = Some("Other".into());
+        let err = add_note_path(&path, None, &foreign).unwrap_err();
+        assert!(
+            err.errors
+                .iter()
+                .any(|error| error.message.contains("not under")),
+            "{err:?}"
+        );
+        assert_eq!(fs::read(&path).unwrap(), before);
+
+        let mut child = local(Some("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"), Some(2));
+        child.deck_name = Some("Example::Sub".into());
+        let added = add_note_path(&path, None, &child).unwrap();
+        assert_eq!(added["k"], 2);
+        let note = read_deck(&path)["notes"][3].clone();
+        assert_eq!(note["deck_name"], "Example::Sub");
+        assert!(note.get("notetype").is_none());
+
+        let cloze_dir = root.path().join("cloze");
+        fs::create_dir(&cloze_dir).unwrap();
+        let mut cloze = bare_skeleton();
+        cloze["notetype"] = json!("Hatto Cloze");
+        cloze["notes"] = json!([{ "k": 0, "fields": ["{{c1::a}}", "extra"] }]);
+        let cloze_path = write_deck(&cloze_dir, &cloze);
+        let cloze_before = fs::read(&cloze_path).unwrap();
+        let mut bad = local(None, Some(1));
+        bad.notetype = "Cloze".into();
+        bad.fields = vec!["no deletion".into(), "extra".into()];
+        let err = add_note_path(&cloze_path, None, &bad).unwrap_err();
+        assert!(
+            err.errors
+                .iter()
+                .any(|error| error.message.contains("no cloze deletion")),
+            "{err:?}"
+        );
+        assert_eq!(fs::read(&cloze_path).unwrap(), cloze_before);
+        assert_eq!(validate_path(&cloze_path).unwrap()["ok"], true);
+
+        let media_dir = root.path().join("refs");
+        fs::create_dir(&media_dir).unwrap();
+        let mut media = bare_skeleton();
+        media["notes"] = json!([{
+            "k": 0,
+            "fields": ["see <img src=\"missing.png\"> and [sound:beep.mp3]", "b"]
+        }]);
+        let media_path = write_deck(&media_dir, &media);
+        let err = validate_path(&media_path).unwrap_err();
+        let messages: Vec<_> = err
+            .errors
+            .iter()
+            .map(|error| format!("{} {}", error.location, error.message))
+            .collect();
+        assert!(
+            messages.iter().any(|message| {
+                message.contains("notes[0].fields[0]")
+                    && message.contains("missing.png")
+                    && message.contains("media_dir is not set")
+            }),
+            "{messages:?}"
+        );
+        assert!(
+            messages.iter().any(|message| message.contains("beep.mp3")),
+            "{messages:?}"
+        );
+
+        let remote_dir = root.path().join("remote");
+        fs::create_dir(&remote_dir).unwrap();
+        let mut remote = bare_skeleton();
+        remote["notes"] = json!([{
+            "k": 0,
+            "fields": ["<img src=\"https://example.com/a.png\">", "b"]
+        }]);
+        let remote_path = write_deck(&remote_dir, &remote);
+        assert_eq!(validate_path(&remote_path).unwrap()["ok"], true);
+    }
+
+    #[test]
+    fn add_notes_is_atomic_and_numbers_omitted_items_from_start_k() {
+        let parsed = parse_notes_input(
+            "\n{\"fields\":[\"a\",\"b\"],\"tags\":[\"t\"]}\n\n{\"fields\":[\"c\",\"d\"],\"job_id\":\"j\",\"source_guid\":\"src\"}\n",
+        )
+        .unwrap();
+        assert!(matches!(parsed[0].guid, BatchGuid::Omitted));
+        assert!(matches!(
+            parsed[1].guid,
+            BatchGuid::Specified(AddNoteGuid::Imported { .. })
+        ));
+        let array = parse_notes_input(r#"[{"fields":["a","b"],"k":1}]"#).unwrap();
+        assert!(matches!(
+            array[0].guid,
+            BatchGuid::Specified(AddNoteGuid::Local { k: Some(1), .. })
+        ));
+        let both =
+            parse_notes_input(r#"[{"fields":["a","b"],"k":1,"source_guid":"x"}]"#).unwrap_err();
+        assert!(both
+            .message
+            .unwrap()
+            .contains("sets op_id/k and job_id/source_guid"));
+
+        let root = tempfile::tempdir().unwrap();
+        let path = write_deck(root.path(), &bare_skeleton());
+        let before = fs::read(&path).unwrap();
+        let op = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+        let bad = AddNotesRequest {
+            notetype: None,
+            op_id: Some(op.into()),
+            start_k: 3,
+            notes: vec![
+                BatchNote {
+                    fields: vec!["one".into(), "two".into()],
+                    tags: vec!["t".into()],
+                    notetype: None,
+                    deck_name: Some("Example::Sub".into()),
+                    guid: BatchGuid::Omitted,
+                },
+                BatchNote {
+                    fields: vec!["no cloze".into(), "extra".into()],
+                    tags: Vec::new(),
+                    notetype: Some("Cloze".into()),
+                    deck_name: None,
+                    guid: BatchGuid::Omitted,
+                },
+            ],
+        };
+        let err = add_notes_path(&path, None, &bad).unwrap_err();
+        assert!(
+            err.errors
+                .iter()
+                .any(|error| error.message.contains("no cloze deletion")),
+            "{err:?}"
+        );
+        assert_eq!(fs::read(&path).unwrap(), before);
+
+        let request = AddNotesRequest {
+            notetype: Some("Basic".into()),
+            op_id: Some(op.into()),
+            start_k: 3,
+            notes: vec![
+                BatchNote {
+                    fields: vec!["one".into(), "two".into()],
+                    tags: vec!["t".into()],
+                    notetype: None,
+                    deck_name: Some("Example::Sub".into()),
+                    guid: BatchGuid::Omitted,
+                },
+                BatchNote {
+                    fields: vec!["keep".into(), "me".into()],
+                    tags: Vec::new(),
+                    notetype: None,
+                    deck_name: None,
+                    guid: BatchGuid::Specified(AddNoteGuid::Local {
+                        op_id: Some(op.into()),
+                        k: Some(9),
+                    }),
+                },
+                BatchNote {
+                    fields: vec!["A {{c1::hole}}".into(), "extra".into()],
+                    tags: vec!["cloze".into()],
+                    notetype: Some("Hatto Cloze".into()),
+                    deck_name: Some("Example".into()),
+                    guid: BatchGuid::Omitted,
+                },
+            ],
+        };
+        let added = add_notes_path(&path, None, &request).unwrap();
+        assert_eq!(added["op_id"], op);
+        assert_eq!(added["start_k"], 3);
+        assert_eq!(added["added"], 3);
+        assert_eq!(added["notes"].as_array().unwrap().len(), 6);
+        let file = read_deck(&path);
+        let notes = file["notes"].as_array().unwrap();
+        assert_eq!(notes[3]["k"], 3);
+        assert_eq!(notes[3]["deck_name"], "Example::Sub");
+        assert!(notes[3].get("notetype").is_none());
+        assert_eq!(notes[4]["k"], 9);
+        assert_eq!(notes[5]["k"], 4);
+        assert_eq!(notes[5]["notetype"], "Hatto Cloze");
+        let op_id = parse_uuid(op).unwrap();
+        assert_eq!(
+            added["notes"][3]["guid"],
+            NoteGuid::from_uuid(local_note_guid(op_id, 3)).into_string()
+        );
+        assert_eq!(
+            added["notes"][5]["guid"],
+            NoteGuid::from_uuid(local_note_guid(op_id, 4)).into_string()
+        );
+        assert_eq!(validate_path(&path).unwrap()["ok"], true);
     }
 }
