@@ -20,11 +20,20 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:hatto_mobile/store/import_engine_mobile.dart';
+import 'package:hatto_mobile/store/mobile_anki.dart';
+import 'package:hatto_mobile/store/mobile_write_gateway.dart';
+import 'package:hatto_mobile/store/resident_collection.dart';
 import 'package:hatto_store/hatto_store.dart';
 import 'package:path/path.dart' as p;
 import 'package:rslib_bridge/rslib_bridge.dart';
 
 import 'smoke_support.dart';
+
+const _importLimits = ImportLimits(
+  maxBytes: 20 * 1024 * 1024,
+  maxUncompressedBytes: 512 * 1024 * 1024,
+);
 
 const colpkgNames = <String>[
   'palace.colpkg',
@@ -52,6 +61,7 @@ Future<void> runArm64Smoke(String smokeDirPath) async {
   }
   await _step('fsrs', () => _fsrs(smokeDir, work));
   await _step('nt', () => _notetypeJobs(smokeDir, work));
+  await _step('t15', () => _secondImportUnchanged(smokeDir, work));
 }
 
 Future<void> _step(String step, Future<void> Function() body) async {
@@ -211,14 +221,37 @@ Future<void> _exportWhole(_Collection col, String outPath) async {
   }
 }
 
-Future<ImportCounts> _importApkg(_Collection col, String packagePath) async {
-  final raw = await _invoke(
-    col.backend,
-    'BackendImportExportService',
-    'import_anki_package',
-    importAnkiPackageRequest(packagePath),
+/// One pipeline import. [dataDir] and [documentsDir] are this import's own
+/// working tree and side database, not the app documents directory.
+Future<ImportRunResult> _pipelineImport(
+  _Collection col, {
+  required String dataDir,
+  required String documentsDir,
+  required String packagePath,
+}) async {
+  final side = SideDb.open(
+    path: sideDbPath(documentsDir),
+    deviceId: 'local-device',
   );
-  return readImportCounts(raw);
+  try {
+    final gateway = MobileWriteGateway(db: side);
+    gateway.attachImport(
+      anki: MobileAnkiApi(ResidentCollection.attached(col.backend)),
+      engine: MobileImportEngine(backend: col.backend, dataDir: dataDir),
+      dataDir: dataDir,
+    );
+    final result = await gateway.importFile(
+      sourcePath: packagePath,
+      limits: _importLimits,
+    );
+    if (result.outcome != ImportOutcome.committed &&
+        result.outcome != ImportOutcome.noop) {
+      throw StateError('${result.outcome}: ${result.error}');
+    }
+    return result;
+  } finally {
+    side.close();
+  }
 }
 
 Future<ColCounts> _counts(_Collection col) async {
@@ -247,8 +280,15 @@ Future<void> _colpkgRoundTrip(
   });
   final residentDir = Directory(p.join(work.path, '$stem-R'))
     ..createSync(recursive: true);
+  final residentDocs = Directory(p.join(work.path, '$stem-docs'))
+    ..createSync(recursive: true);
   final resident = await _withCollection(residentDir, (col) async {
-    await _importApkg(col, apkgPath);
+    await _pipelineImport(
+      col,
+      dataDir: residentDir.path,
+      documentsDir: residentDocs.path,
+      packagePath: apkgPath,
+    );
     return _counts(col);
   });
   smokeLog(formatColLine(filename, extracted, resident));
@@ -258,8 +298,14 @@ Future<void> _fsrs(Directory smokeDir, Directory work) async {
   final source = _fixture(smokeDir, fsrsPackageName);
   final dir = Directory(p.join(work.path, 'fsrs-R'))
     ..createSync(recursive: true);
+  final docs = Directory(p.join(work.path, 'fsrs-docs'))..createSync();
   await _withCollection(dir, (col) async {
-    await _importApkg(col, source.path);
+    await _pipelineImport(
+      col,
+      dataDir: dir.path,
+      documentsDir: docs.path,
+      packagePath: source.path,
+    );
     final counts = await _counts(col);
     final beforeCol = await col.q('select crt, mod, scm, usn from col');
     final beforeConfig = await col.q(
@@ -309,15 +355,37 @@ Future<void> _notetypeJobs(Directory smokeDir, Directory work) async {
   final residentDir = Directory(p.join(work.path, 'nt-R'))
     ..createSync(recursive: true);
   await _withCollection(residentDir, (resident) async {
-    const jobs = <(String, bool)>[
-      ('job1', false),
-      ('job2', false),
-      ('job3', true),
+    // job1 keeps the pipeline's normalized source guids. job2 and job3
+    // mint a fresh UUID version 4 per note so each job is a new import.
+    // The resident collection stays shared so notetype counts accumulate.
+    // Each job still gets its own data directory and side database.
+    const jobs = <(String, bool, bool)>[
+      ('job1', false, false),
+      ('job2', true, false),
+      ('job3', true, true),
     ];
-    for (final (job, force) in jobs) {
+    for (final (job, rewrite, force) in jobs) {
       final before = await _notetypeNames(resident);
-      final exported = await _prepareJob(work, source.path, job, force);
-      final imported = await _importApkg(resident, exported);
+      final exported = await _prepareJob(
+        work,
+        source.path,
+        job,
+        rewrite: rewrite,
+        force: force,
+      );
+      final dataDir = Directory(p.join(work.path, 'nt-data-$job'))
+        ..createSync(recursive: true);
+      final docs = Directory(p.join(work.path, 'nt-docs-$job'))..createSync();
+      final imported = await _pipelineImport(
+        resident,
+        dataDir: dataDir.path,
+        documentsDir: docs.path,
+        packagePath: exported,
+      );
+      final plan = imported.plan;
+      if (plan == null) {
+        throw StateError('$job finished without a plan');
+      }
       final after = await _notetypeNames(resident);
       final newNames = after.where((name) => !before.contains(name)).toList();
       String? perType;
@@ -330,8 +398,8 @@ Future<void> _notetypeJobs(Directory smokeDir, Directory work) async {
           before: before.length,
           after: after.length,
           newNames: newNames,
-          newNotes: imported.created,
-          duplicates: imported.duplicate,
+          newNotes: plan.counts.newNotes,
+          duplicates: plan.counts.dup,
           notesPerNotetype: perType,
         ),
       );
@@ -362,15 +430,24 @@ Future<String> _notesPerNotetype(_Collection col) async {
 Future<String> _prepareJob(
   Directory work,
   String apkgPath,
-  String job,
-  bool force,
-) async {
+  String job, {
+  required bool rewrite,
+  required bool force,
+}) async {
   final dir = Directory(p.join(work.path, 'nt-E-$job'))
     ..createSync(recursive: true);
+  final docs = Directory(p.join(work.path, 'nt-prep-docs-$job'))..createSync();
   final outPath = p.join(work.path, 'nt-$job.apkg');
   await _withCollection(dir, (col) async {
-    await _importApkg(col, apkgPath);
-    await _rewriteGuids(col, job);
+    await _pipelineImport(
+      col,
+      dataDir: dir.path,
+      documentsDir: docs.path,
+      packagePath: apkgPath,
+    );
+    if (rewrite) {
+      await _assignUuidV4Guids(col);
+    }
     await _dropFilteredDecks(col);
     if (force) {
       await _forceCloneNotetypes(col);
@@ -380,17 +457,12 @@ Future<String> _prepareJob(
   return outPath;
 }
 
-Future<void> _rewriteGuids(_Collection col, String job) async {
-  // Fixed job id from the shared golden file. The old
-  // uuid5(NAMESPACE_URL, 'smoke:'+job) namespace is not an app rule.
-  final jobId = smokeJobId(job);
+/// Distinct lowercase UUID version 4 guids, written with `update_notes`.
+Future<void> _assignUuidV4Guids(_Collection col) async {
   final rows = await col.q('select id, guid from notes');
+  final seen = <String>{};
   for (final row in rows) {
     final id = asInt(row[0]);
-    final guid = row[1];
-    if (guid is! String) {
-      throw StateError('note $id guid is ${guid.runtimeType}');
-    }
     final note = decodeNote(
       await _invoke(
         col.backend,
@@ -399,7 +471,11 @@ Future<void> _rewriteGuids(_Collection col, String job) async {
         idMessage(id),
       ),
     );
-    note.guid = importedNoteGuid(jobId: jobId, sourceGuid: guid);
+    final guid = newUuidV4();
+    if (!uuidVersion4Or5.hasMatch(guid) || guid[14] != '4' || !seen.add(guid)) {
+      throw StateError('note $id guid $guid is not a fresh UUID version 4');
+    }
+    note.guid = guid;
     await _invoke(
       col.backend,
       'BackendNotesService',
@@ -407,6 +483,43 @@ Future<void> _rewriteGuids(_Collection col, String job) async {
       updateNotesRequest([note]),
     );
   }
+}
+
+/// Import one package twice. The second pass must not change the resident
+/// note count or `col.mod`.
+Future<void> _secondImportUnchanged(Directory smokeDir, Directory work) async {
+  final source = _fixture(smokeDir, stockNotesName);
+  final dir = Directory(p.join(work.path, 't15-R'))
+    ..createSync(recursive: true);
+  final docs = Directory(p.join(work.path, 't15-docs'))..createSync();
+  await _withCollection(dir, (col) async {
+    final first = await _pipelineImport(
+      col,
+      dataDir: dir.path,
+      documentsDir: docs.path,
+      packagePath: source.path,
+    );
+    if (first.outcome != ImportOutcome.committed) {
+      throw StateError('T15 first import was ${first.outcome}');
+    }
+    final notes = await col.scalar('select count(*) from notes');
+    final before = await col.q('select crt, mod, scm, usn from col');
+    final second = await _pipelineImport(
+      col,
+      dataDir: dir.path,
+      documentsDir: docs.path,
+      packagePath: source.path,
+    );
+    if (second.outcome != ImportOutcome.noop) {
+      throw StateError('T15 second import was ${second.outcome}');
+    }
+    final notesAfter = await col.scalar('select count(*) from notes');
+    final after = await col.q('select crt, mod, scm, usn from col');
+    if (notesAfter != notes || !sameSqlRows(before, after)) {
+      throw StateError('T15 resident changed: notes $notes -> $notesAfter');
+    }
+    smokeLog('HATTO_SMOKE t15 second=noop notes=$notes mod_unchanged=1');
+  });
 }
 
 Future<void> _dropFilteredDecks(_Collection col) async {

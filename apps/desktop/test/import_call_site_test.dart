@@ -7,7 +7,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
-/// Rule (a) patterns. A hit outside the desktop adapter fails the lint.
+/// Rule (a) patterns. A hit outside the import adapters fails the lint.
 const _ruleA = <String>[
   'Rpcs.importAnkiPackage',
   "'import_anki_package'",
@@ -16,16 +16,10 @@ const _ruleA = <String>[
   'ImportAnkiPackageRequest(',
 ];
 
-/// Temporary I7 pins: exact occurrence counts. One extra match fails.
-const _i7Counts = <String, Map<String, int>>{
-  'apps/mobile/integration_test/smoke_flow.dart': {
-    "'import_anki_package'": 1,
-    'importAnkiPackage': 1,
-  },
-  'apps/mobile/integration_test/smoke_support.dart': {'importAnkiPackage': 3},
+const _adapters = <String>{
+  'apps/desktop/lib/store/import_engine_desktop.dart',
+  'apps/mobile/lib/store/import_engine_mobile.dart',
 };
-
-const _adapter = 'apps/desktop/lib/store/import_engine_desktop.dart';
 const _commitOnly = 'packages/hatto_store/lib/src/import_pipeline.dart';
 
 const _roots = <String>[
@@ -123,16 +117,11 @@ List<String> importCallSiteViolations(Directory repo, {List<File>? files}) {
     if (text.contains('.commitResident(') && relative != _commitOnly) {
       hits.add(_Hit('b', '.commitResident(', relative));
     }
-    if (relative == _adapter) {
+    if (_adapters.contains(relative)) {
       continue;
     }
     for (final pattern in _ruleA) {
-      final count = pattern.allMatches(text).length;
-      if (count == 0) {
-        continue;
-      }
-      final allowed = _i7Counts[relative]?[pattern] ?? 0;
-      if (count == allowed) {
+      if (pattern.allMatches(text).isEmpty) {
         continue;
       }
       hits.add(_Hit('a', pattern, relative));

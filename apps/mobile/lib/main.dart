@@ -6,6 +6,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:hatto_mobile/about_page.dart';
+import 'package:hatto_mobile/store/mobile_startup.dart';
 import 'package:hatto_mobile/third_party_licenses.dart';
 import 'package:hatto_store/hatto_store.dart';
 import 'package:path/path.dart' as p;
@@ -61,19 +62,21 @@ class _HomePageState extends State<HomePage> {
     });
     try {
       final docs = await getApplicationDocumentsDirectory();
-      final side = openSideDatabase(docs.path);
-      final pending = side.pendingIntentCount();
-      final version = side.schemaVersion;
-      side.close();
       final support = await getApplicationSupportDirectory();
       final dir = Directory(p.join(support.path, 'resident'))
         ..createSync(recursive: true);
+      // Recovery uses this backend. It is closed before the smoke open so
+      // two backends are never open on the same collection.
+      final startup = await openResidentAndRecover(
+        documentsDirectory: docs.path,
+        residentDirectory: dir.path,
+      );
       final summary = await smokeOpenCollection(dir: dir.path);
       if (!mounted) {
         return;
       }
       setState(() {
-        _status = '$summary\nside db v$version, pending intents: $pending';
+        _status = '$summary\n${startup.statusLine}';
       });
     } catch (err) {
       if (!mounted) {
