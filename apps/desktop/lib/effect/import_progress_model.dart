@@ -5,7 +5,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:hatto_store/hatto_store.dart';
 
-import '../ui/import_copy.dart';
+import '../state/import_copy.dart';
 
 /// Progress state the dialog reads. [onPhase] updates it before returning.
 class ImportProgressModel extends ChangeNotifier {

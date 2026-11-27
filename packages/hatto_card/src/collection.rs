@@ -33,12 +33,15 @@ pub(crate) struct Session {
 /// `prepare_runtime` points the process temp dir at the collection. Put the
 /// previous values back so the next `tempfile` directory is not created
 /// inside a folder this session is about to delete.
-struct TmpEnv {
+///
+/// `inspect` uses the same guard. Both callers hold [`runtime_lock`]
+/// until after this value drops.
+pub(crate) struct TmpEnv {
     saved: [(&'static str, Option<String>); 3],
 }
 
 impl TmpEnv {
-    fn set(dir: &Path) -> Self {
+    pub(crate) fn set(dir: &Path) -> Self {
         let saved = ["TMPDIR", "TMP", "TEMP"].map(|key| (key, std::env::var(key).ok()));
         prepare_runtime(dir.to_string_lossy().into_owned());
         Self { saved }
@@ -48,9 +51,10 @@ impl TmpEnv {
 impl Drop for TmpEnv {
     fn drop(&mut self) {
         for (key, value) in &self.saved {
-            // SAFETY: the environment is process-global. The session lock is
-            // still held (this value drops before the lock), and no other
-            // collection call is in progress.
+            // SAFETY: the environment is process-global. Callers hold
+            // `runtime_lock` until after this value drops (`Session` and
+            // `inspect_path`), and no other collection or inspect call is
+            // in progress.
             match value {
                 Some(value) => unsafe { std::env::set_var(key, value) },
                 None => unsafe { std::env::remove_var(key) },
@@ -59,7 +63,7 @@ impl Drop for TmpEnv {
     }
 }
 
-fn runtime_lock() -> MutexGuard<'static, ()> {
+pub(crate) fn runtime_lock() -> MutexGuard<'static, ()> {
     static LOCK: Mutex<()> = Mutex::new(());
     LOCK.lock().unwrap_or_else(|err| err.into_inner())
 }

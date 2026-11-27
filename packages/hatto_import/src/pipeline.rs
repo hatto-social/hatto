@@ -391,6 +391,10 @@ pub(crate) fn validate_source(path: &Path, limits: ImportLimits) -> Result<(), I
 
 /// Sum of central-directory uncompressed sizes. Inner compression such as
 /// `collection.anki21b` is not opened.
+///
+/// `by_index_raw` reads the central-directory header and does not decompress.
+/// `by_index` would build a decompressor first and reject an unsupported
+/// method before this sum is checked.
 fn reject_uncompressed_sum(path: &Path, max_uncompressed_bytes: u64) -> Result<(), ImportError> {
     let file = fs::File::open(path)
         .map_err(|err| prefixed(FORMAT_ERROR_PREFIX, format!("invalid zip archive: {err}")))?;
@@ -399,7 +403,7 @@ fn reject_uncompressed_sum(path: &Path, max_uncompressed_bytes: u64) -> Result<(
     let mut total: u64 = 0;
     for index in 0..archive.len() {
         let size = archive
-            .by_index(index)
+            .by_index_raw(index)
             .map_err(|err| prefixed(FORMAT_ERROR_PREFIX, format!("invalid zip archive: {err}")))?
             .size();
         total = total.checked_add(size).ok_or_else(|| {

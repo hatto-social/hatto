@@ -51,7 +51,14 @@ fn help_exits_zero_for_the_top_level_and_each_command() {
         (&["add-note", "-h"], &["--job-id", "--k"]),
         (
             &["inspect", "--help"],
-            &["512 MiB", "2 GiB", "content_hash", "Stage E facts"],
+            &[
+                "512 MiB",
+                "2 GiB",
+                "content_hash",
+                "notetype_id",
+                "mod",
+                "Stage E facts",
+            ],
         ),
         (&["inspect", "-h"], &["notetype_id", "read only"]),
         (&["--help", "inspect"], &["note-id order"]),

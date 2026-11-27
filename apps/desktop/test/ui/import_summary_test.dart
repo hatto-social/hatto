@@ -50,7 +50,7 @@ void main() {
   });
 
   test('T-I5-C copy spells 컬렉션', () {
-    final text = File('lib/ui/import_copy.dart').readAsStringSync();
+    final text = File('lib/state/import_copy.dart').readAsStringSync();
     expect(text.contains('콜렉션'), isFalse);
     expect(text.contains('컬렉션'), isTrue);
   });
