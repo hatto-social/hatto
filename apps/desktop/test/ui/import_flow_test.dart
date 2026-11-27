@@ -104,6 +104,8 @@ void main() {
     Future<void> Function()? flush,
     Future<void> Function()? refresh,
     List<String>? log,
+    Duration? stageAnnounceDelay,
+    ImportStageSchedule? scheduleStageAnnounce,
   }) {
     return ApkgImportSession(
       importFile: ({required sourcePath, required limits, cancel, onPhase}) {
@@ -133,6 +135,8 @@ void main() {
       tempDirectory: tempDirectory ?? Directory(p.join(root.path, 'tmp')),
       maxBytes: maxBytes ?? kImportMaxBytes,
       log: log?.add,
+      stageAnnounceDelay: stageAnnounceDelay ?? kImportStageAnnounceDelay,
+      scheduleStageAnnounce: scheduleStageAnnounce,
     );
   }
 
@@ -980,8 +984,10 @@ void main() {
       outcome = ImportOutcome.failedUnknown;
       error = StateError('SECRET-UNKNOWN');
       plan = null;
+      final refreshesBeforeUnknown = rec.refreshes;
       await dropNamed('deck.apkg');
-      expect(rec.deckLists, 3);
+      expect(rec.deckLists, 4);
+      expect(rec.refreshes, refreshesBeforeUnknown + 1);
       expect(_withoutStages(rec.announcements), [
         unknownFailureMessage('deck.apkg'),
       ]);
@@ -1004,7 +1010,8 @@ void main() {
       await later.importDropped(late.ui, [
         ApkgDrop.file(name: 'deck.apkg', localPath: file.path),
       ]);
-      expect(late.deckLists, 0);
+      expect(late.deckLists, 1);
+      expect(late.refreshes, 1);
       expect(_withoutStages(late.announcements), [
         unknownFailureMessage('deck.apkg'),
       ]);
@@ -1018,53 +1025,72 @@ void main() {
     },
   );
 
-  test(
-    'a stage label is announced only when the visible text changes',
-    () async {
-      final rec = _Rec();
-      final session = open(
-        rec: rec,
-        onImport: (call) async {
-          call.onPhase?.call(ImportPhase.afterReconcile);
-          call.onPhase?.call(ImportPhase.afterStage);
-          call.onPhase?.call(ImportPhase.afterNoteMap);
-          call.onPhase?.call(ImportPhase.afterResidentLookup);
-          call.onPhase?.call(ImportPhase.afterFinish);
-          call.onPhase?.call(ImportPhase.afterPre);
-          call.onPhase?.call(ImportPhase.afterIntent);
-          call.onPhase?.call(ImportPhase.beforeResidentCommit);
-          call.onPhase?.call(ImportPhase.duringAdoption);
-          return ImportRunResult(
-            outcome: ImportOutcome.committed,
-            plan: sample(),
-          );
-        },
-      );
-      final file = writeFile('stages.apkg', zip);
-      await session.importDropped(rec.ui, [
-        ApkgDrop.file(name: 'stages.apkg', localPath: file.path),
-      ]);
-      expect(rec.announcements.where((message) => message == kStageChecking), [
-        kStageChecking,
-      ]);
-      expect(rec.announcements.where((message) => message == kStageComparing), [
-        kStageComparing,
-      ]);
-      expect(rec.announcements.where((message) => message == kStageApplying), [
-        kStageApplying,
-      ]);
-      expect(
-        rec.announcements.indexOf(kStageChecking),
-        lessThan(rec.announcements.indexOf(kStageComparing)),
-      );
-      expect(
-        rec.announcements.indexOf(kStageComparing),
-        lessThan(rec.announcements.indexOf(kStageApplying)),
-      );
-      expect(rec.refreshes, 1);
-      expect(rec.deckLists, 1);
-    },
-  );
+  test('a stage that stays current is announced once, in order', () async {
+    final rec = _Rec();
+    final clock = _StageClock();
+    final session = open(
+      rec: rec,
+      scheduleStageAnnounce: clock.schedule,
+      onImport: (call) async {
+        clock.fire();
+        call.onPhase?.call(ImportPhase.afterReconcile);
+        call.onPhase?.call(ImportPhase.afterStage);
+        call.onPhase?.call(ImportPhase.afterNoteMap);
+        call.onPhase?.call(ImportPhase.afterResidentLookup);
+        call.onPhase?.call(ImportPhase.afterFinish);
+        call.onPhase?.call(ImportPhase.afterPre);
+        clock.fire();
+        call.onPhase?.call(ImportPhase.afterIntent);
+        call.onPhase?.call(ImportPhase.beforeResidentCommit);
+        call.onPhase?.call(ImportPhase.duringAdoption);
+        clock.fire();
+        return ImportRunResult(
+          outcome: ImportOutcome.committed,
+          plan: sample(),
+        );
+      },
+    );
+    final file = writeFile('stages.apkg', zip);
+    await session.importDropped(rec.ui, [
+      ApkgDrop.file(name: 'stages.apkg', localPath: file.path),
+    ]);
+    expect(clock.delays, [
+      kImportStageAnnounceDelay,
+      kImportStageAnnounceDelay,
+      kImportStageAnnounceDelay,
+    ]);
+    expect(rec.announcements, [
+      kStageChecking,
+      kStageComparing,
+      kStageApplying,
+      spokenImportSummary(
+        formatImportSummary(plan: sample(), fileName: 'stages.apkg'),
+      ),
+    ]);
+  });
+
+  test('a fast import speaks the result and drops stale stages', () async {
+    final rec = _Rec();
+    final clock = _StageClock();
+    final session = open(
+      rec: rec,
+      scheduleStageAnnounce: clock.schedule,
+      onImport: (call) async {
+        call.onPhase?.call(ImportPhase.afterReconcile);
+        call.onPhase?.call(ImportPhase.afterStage);
+        call.onPhase?.call(ImportPhase.afterNoteMap);
+        call.onPhase?.call(ImportPhase.afterIntent);
+        return const ImportRunResult(outcome: ImportOutcome.cancelled);
+      },
+    );
+    final file = writeFile('fast.apkg', zip);
+    await session.importDropped(rec.ui, [
+      ApkgDrop.file(name: 'fast.apkg', localPath: file.path),
+    ]);
+    clock.fire();
+    expect(rec.announcements, [kCancelToast]);
+    expect(session.running, isFalse);
+  });
 
   test('a failing or hung announcement still presents the result', () async {
     final hung = Completer<void>();
@@ -1148,4 +1174,20 @@ void main() {
       expect(log.any((line) => line.contains('SECRET-DECKS')), isTrue);
     },
   );
+}
+
+class _StageClock {
+  final delays = <Duration>[];
+  void Function()? _pending;
+
+  void schedule(Duration delay, void Function() callback) {
+    delays.add(delay);
+    _pending = callback;
+  }
+
+  void fire() {
+    final callback = _pending;
+    _pending = null;
+    callback?.call();
+  }
 }

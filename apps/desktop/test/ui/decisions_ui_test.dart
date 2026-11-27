@@ -274,18 +274,25 @@ void main() {
     'an import from the reviewer opens the deck list only after the collection changes',
     (t) async {
       var outcome = ImportOutcome.committed;
+      var refreshes = 0;
+      ApkgImportSession? imports;
       await boot(t, () async {}, seeded: [('q1', 'a1')], imports: (controller) {
-        return ApkgImportSession(
+        final session = ApkgImportSession(
           importFile: ({required sourcePath, required limits, cancel, onPhase}) {
             return Future.value(ImportRunResult(outcome: outcome));
           },
           dataDir: tmp.path,
-          refreshDecks: controller.refreshDecks,
+          refreshDecks: () async {
+            refreshes++;
+            await controller.refreshDecks();
+          },
           flushEditor: controller.flushPendingEdits,
           pickFile: () async => null,
           tempDirectory: Directory(p.join(tmp.path, 'drop-tmp')),
           log: (_) {},
         );
+        imports = session;
+        return session;
       });
 
       Future<void> study() async {
@@ -310,7 +317,7 @@ void main() {
       }
 
       await study();
-      final beforeCommit = app.refreshCount;
+      final beforeCommit = refreshes;
       drop('added.apkg');
       await settle(t);
       expect(t.takeException(), isNull);
@@ -318,27 +325,27 @@ void main() {
       expect(find.byKey(const ValueKey('show-answer')), findsNothing);
       expect(find.byKey(const ValueKey('deck-panel')), findsOneWidget);
       expect(find.text(importedFileMessage('added.apkg')), findsOneWidget);
-      expect(app.refreshCount, beforeCommit + 1);
+      expect(refreshes, beforeCommit + 1);
 
       outcome = ImportOutcome.cancelled;
       await study();
-      final beforeCancel = app.refreshCount;
+      final beforeCancel = refreshes;
       drop('cancel.apkg');
       await settle(t);
       expect(t.takeException(), isNull);
       expect(app.screen, Screen.review);
       expect(find.byKey(const ValueKey('show-answer')), findsOneWidget);
       expect(find.text(kCancelToast), findsOneWidget);
-      expect(app.refreshCount, beforeCancel);
+      expect(refreshes, beforeCancel);
 
       outcome = ImportOutcome.failedBeforeCommit;
-      final beforeEarly = app.refreshCount;
+      final beforeEarly = refreshes;
       drop('early.apkg');
       await settle(t);
       expect(t.takeException(), isNull);
       expect(app.screen, Screen.review);
       expect(find.byKey(const ValueKey('show-answer')), findsOneWidget);
-      expect(app.refreshCount, beforeEarly);
+      expect(refreshes, beforeEarly);
 
       outcome = ImportOutcome.noop;
       drop('same.apkg');
@@ -349,7 +356,7 @@ void main() {
       expect(find.text(kAlreadyImported), findsOneWidget);
 
       outcome = ImportOutcome.failedAfterCommit;
-      final beforeAdopt = app.refreshCount;
+      final beforeAdopt = refreshes;
       drop('adopt.apkg');
       await settle(t);
       expect(t.takeException(), isNull);
@@ -358,18 +365,21 @@ void main() {
       expect(find.byKey(const ValueKey('deck-panel')), findsOneWidget);
       expect(find.text(adoptionFailureMessage('adopt.apkg')), findsOneWidget);
       expect(find.byKey(const ValueKey('toast')), findsOneWidget);
-      expect(app.refreshCount, beforeAdopt + 1);
+      expect(refreshes, beforeAdopt + 1);
 
       outcome = ImportOutcome.failedUnknown;
       await study();
-      final beforeUnknown = app.refreshCount;
+      final beforeUnknown = refreshes;
       drop('unknown.apkg');
       await settle(t);
       expect(t.takeException(), isNull);
-      expect(app.screen, Screen.review);
-      expect(find.byKey(const ValueKey('show-answer')), findsOneWidget);
+      expect(app.screen, Screen.decks);
+      expect(find.byKey(const ValueKey('show-answer')), findsNothing);
+      expect(find.byKey(const ValueKey('deck-panel')), findsOneWidget);
       expect(find.text(unknownFailureMessage('unknown.apkg')), findsOneWidget);
-      expect(app.refreshCount, beforeUnknown + 1);
+      expect(find.byKey(const ValueKey('toast')), findsOneWidget);
+      expect(refreshes, beforeUnknown + 1);
+      expect(imports!.sessionLocked, isTrue);
     },
   );
 }

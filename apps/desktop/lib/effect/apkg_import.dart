@@ -22,6 +22,15 @@ typedef ApkgImportFile = Future<ImportRunResult> Function({
   void Function(ImportPhase phase)? onPhase,
 });
 
+/// How long a stage label must stay current before it is spoken.
+const Duration kImportStageAnnounceDelay = Duration(milliseconds: 250);
+
+/// Schedules one stage announcement. Tests record [callback] instead of waiting.
+typedef ImportStageSchedule = void Function(
+  Duration delay,
+  void Function() callback,
+);
+
 /// UI hooks. The session does not build widgets.
 class ApkgImportUi {
   const ApkgImportUi({
@@ -38,18 +47,22 @@ class ApkgImportUi {
   final Future<void> Function(ImportProgressModel model) showProgress;
   final void Function() closeProgress;
 
-  /// Deck list after [ImportOutcome.committed] or
-  /// [ImportOutcome.failedAfterCommit]. Other outcomes stay put.
+  /// Deck list after the collection may have changed. Unchanged imports stay.
   final Future<void> Function() showDeckList;
 
   /// Speaks [message]. The session does not wait for it.
   final Future<void> Function(String message) announce;
 }
 
-/// The collection was written, so the deck list should replace a stale screen.
+/// The collection may have changed, so the deck list replaces a stale screen.
+///
+/// [ImportOutcome.cancelled], [ImportOutcome.failedBeforeCommit], and
+/// [ImportOutcome.noop] stay where they are. So does a drop rejected before
+/// the import starts.
 bool _opensDeckList(ImportOutcome outcome) {
   return outcome == ImportOutcome.committed ||
-      outcome == ImportOutcome.failedAfterCommit;
+      outcome == ImportOutcome.failedAfterCommit ||
+      outcome == ImportOutcome.failedUnknown;
 }
 
 /// One dropped item, after the desktop drop plugin has been unwrapped.
@@ -190,6 +203,8 @@ class ApkgImportSession extends ChangeNotifier {
     this.tempDirectory,
     this.maxBytes = kImportMaxBytes,
     void Function(String line)? log,
+    this.stageAnnounceDelay = kImportStageAnnounceDelay,
+    this.scheduleStageAnnounce,
   }) : pickFile = pickFile ?? pickApkgPath,
        log = log ?? _defaultImportLog;
 
@@ -203,9 +218,23 @@ class ApkgImportSession extends ChangeNotifier {
   final Directory? tempDirectory;
   final int maxBytes;
   final void Function(String line) log;
+  final Duration stageAnnounceDelay;
+  final ImportStageSchedule? scheduleStageAnnounce;
 
   bool running = false;
   bool sessionLocked = false;
+  bool _disposed = false;
+  int _stageGeneration = 0;
+  Timer? _stageTimer;
+  String? _pendingStage;
+  String? _spokenStage;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _cancelStageAnnounce();
+    super.dispose();
+  }
 
   bool get entryBlocked => startupError != null || sessionLocked;
 
@@ -347,24 +376,16 @@ class ApkgImportSession extends ChangeNotifier {
     ImportRunResult? result;
     Object? thrown;
     StackTrace? thrownStack;
-    String? spokenStage;
-    void noteStage() {
-      final label = model.view.label;
-      if (label == spokenStage) return;
-      spokenStage = label;
-      _speak(ui, label);
-    }
-
     try {
       await ui.showProgress(model);
-      noteStage();
+      _noteStage(ui, model.view.label);
       result = await importFile(
         sourcePath: sourcePath,
         limits: kImportLimitsV0,
         cancel: model.token,
         onPhase: (phase) {
           model.onPhase(phase);
-          noteStage();
+          _noteStage(ui, model.view.label);
         },
       );
     } on ImportStartupException catch (err, stack) {
@@ -375,6 +396,8 @@ class ApkgImportSession extends ChangeNotifier {
       thrown = err;
       thrownStack = stack;
     } finally {
+      // Drop a stage that did not stay on screen. It must not follow the result.
+      _cancelStageAnnounce();
       ui.closeProgress();
     }
     if (thrown != null) {
@@ -400,7 +423,7 @@ class ApkgImportSession extends ChangeNotifier {
     String fileName,
   ) async {
     final openDeckList = _opensDeckList(result.outcome);
-    if (openDeckList || result.outcome == ImportOutcome.failedUnknown) {
+    if (openDeckList) {
       try {
         await refreshDecks();
       } catch (err, stack) {
@@ -477,6 +500,11 @@ class ApkgImportSession extends ChangeNotifier {
     } catch (err, refreshStack) {
       _logDiagnostic('refreshDecks', err, refreshStack);
     }
+    try {
+      await ui.showDeckList();
+    } catch (err, stack) {
+      _logDiagnostic('deckList', err, stack);
+    }
     _tell(ui, unknownFailureMessage(fileName));
   }
 
@@ -508,6 +536,46 @@ class ApkgImportSession extends ChangeNotifier {
   void _tell(ApkgImportUi ui, String message) {
     ui.toast(message);
     _speak(ui, message);
+  }
+
+  /// Speaks [label] only after it has stayed current for [stageAnnounceDelay].
+  ///
+  /// A later label replaces the pending one. The same label does not schedule
+  /// a second announcement.
+  void _noteStage(ApkgImportUi ui, String label) {
+    if (_disposed || label.isEmpty) return;
+    if (label == _spokenStage || label == _pendingStage) return;
+    _stageTimer?.cancel();
+    _stageTimer = null;
+    _stageGeneration++;
+    final generation = _stageGeneration;
+    _pendingStage = label;
+    void fire() {
+      if (_disposed || generation != _stageGeneration) return;
+      _stageTimer = null;
+      if (_pendingStage != label) return;
+      _pendingStage = null;
+      _spokenStage = label;
+      _speak(ui, label);
+    }
+
+    if (stageAnnounceDelay <= Duration.zero) {
+      fire();
+      return;
+    }
+    final schedule = scheduleStageAnnounce;
+    if (schedule != null) {
+      schedule(stageAnnounceDelay, fire);
+      return;
+    }
+    _stageTimer = Timer(stageAnnounceDelay, fire);
+  }
+
+  void _cancelStageAnnounce() {
+    _stageGeneration++;
+    _stageTimer?.cancel();
+    _stageTimer = null;
+    _pendingStage = null;
   }
 
   void _speak(ApkgImportUi ui, String message) {

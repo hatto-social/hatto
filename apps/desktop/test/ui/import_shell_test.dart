@@ -452,8 +452,21 @@ void main() {
 
       outcome = ImportOutcome.failedUnknown;
       dropApkg(tester, 'unknown.apkg');
-      await stay(unknownFailureMessage('unknown.apkg'));
+      await finishImport(tester, session);
       expect(session.sessionLocked, isTrue);
+      expect(app.screen, Screen.decks);
+      expect(find.byKey(const ValueKey('ov-title')), findsNothing);
+      expect(find.byKey(const ValueKey('deck-panel')), findsOneWidget);
+      expect(find.text(unknownFailureMessage('unknown.apkg')), findsOneWidget);
+      expect(
+        tester.takeAnnouncements(),
+        contains(
+          isAccessibilityAnnouncement(
+            unknownFailureMessage('unknown.apkg'),
+            textDirection: TextDirection.ltr,
+          ),
+        ),
+      );
     },
   );
 
@@ -493,7 +506,9 @@ void main() {
     );
   });
 
-  testWidgets('stage changes are announced once per label', (tester) async {
+  testWidgets('a fast import announces the result and not the stages', (
+    tester,
+  ) async {
     final app = AppController.bare();
     final session = sessionFor(
       app: app,
@@ -504,42 +519,103 @@ void main() {
             onPhase?.call(ImportPhase.afterStage);
             onPhase?.call(ImportPhase.afterNoteMap);
             onPhase?.call(ImportPhase.afterResidentLookup);
-            onPhase?.call(ImportPhase.afterFinish);
-            onPhase?.call(ImportPhase.afterPre);
             onPhase?.call(ImportPhase.afterIntent);
-            onPhase?.call(ImportPhase.beforeResidentCommit);
             onPhase?.call(ImportPhase.duringAdoption);
             return const ImportRunResult(outcome: ImportOutcome.cancelled);
           },
     );
     await pumpShell(tester, app, session);
     tester.takeAnnouncements();
-    dropApkg(tester, 'stages.apkg');
+    dropApkg(tester, 'fast.apkg');
+    await finishImport(tester, session);
+    await tester.pump(kImportStageAnnounceDelay);
+
+    final messages = [
+      for (final announcement in tester.takeAnnouncements())
+        announcement.message,
+    ];
+    expect(messages, [kCancelToast]);
+    expect(find.text(kCancelToast), findsOneWidget);
+    expect(session.running, isFalse);
+  });
+
+  testWidgets('a stage that stays on screen is announced once, in order', (
+    tester,
+  ) async {
+    final app = AppController.bare();
+    final session = sessionFor(
+      app: app,
+      log: (_) {},
+      importFile:
+          ({required sourcePath, required limits, cancel, onPhase}) async {
+            onPhase?.call(ImportPhase.afterReconcile);
+            await Future<void>.delayed(kImportStageAnnounceDelay);
+            onPhase?.call(ImportPhase.afterStage);
+            onPhase?.call(ImportPhase.afterNoteMap);
+            onPhase?.call(ImportPhase.afterResidentLookup);
+            await Future<void>.delayed(kImportStageAnnounceDelay);
+            onPhase?.call(ImportPhase.afterIntent);
+            onPhase?.call(ImportPhase.duringAdoption);
+            await Future<void>.delayed(kImportStageAnnounceDelay);
+            return const ImportRunResult(outcome: ImportOutcome.cancelled);
+          },
+    );
+    await pumpShell(tester, app, session);
+    tester.takeAnnouncements();
+    dropApkg(tester, 'slow.apkg');
+    await tester.pump();
+    await tester.pump(kImportStageAnnounceDelay);
+    await tester.pump(kImportStageAnnounceDelay);
+    await tester.pump(kImportStageAnnounceDelay);
     await finishImport(tester, session);
 
     final messages = [
       for (final announcement in tester.takeAnnouncements())
         announcement.message,
     ];
-    expect(messages.where((message) => message == kStageChecking), [
+    expect(messages, [
       kStageChecking,
-    ]);
-    expect(messages.where((message) => message == kStageComparing), [
       kStageComparing,
-    ]);
-    expect(messages.where((message) => message == kStageApplying), [
       kStageApplying,
+      kCancelToast,
     ]);
-    expect(
-      messages.indexOf(kStageChecking),
-      lessThan(messages.indexOf(kStageComparing)),
-    );
-    expect(
-      messages.indexOf(kStageComparing),
-      lessThan(messages.indexOf(kStageApplying)),
-    );
-    expect(messages.last, kCancelToast);
-    expect(find.text(kCancelToast), findsOneWidget);
-    expect(session.running, isFalse);
   });
+
+  testWidgets('a deck-list failure is logged and the screen still changes', (
+    tester,
+  ) async {
+    final app = _GoFails()
+      ..screen = Screen.overview
+      ..deckName = '문법';
+    final log = <String>[];
+    final session = sessionFor(
+      app: app,
+      log: log.add,
+      importFile: ({required sourcePath, required limits, cancel, onPhase}) {
+        return Future.value(
+          const ImportRunResult(outcome: ImportOutcome.committed),
+        );
+      },
+    );
+    await pumpShell(tester, app, session);
+    dropApkg(tester, 'nav.apkg');
+    await finishImport(tester, session);
+
+    expect(app.screen, Screen.decks);
+    expect(find.byKey(const ValueKey('deck-panel')), findsOneWidget);
+    expect(find.text(importedFileMessage('nav.apkg')), findsOneWidget);
+    expect(find.textContaining('SECRET-GO'), findsNothing);
+    expect(log, hasLength(1));
+    expect(log.single, contains('SECRET-GO'));
+    expect(log.single.contains('\n'), isFalse);
+  });
+}
+
+class _GoFails extends AppController {
+  _GoFails() : super.bare();
+
+  @override
+  Future<void> go(Screen s, {bool refresh = true}) async {
+    throw StateError('SECRET-GO');
+  }
 }

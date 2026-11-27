@@ -84,7 +84,10 @@ class _MainShellState extends State<MainShell> {
   Future<void> _showImportedDecks() async {
     try {
       await app.go(Screen.decks, refresh: false);
-    } catch (_) {
+    } catch (err, stack) {
+      widget.imports?.log(
+        importDiagnosticLine(where: 'deckList', error: err, stack: stack),
+      );
       app.screen = Screen.decks;
       app.touch();
     }

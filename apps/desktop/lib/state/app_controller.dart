@@ -43,8 +43,6 @@ class AppController extends ChangeNotifier {
   String? message; // one-line status (like Anki's tooltip)
   bool fsrsOn = false; // collection-wide scheduler switch (read from stats), drives the FSRS guidance copy
   int revision = 0; // bumped after any collection change; screens listen and refresh
-  @visibleForTesting
-  int refreshCount = 0;
 
   void _expand(DeckTreeNode node) {
     node.collapsed = false;
@@ -58,7 +56,6 @@ class AppController extends ChangeNotifier {
   void clearToast() { message = null; }
 
   Future<void> refreshDecks() async {
-    refreshCount++;
     tree = await api.deckTree();
     // SetDeckCollapsed is not in the contract, so the UI shows every deck
     // expanded. rslib's stored collapsed flag is left unchanged.
