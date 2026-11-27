@@ -31,32 +31,36 @@ const String importTooLargeUncompressedPrefix = 'too_large:uncompressed';
 
 /// The kind named by [error], or null when the text has none of the prefixes.
 ///
-/// [error] may be the Rust string itself or an exception whose [Object.toString]
-/// contains that string.
+/// The prefix must start the message. [error] may be the Rust string itself
+/// or an exception whose [Object.toString] is `Type: message` (`Exception: `,
+/// `FormatException: `, `Bad state: `, and the same shape). One wrapper is
+/// skipped, then the remainder is matched with [String.startsWith]. A prefix
+/// later in a path or IO message does not match.
 ImportErrorKind? importErrorKind(Object? error) {
   if (error == null) {
     return null;
   }
   final text = error.toString();
-  final found = <int, ImportErrorKind>{};
-  void consider(String prefix, ImportErrorKind kind) {
-    final index = text.indexOf(prefix);
-    if (index >= 0) {
-      found[index] = kind;
-    }
+  final direct = _kindAtStart(text);
+  if (direct != null) {
+    return direct;
   }
-
-  consider(
-    importTooLargeUncompressedPrefix,
-    ImportErrorKind.tooLargeUncompressed,
-  );
-  consider(importTooLargeCompressedPrefix, ImportErrorKind.tooLargeCompressed);
-  consider(importFormatPrefix, ImportErrorKind.format);
-  if (found.isEmpty) {
+  final split = text.indexOf(': ');
+  if (split < 0) {
     return null;
   }
-  final earliest = found.keys.reduce(
-    (left, right) => left < right ? left : right,
-  );
-  return found[earliest];
+  return _kindAtStart(text.substring(split + 2));
+}
+
+ImportErrorKind? _kindAtStart(String text) {
+  if (text.startsWith(importTooLargeUncompressedPrefix)) {
+    return ImportErrorKind.tooLargeUncompressed;
+  }
+  if (text.startsWith(importTooLargeCompressedPrefix)) {
+    return ImportErrorKind.tooLargeCompressed;
+  }
+  if (text.startsWith(importFormatPrefix)) {
+    return ImportErrorKind.format;
+  }
+  return null;
 }

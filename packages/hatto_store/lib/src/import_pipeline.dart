@@ -404,6 +404,9 @@ class ImportPipeline {
   ///
   /// A throw from reconcile is [ImportOutcome.failedUnknown]: the intent
   /// stays, because it is not known whether the resident collection changed.
+  /// The original commit error stays on [ImportRunResult.commitError] when
+  /// the outcome is [ImportOutcome.committed], [ImportOutcome.failedAfterCommit],
+  /// or this unknown settlement. It is not copied into user-facing text.
   Future<ImportRunResult> _settleRejectedCommit({
     required ImportIntentExpected expected,
     required int intentId,
@@ -422,6 +425,8 @@ class ImportPipeline {
         plan: plan,
         error: err,
         stack: reconcileStack,
+        commitError: error,
+        commitStack: stack,
       );
     }
     final didCommit = await importCommitted(
@@ -469,10 +474,17 @@ class ImportPipeline {
         plan: plan,
         error: err,
         stack: adoptStack,
+        commitError: error,
+        commitStack: stack,
       );
     }
     await scan();
-    return _result(outcome: ImportOutcome.committed, plan: plan);
+    return _result(
+      outcome: ImportOutcome.committed,
+      plan: plan,
+      commitError: error,
+      commitStack: stack,
+    );
   }
 
   Future<bool> _cancelled(ImportPhase phase) async {
@@ -516,12 +528,16 @@ class ImportPipeline {
     PreparedPlan? plan,
     Object? error,
     StackTrace? stack,
+    Object? commitError,
+    StackTrace? commitStack,
   }) {
     return ImportRunResult(
       outcome: outcome,
       plan: plan,
       error: error,
       stack: stack,
+      commitError: commitError,
+      commitStack: commitStack,
     );
   }
 
@@ -643,6 +659,8 @@ class ImportRunResult {
     this.plan,
     this.error,
     this.stack,
+    this.commitError,
+    this.commitStack,
   });
 
   final ImportOutcome outcome;
@@ -653,8 +671,22 @@ class ImportRunResult {
   final PreparedPlan? plan;
 
   /// Set when the turn stopped because something threw.
+  ///
+  /// User-facing copy may classify this with [errorKind]. It must not show
+  /// [error] or [stack] as text.
   final Object? error;
   final StackTrace? stack;
+
+  /// The [ImportEngine.commitResident] failure, when settlement does not
+  /// return it as [error].
+  ///
+  /// Set for [ImportOutcome.committed] and [ImportOutcome.failedAfterCommit]
+  /// after a rejected commit, and for [ImportOutcome.failedUnknown] when
+  /// reconcile throws during that settlement. A rejected commit that did
+  /// not land keeps the failure on [error] and leaves this null. User-facing
+  /// copy does not read this.
+  final Object? commitError;
+  final StackTrace? commitStack;
 
   /// Rust prefix on [error], when the message carries one.
   ImportErrorKind? get errorKind => importErrorKind(error);

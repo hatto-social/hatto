@@ -22,6 +22,19 @@ void main() {
     expect(model.view.label, kStageChecking);
     expect(model.view.cancelEnabled, isTrue);
 
+    model.onPhase(ImportPhase.afterStage);
+    expect(model.view.label, kStageComparing);
+    expect(model.view.cancelEnabled, isTrue);
+    expect(model.pastIntent, isFalse);
+
+    model.onPhase(ImportPhase.afterNoteMap);
+    expect(model.view.label, kStageComparing);
+    expect(model.view.cancelEnabled, isTrue);
+
+    model.onPhase(ImportPhase.afterResidentLookup);
+    expect(model.view.label, kStageComparing);
+    expect(model.view.cancelEnabled, isTrue);
+
     model.onPhase(ImportPhase.afterFinish);
     expect(model.view.label, kStageComparing);
     expect(model.view.cancelEnabled, isTrue);
@@ -67,6 +80,25 @@ void main() {
         isNotNull,
       );
       expect(find.text(kCancelBlocked), findsNothing);
+
+      model.onPhase(ImportPhase.afterStage);
+      await tester.pump();
+      expect(find.text(kStageComparing), findsOneWidget);
+      expect(find.text(kStageChecking), findsNothing);
+      expect(
+        tester
+            .widget<QtPush>(find.byKey(const ValueKey('import-cancel')))
+            .onTap,
+        isNotNull,
+      );
+
+      model.onPhase(ImportPhase.afterNoteMap);
+      await tester.pump();
+      expect(find.text(kStageComparing), findsOneWidget);
+
+      model.onPhase(ImportPhase.afterResidentLookup);
+      await tester.pump();
+      expect(find.text(kStageComparing), findsOneWidget);
 
       final pop = tester
           .element(find.byKey(const ValueKey('import-progress')))

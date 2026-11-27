@@ -78,18 +78,85 @@ ApkgDrop apkgDropFromItem(XFile item) {
   );
 }
 
+/// Every ASCII case of `apkg`.
+///
+/// Some file dialogs match [XTypeGroup.extensions] case-sensitively. A drop
+/// uses [isApkgFileName], which accepts any ASCII case of `.apkg`.
+const List<String> kApkgPickerExtensions = [
+  'apkg',
+  'apkG',
+  'apKg',
+  'apKG',
+  'aPkg',
+  'aPkG',
+  'aPKg',
+  'aPKG',
+  'Apkg',
+  'ApkG',
+  'ApKg',
+  'ApKG',
+  'APkg',
+  'APkG',
+  'APKg',
+  'APKG',
+];
+
 /// Native file dialog. Returns null when the user cancels or the selection
 /// has no filesystem path.
 Future<String?> pickApkgPath() async {
   final picked = await openFile(
     acceptedTypeGroups: const [
-      XTypeGroup(label: 'Anki 덱', extensions: ['apkg', 'APKG', 'Apkg']),
+      XTypeGroup(label: 'Anki 덱', extensions: kApkgPickerExtensions),
     ],
   );
   if (picked == null || picked.path.isEmpty) {
     return null;
   }
   return picked.path;
+}
+
+/// One stderr line for an import failure. Newlines in the values are folded.
+///
+/// This is a diagnostic. Callers must not put it in a toast or a dialog.
+String importDiagnosticLine({
+  required String where,
+  Object? error,
+  StackTrace? stack,
+  Object? commitError,
+  StackTrace? commitStack,
+}) {
+  final parts = <String>[];
+  final errorText = _diagnosticText(error);
+  if (errorText.isNotEmpty) {
+    parts.add(errorText);
+  }
+  final stackText = _diagnosticText(stack);
+  if (stackText.isNotEmpty) {
+    parts.add(stackText);
+  }
+  final commitText = _diagnosticText(commitError);
+  if (commitText.isNotEmpty) {
+    parts.add('commit: $commitText');
+  }
+  final commitStackText = _diagnosticText(commitStack);
+  if (commitStackText.isNotEmpty) {
+    parts.add(commitStackText);
+  }
+  if (parts.isEmpty) {
+    return 'import $where';
+  }
+  return 'import $where: ${parts.join(' | ')}';
+}
+
+String _diagnosticText(Object? value) {
+  if (value == null) {
+    return '';
+  }
+  return value.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
+}
+
+void _defaultImportLog(String line) {
+  stderr.writeln(line);
 }
 
 /// One desktop import session. [startupError] is the gateway's startup
@@ -106,7 +173,9 @@ class ApkgImportSession extends ChangeNotifier {
     this.onTempFile,
     this.tempDirectory,
     this.maxBytes = kImportMaxBytes,
-  }) : pickFile = pickFile ?? pickApkgPath;
+    void Function(String line)? log,
+  }) : pickFile = pickFile ?? pickApkgPath,
+       log = log ?? _defaultImportLog;
 
   final ApkgImportFile importFile;
   final String dataDir;
@@ -117,6 +186,7 @@ class ApkgImportSession extends ChangeNotifier {
   final void Function(File file)? onTempFile;
   final Directory? tempDirectory;
   final int maxBytes;
+  final void Function(String line) log;
 
   bool running = false;
   bool sessionLocked = false;
@@ -186,20 +256,27 @@ class ApkgImportSession extends ChangeNotifier {
     _setRunning(true);
     File? temp;
     try {
-      temp = await _materialize(
-        openRead: open,
-        onCreated: (file) {
-          temp = file;
-          onTempFile?.call(file);
-        },
-      );
-      if (!fileLooksLikeZip(temp!.path)) {
-        ui.toast(kFormatFailure);
+      try {
+        temp = await _materialize(
+          openRead: open,
+          onCreated: (file) {
+            temp = file;
+            onTempFile?.call(file);
+          },
+        );
+        if (!fileLooksLikeZip(temp!.path)) {
+          ui.toast(kFormatFailure);
+          return;
+        }
+      } on _TooLarge {
+        ui.toast(tooLargeCompressedMessage(fileName));
+        return;
+      } on IOException catch (err, stack) {
+        _logDiagnostic('materialize', err, stack);
+        ui.toast(preCommitFailureMessage(fileName));
         return;
       }
       await _commit(ui, sourcePath: temp!.path, fileName: fileName);
-    } on _TooLarge {
-      ui.toast(tooLargeCompressedMessage(fileName));
     } finally {
       _deleteQuiet(temp);
       _setRunning(false);
@@ -245,34 +322,40 @@ class ApkgImportSession extends ChangeNotifier {
   }) async {
     try {
       await flushEditor();
-    } catch (_) {
+    } catch (err, stack) {
+      _logDiagnostic('flushEditor', err, stack);
       ui.toast(preCommitFailureMessage(fileName));
       return;
     }
     final model = ImportProgressModel(ImportCancellationToken());
     ImportRunResult? result;
-    var threw = false;
+    Object? thrown;
+    StackTrace? thrownStack;
     try {
       await ui.showProgress(model);
       result = await importFile(
         sourcePath: sourcePath,
-        limits: kImportLimits,
+        limits: kImportLimitsV0,
         cancel: model.token,
         onPhase: model.onPhase,
       );
-    } on ImportStartupException {
+    } on ImportStartupException catch (err, stack) {
+      _logDiagnostic('startup', err, stack);
       ui.toast(kStartupBlocked);
       return;
-    } catch (_) {
-      threw = true;
+    } catch (err, stack) {
+      thrown = err;
+      thrownStack = stack;
     } finally {
       ui.closeProgress();
     }
-    if (threw) {
+    if (thrown != null) {
       await _unknownOrPreCommit(
         ui,
         fileName: fileName,
         pastIntent: model.pastIntent,
+        error: thrown,
+        stack: thrownStack,
       );
       return;
     }
@@ -291,8 +374,13 @@ class ApkgImportSession extends ChangeNotifier {
     if (result.outcome == ImportOutcome.committed ||
         result.outcome == ImportOutcome.failedAfterCommit ||
         result.outcome == ImportOutcome.failedUnknown) {
-      await refreshDecks();
+      try {
+        await refreshDecks();
+      } catch (err, stack) {
+        _logDiagnostic('refreshDecks', err, stack);
+      }
     }
+    _logResult(result);
     if (result.outcome == ImportOutcome.failedUnknown) {
       sessionLocked = true;
       notifyListeners();
@@ -334,15 +422,49 @@ class ApkgImportSession extends ChangeNotifier {
     ApkgImportUi ui, {
     required String fileName,
     required bool pastIntent,
+    required Object error,
+    required StackTrace? stack,
   }) async {
+    _logDiagnostic(
+      pastIntent ? 'failedUnknown' : 'failedBeforeCommit',
+      error,
+      stack,
+    );
     if (!pastIntent) {
       ui.toast(preCommitFailureMessage(fileName));
       return;
     }
     sessionLocked = true;
     notifyListeners();
-    await refreshDecks();
+    try {
+      await refreshDecks();
+    } catch (err, refreshStack) {
+      _logDiagnostic('refreshDecks', err, refreshStack);
+    }
     ui.toast(unknownFailureMessage(fileName));
+  }
+
+  void _logResult(ImportRunResult result) {
+    final failed =
+        result.outcome == ImportOutcome.failedBeforeCommit ||
+        result.outcome == ImportOutcome.failedAfterCommit ||
+        result.outcome == ImportOutcome.failedUnknown;
+    if (!failed && result.commitError == null) {
+      return;
+    }
+    log(
+      importDiagnosticLine(
+        where: result.outcome.name,
+        error: failed ? result.error : null,
+        stack: failed ? result.stack : null,
+        commitError: result.commitError,
+        commitStack: result.commitStack,
+      ),
+    );
+  }
+
+  void _logDiagnostic(String where, Object? error, StackTrace? stack) {
+    log(importDiagnosticLine(where: where, error: error, stack: stack));
   }
 
   Future<File> _materialize({
