@@ -17,19 +17,39 @@ class ImportProgressModel extends ChangeNotifier {
   /// True once [ImportPhase.afterIntent] has been observed.
   bool pastIntent = false;
 
+  /// True after [requestCancel] accepted a tap or Esc.
+  ///
+  /// Later phases keep the stage label but leave cancel disabled, so a
+  /// second tap or key repeat cannot request cancel again.
+  bool cancelRequested = false;
+
   void onPhase(ImportPhase phase) {
-    view = progressForPhase(phase);
-    if (!view.cancelEnabled) {
+    final next = progressForPhase(phase);
+    if (!next.cancelEnabled) {
       pastIntent = true;
     }
+    view = cancelRequested
+        ? ImportProgressView(
+            label: next.label,
+            cancelEnabled: false,
+            blockedNote: next.blockedNote,
+          )
+        : next;
     notifyListeners();
   }
 
-  /// Records a cancel request. Does not toast.
+  /// Records a cancel request and disables the button. Does not toast.
   void requestCancel() {
-    if (!view.cancelEnabled) {
+    if (!view.cancelEnabled || cancelRequested) {
       return;
     }
+    cancelRequested = true;
     token.cancel();
+    view = ImportProgressView(
+      label: view.label,
+      cancelEnabled: false,
+      blockedNote: view.blockedNote,
+    );
+    notifyListeners();
   }
 }

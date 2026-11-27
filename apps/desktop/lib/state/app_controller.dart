@@ -66,7 +66,8 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> go(Screen s) async {
-    if (s == Screen.decks || s == Screen.overview) await refreshDecks();
+    // A bare controller has no collection. A real one still refreshes.
+    if (_api != null && (s == Screen.decks || s == Screen.overview)) await refreshDecks();
     if (s == Screen.overview && overview == null) s = Screen.decks;
     screen = s; _changed();
   }

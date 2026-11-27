@@ -7,6 +7,7 @@ import 'dart:async';
 
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 
 import '../about/about_page.dart';
 import '../editor/anki_ui.dart';
@@ -74,7 +75,18 @@ class _MainShellState extends State<MainShell> {
     showSummary: _showSummary,
     showProgress: _showProgress,
     closeProgress: _closeProgress,
+    onCommitted: () => app.go(Screen.decks),
+    announce: _announce,
   );
+
+  Future<void> _announce(String message) {
+    if (!mounted || message.isEmpty) return Future<void>.value();
+    return SemanticsService.sendAnnouncement(
+      View.of(context),
+      message,
+      Directionality.of(context),
+    );
+  }
 
   void _import() {
     final imports = widget.imports;
