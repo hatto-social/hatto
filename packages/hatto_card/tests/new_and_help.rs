@@ -30,7 +30,10 @@ fn assert_uuid_v4(text: &str) {
 #[test]
 fn help_exits_zero_for_the_top_level_and_each_command() {
     let cases: &[(&[&str], &[&str])] = &[
-        (&["--help"], &["new", "validate", "export", "add-note"]),
+        (
+            &["--help"],
+            &["new", "validate", "export", "add-note", "inspect"],
+        ),
         (&["-h"], &["hatto-card"]),
         (&["help"], &["--json"]),
         (&["new", "--help"], &["--deck-name", "--output"]),
@@ -46,6 +49,13 @@ fn help_exits_zero_for_the_top_level_and_each_command() {
             &["--field", "--op-id", "--source-guid"],
         ),
         (&["add-note", "-h"], &["--job-id", "--k"]),
+        (
+            &["inspect", "--help"],
+            &["512 MiB", "2 GiB", "content_hash", "Stage E facts"],
+        ),
+        (&["inspect", "-h"], &["notetype_id", "read only"]),
+        (&["--help", "inspect"], &["note-id order"]),
+        (&["--json", "inspect", "--help"], &["512 MiB"]),
         (&["--json", "--help"], &["hatto-card"]),
         (&["new", "--help", "--output"], &["--deck-name"]),
     ];
