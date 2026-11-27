@@ -80,15 +80,19 @@ void main() {
     void Function(File file)? onTempFile,
     Directory? tempDirectory,
     Future<void> Function()? flush,
+    Future<void> Function()? refresh,
+    List<String>? log,
   }) {
     return ApkgImportSession(
       importFile: ({required sourcePath, required limits, cancel, onPhase}) {
         return onImport(_Call(sourcePath, limits, onPhase, cancel));
       },
       dataDir: p.join(root.path, 'data'),
-      refreshDecks: () async {
-        rec.refreshes++;
-      },
+      refreshDecks:
+          refresh ??
+          () async {
+            rec.refreshes++;
+          },
       flushEditor:
           flush ??
           () async {
@@ -106,6 +110,7 @@ void main() {
       onTempFile: onTempFile,
       tempDirectory: tempDirectory ?? Directory(p.join(root.path, 'tmp')),
       maxBytes: maxBytes ?? kImportMaxBytes,
+      log: log?.add,
     );
   }
 
@@ -204,13 +209,15 @@ void main() {
       ApkgDrop.file(name: 'Deck.Apkg', localPath: mixed.path),
     ]);
     expect(calls, hasLength(2));
-    expect(calls.first.limits.maxBytes, kImportMaxBytes);
+    expect(calls.first.limits.maxBytes, kImportLimitsV0.maxBytes);
     expect(
       calls.first.limits.maxUncompressedBytes,
-      kImportMaxUncompressedBytes,
+      kImportLimitsV0.maxUncompressedBytes,
     );
-    expect(kImportMaxBytes, 512 * 1024 * 1024);
-    expect(kImportMaxUncompressedBytes, 2 * 1024 * 1024 * 1024);
+    expect(kImportLimitsV0.maxBytes, 512 * 1024 * 1024);
+    expect(kImportLimitsV0.maxUncompressedBytes, 2 * 1024 * 1024 * 1024);
+    expect(kImportMaxBytes, kImportLimitsV0.maxBytes);
+    expect(kImportMaxUncompressedBytes, kImportLimitsV0.maxUncompressedBytes);
   });
 
   test(
@@ -228,10 +235,10 @@ void main() {
           );
         },
       );
-    final exact = writeFile('exact.apkg', zip);
-    final exactHandle = exact.openSync(mode: FileMode.append);
-    exactHandle.truncateSync(kImportMaxBytes);
-    exactHandle.closeSync();
+      final exact = writeFile('exact.apkg', zip);
+      final exactHandle = exact.openSync(mode: FileMode.append);
+      exactHandle.truncateSync(kImportMaxBytes);
+      exactHandle.closeSync();
       await session.importDropped(rec.ui, [
         ApkgDrop.file(name: 'exact.apkg', localPath: exact.path),
       ]);
@@ -608,4 +615,244 @@ void main() {
       expect(rec.refreshes, 1);
     },
   );
+
+  test('the file picker lists every ASCII case of apkg', () {
+    final cases = <String>{};
+    for (final a in ['a', 'A']) {
+      for (final letterP in ['p', 'P']) {
+        for (final k in ['k', 'K']) {
+          for (final g in ['g', 'G']) {
+            cases.add('$a$letterP$k$g');
+          }
+        }
+      }
+    }
+    expect(kApkgPickerExtensions.toSet(), cases);
+    for (final extension in kApkgPickerExtensions) {
+      expect(isApkgFileName('Deck.$extension'), isTrue);
+    }
+  });
+
+  test(
+    'a drop stream IO error toasts, logs, and deletes the temp file',
+    () async {
+      final rec = _Rec();
+      final log = <String>[];
+      final calls = <_Call>[];
+      File? temp;
+      final session = open(
+        rec: rec,
+        log: log,
+        onTempFile: (file) => temp = file,
+        onImport: (call) async {
+          calls.add(call);
+          return const ImportRunResult(outcome: ImportOutcome.noop);
+        },
+      );
+      await session.importDropped(rec.ui, [
+        ApkgDrop.file(
+          name: 'stream.apkg',
+          openRead: () => throw const FileSystemException(
+            'SECRET-IO',
+            '/tmp/format: notes.apkg',
+          ),
+        ),
+      ]);
+      expect(calls, isEmpty);
+      expect(rec.toasts, [preCommitFailureMessage('stream.apkg')]);
+      expect(rec.toasts.single.contains('SECRET-IO'), isFalse);
+      expect(rec.toasts.single.contains('format:'), isFalse);
+      expect(log, hasLength(1));
+      expect(log.single, contains('SECRET-IO'));
+      expect(log.single, contains('format:'));
+      expect(log.single.contains('\n'), isFalse);
+      expect(temp, isNotNull);
+      expect(temp!.existsSync(), isFalse);
+      expect(session.running, isFalse);
+    },
+  );
+
+  test('a drop directory create failure toasts and clears running', () async {
+    final rec = _Rec();
+    final log = <String>[];
+    final calls = <_Call>[];
+    final occupied = File(p.join(root.path, 'blocked'))..writeAsStringSync('x');
+    final session = open(
+      rec: rec,
+      log: log,
+      tempDirectory: Directory(occupied.path),
+      onImport: (call) async {
+        calls.add(call);
+        return const ImportRunResult(outcome: ImportOutcome.noop);
+      },
+    );
+    await session.importDropped(rec.ui, [
+      ApkgDrop.file(
+        name: 'stream.apkg',
+        openRead: () async* {
+          yield zip;
+        },
+      ),
+    ]);
+    expect(calls, isEmpty);
+    expect(rec.toasts, [preCommitFailureMessage('stream.apkg')]);
+    expect(rec.toasts.single.contains('FileSystemException'), isFalse);
+    expect(log, isNotEmpty);
+    expect(log.single.contains('\n'), isFalse);
+    expect(session.running, isFalse);
+  });
+
+  test(
+    'refreshDecks throwing still shows the adoption toast and clears running',
+    () async {
+      final rec = _Rec();
+      final log = <String>[];
+      final session = open(
+        rec: rec,
+        log: log,
+        refresh: () async {
+          throw StateError('SECRET-REFRESH');
+        },
+        onImport: (call) async {
+          return const ImportRunResult(
+            outcome: ImportOutcome.failedAfterCommit,
+            error: 'SECRET-ADOPT',
+          );
+        },
+      );
+      final file = writeFile('adopt.apkg', zip);
+      await session.importDropped(rec.ui, [
+        ApkgDrop.file(name: 'adopt.apkg', localPath: file.path),
+      ]);
+      expect(rec.toasts, [adoptionFailureMessage('adopt.apkg')]);
+      expect(rec.toasts.single.contains('SECRET'), isFalse);
+      expect(log.join('\n'), contains('SECRET-REFRESH'));
+      expect(log.join('\n'), contains('SECRET-ADOPT'));
+      expect(log.every((line) => !line.contains('\n')), isTrue);
+      expect(session.running, isFalse);
+      expect(session.sessionLocked, isFalse);
+    },
+  );
+
+  test(
+    'refreshDecks throwing after a streamed commit deletes the temp file',
+    () async {
+      final rec = _Rec();
+      final log = <String>[];
+      File? temp;
+      final session = open(
+        rec: rec,
+        log: log,
+        onTempFile: (file) => temp = file,
+        refresh: () async {
+          throw StateError('SECRET-REFRESH');
+        },
+        onImport: (call) async {
+          return ImportRunResult(
+            outcome: ImportOutcome.committed,
+            plan: sample(),
+            commitError: StateError('SECRET-COMMIT'),
+          );
+        },
+      );
+      await session.importDropped(rec.ui, [
+        ApkgDrop.file(
+          name: 'stream.apkg',
+          openRead: () async* {
+            yield zip;
+          },
+        ),
+      ]);
+      expect(rec.summaries, isNotEmpty);
+      expect(rec.summaries.single.title.contains('SECRET'), isFalse);
+      expect(rec.toasts.every((toast) => !toast.contains('SECRET')), isTrue);
+      expect(log.join('\n'), contains('SECRET-REFRESH'));
+      expect(log.join('\n'), contains('SECRET-COMMIT'));
+      expect(temp, isNotNull);
+      expect(temp!.existsSync(), isFalse);
+      expect(session.running, isFalse);
+    },
+  );
+
+  test(
+    'a caught import exception is logged and stays out of the toast',
+    () async {
+      final rec = _Rec();
+      final log = <String>[];
+      final session = open(
+        rec: rec,
+        log: log,
+        onImport: (call) async {
+          call.onPhase?.call(ImportPhase.afterFinish);
+          throw StateError('SECRET-EARLY');
+        },
+      );
+      final file = writeFile('early.apkg', zip);
+      await session.importDropped(rec.ui, [
+        ApkgDrop.file(name: 'early.apkg', localPath: file.path),
+      ]);
+      expect(rec.toasts, [preCommitFailureMessage('early.apkg')]);
+      expect(rec.toasts.single.contains('SECRET-EARLY'), isFalse);
+      expect(log.single, contains('SECRET-EARLY'));
+      expect(log.single, contains('failedBeforeCommit'));
+      expect(log.single.contains('\n'), isFalse);
+      expect(session.running, isFalse);
+      expect(session.sessionLocked, isFalse);
+    },
+  );
+
+  test('an exception after afterIntent is logged as failedUnknown', () async {
+    final rec = _Rec();
+    final log = <String>[];
+    final session = open(
+      rec: rec,
+      log: log,
+      onImport: (call) async {
+        call.onPhase?.call(ImportPhase.afterIntent);
+        Error.throwWithStackTrace(
+          StateError('SECRET-LATE'),
+          StackTrace.fromString('SECRET-STACK\nline two'),
+        );
+      },
+    );
+    final file = writeFile('late.apkg', zip);
+    await session.importDropped(rec.ui, [
+      ApkgDrop.file(name: 'late.apkg', localPath: file.path),
+    ]);
+    expect(rec.toasts, [unknownFailureMessage('late.apkg')]);
+    expect(rec.toasts.single.contains('SECRET'), isFalse);
+    expect(log.single, contains('SECRET-LATE'));
+    expect(log.single, contains('SECRET-STACK'));
+    expect(log.single, contains('line two'));
+    expect(log.single.contains('\n'), isFalse);
+    expect(session.sessionLocked, isTrue);
+    expect(session.running, isFalse);
+  });
+
+  test('a flush failure is logged and does not show the raw error', () async {
+    final rec = _Rec();
+    final log = <String>[];
+    final calls = <_Call>[];
+    final session = open(
+      rec: rec,
+      log: log,
+      flush: () async {
+        throw StateError('SECRET-FLUSH');
+      },
+      onImport: (call) async {
+        calls.add(call);
+        return const ImportRunResult(outcome: ImportOutcome.noop);
+      },
+    );
+    final file = writeFile('flush.apkg', zip);
+    await session.importDropped(rec.ui, [
+      ApkgDrop.file(name: 'flush.apkg', localPath: file.path),
+    ]);
+    expect(calls, isEmpty);
+    expect(rec.toasts, [preCommitFailureMessage('flush.apkg')]);
+    expect(rec.toasts.single.contains('SECRET-FLUSH'), isFalse);
+    expect(log.single, contains('SECRET-FLUSH'));
+    expect(log.single, contains('flushEditor'));
+    expect(session.running, isFalse);
+  });
 }

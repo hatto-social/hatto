@@ -25,6 +25,13 @@ const fileHash =
 const _limits = ImportLimits(maxBytes: 1000, maxUncompressedBytes: 1000);
 
 void main() {
+  test('v0 product limits are 512 MiB compressed and 2 GiB uncompressed', () {
+    expect(kImportLimitsV0.maxBytes, 512 * 1024 * 1024);
+    expect(kImportLimitsV0.maxUncompressedBytes, 2 * 1024 * 1024 * 1024);
+    expect(kImportMaxBytes, kImportLimitsV0.maxBytes);
+    expect(kImportMaxUncompressedBytes, kImportLimitsV0.maxUncompressedBytes);
+  });
+
   test('T1 a second import of the same file is a no-op', () async {
     final ctx = await _open();
     final plan = _commitPlan(ctx);
@@ -597,6 +604,8 @@ void main() {
     expect(committed.outcome, ImportOutcome.committed);
     expect(committed.plan?.batchId, batch);
     expect(committed.error, isNull);
+    expect(committed.commitError, isNull);
+    expect(committed.commitStack, isNull);
 
     ctx.engine.plan = _noopPlan(ctx);
     final noop = await _pipeline(ctx)
@@ -678,8 +687,57 @@ void main() {
     expect(result.error, isA<StateError>());
     expect((result.error! as StateError).message, 'reconcile blew up');
     expect(result.stack, isNotNull);
+    expect(result.commitError, isA<StateError>());
+    expect((result.commitError! as StateError).message, 'rejected');
+    expect(result.commitStack, isNotNull);
     expect(ctx.db.pendingIntents(), hasLength(1));
     expect(ctx.engine.commitCalls, 1);
+  });
+
+  test('a committed settlement keeps the rejected commit error', () async {
+    final ctx = await _open();
+    ctx.engine.plan = _commitPlan(ctx);
+    _armNewNote(ctx);
+    ctx.engine.commitError = StateError('rejected after write');
+    ctx.engine.applyCommitBeforeError = true;
+
+    final result = await _pipeline(ctx)
+        .run(sourcePath: ctx.source.path, limits: _limits);
+
+    expect(result.outcome, ImportOutcome.committed);
+    expect(result.error, isNull);
+    expect(result.stack, isNull);
+    expect(result.commitError, isA<StateError>());
+    expect((result.commitError! as StateError).message, 'rejected after write');
+    expect(result.commitStack, isNotNull);
+    expect(result.commitStack!.toString(), contains('commitResident'));
+    expect(ctx.db.pendingIntents(), isEmpty);
+  });
+
+  test('a failed adoption after a rejected commit keeps both errors', () async {
+    final ctx = await _open();
+    ctx.engine.plan = _commitPlan(ctx);
+    // The note lands, so settlement adopts, but the deck is not in the
+    // collection and the engine cannot name it. Adoption throws.
+    ctx.engine.deckIds = const {};
+    ctx.engine.onCommit = () {
+      ctx.collection.addNote(id: 20, guid: newGuid, cardId: 200, deckId: 7);
+    };
+    ctx.engine.commitError = StateError('rejected after write');
+    ctx.engine.applyCommitBeforeError = true;
+
+    final result = await _pipeline(ctx)
+        .run(sourcePath: ctx.source.path, limits: _limits);
+
+    expect(result.outcome, ImportOutcome.failedAfterCommit);
+    expect(result.error, isA<SideDbException>());
+    expect(result.stack, isNotNull);
+    expect(result.stack!.toString(), isNot(contains('rejected after write')));
+    expect(result.commitError, isA<StateError>());
+    expect((result.commitError! as StateError).message, 'rejected after write');
+    expect(result.commitStack, isNotNull);
+    expect(result.commitStack!.toString(), contains('commitResident'));
+    expect(ctx.db.pendingIntents(), hasLength(1));
   });
 
   test(

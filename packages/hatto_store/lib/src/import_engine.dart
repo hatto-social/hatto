@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-/// Caller's package ceilings (O4). This library does not pick the numbers.
+/// Caller's package ceilings (O4).
+///
+/// [kImportLimitsV0] is the product ceiling. A host or a test may pass a
+/// different [ImportLimits].
 class ImportLimits {
   const ImportLimits({
     required this.maxBytes,
@@ -15,6 +18,18 @@ class ImportLimits {
   /// Sum of zip central-directory uncompressed sizes, in bytes.
   final int maxUncompressedBytes;
 }
+
+/// v0 compressed ceiling: 512 MiB.
+const int kImportMaxBytes = 512 * 1024 * 1024;
+
+/// v0 uncompressed zip entry sum: 2 GiB.
+const int kImportMaxUncompressedBytes = 2 * 1024 * 1024 * 1024;
+
+/// Product v0 import ceilings. Hosts pass this into [ImportEngine.stageE].
+const ImportLimits kImportLimitsV0 = ImportLimits(
+  maxBytes: kImportMaxBytes,
+  maxUncompressedBytes: kImportMaxUncompressedBytes,
+);
 
 /// Resident-collection and E-pipeline operations import recovery calls.
 ///

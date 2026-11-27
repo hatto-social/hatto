@@ -4,17 +4,6 @@
 
 import 'package:hatto_store/hatto_store.dart';
 
-/// O4 v0 ceilings: 512 MiB compressed, 2 GiB uncompressed zip entry sum.
-const int kImportMaxBytes = 512 * 1024 * 1024;
-
-/// Sum of zip central-directory uncompressed sizes.
-const int kImportMaxUncompressedBytes = 2 * 1024 * 1024 * 1024;
-
-const ImportLimits kImportLimits = ImportLimits(
-  maxBytes: kImportMaxBytes,
-  maxUncompressedBytes: kImportMaxUncompressedBytes,
-);
-
 const String kStartupBlocked =
     '이전 가져오기를 마무리하지 못해서 지금은 가져올 수 없어요. 앱을 다시 실행해 보세요.';
 
@@ -48,9 +37,12 @@ const String kQuoteClose = '’';
 
 String quoteName(String name) => '$kQuoteOpen$name$kQuoteClose';
 
+/// Shown when the file exceeds [kImportLimitsV0.maxBytes] (512 MiB).
 String tooLargeCompressedMessage(String fileName) =>
     '${quoteName(fileName)} 파일은 너무 커서 가져올 수 없어요. 512 MiB 이하 파일만 가져올 수 있어요.';
 
+/// Shown when the zip entry sum exceeds [kImportLimitsV0.maxUncompressedBytes]
+/// (2 GiB).
 String tooLargeUncompressedMessage(String fileName) =>
     '${quoteName(fileName)} 파일은 너무 커서 가져올 수 없어요. 2 GiB 이하 파일만 가져올 수 있어요.';
 
@@ -215,23 +207,25 @@ class ImportProgressView {
   final String? blockedNote;
 }
 
-/// Stage labels from [onPhase].
+/// Stage labels from [onPhase] (G-I5-3).
 ///
-/// The spec calls the second stage `afterPlan`. The pipeline emits that
-/// moment as [ImportPhase.afterFinish], once [PreparedPlan] exists. Cancel
-/// stays enabled through [ImportPhase.afterPre] and turns off synchronously
-/// at [ImportPhase.afterIntent].
+/// Checking is only the moment before [ImportPhase.afterStage]. Comparing
+/// starts at [ImportPhase.afterStage] and stays through
+/// [ImportPhase.afterNoteMap], [ImportPhase.afterResidentLookup],
+/// [ImportPhase.afterFinish], and [ImportPhase.afterPre]. Cancel stays
+/// enabled through [ImportPhase.afterPre] and turns off synchronously at
+/// [ImportPhase.afterIntent].
 ImportProgressView progressForPhase(ImportPhase? phase) {
   switch (phase) {
     case null:
     case ImportPhase.afterReconcile:
-    case ImportPhase.afterStage:
-    case ImportPhase.afterNoteMap:
-    case ImportPhase.afterResidentLookup:
       return const ImportProgressView(
         label: kStageChecking,
         cancelEnabled: true,
       );
+    case ImportPhase.afterStage:
+    case ImportPhase.afterNoteMap:
+    case ImportPhase.afterResidentLookup:
     case ImportPhase.afterFinish:
     case ImportPhase.afterPre:
       return const ImportProgressView(
