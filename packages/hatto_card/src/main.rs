@@ -2,18 +2,19 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `hatto-card` — build, extend, and check a provisional deck file.
+//! `hatto-card` — build, extend, and check a provisional deck file, and
+//! inspect an apkg through Stage E.
 //!
 //! Collections are temporary directories created by the tool. The process
 //! never opens a user collection.
 
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use hatto_card::{
-    add_note_path, export_path, failure_json, validate_path, write_skeleton, AddNoteGuid,
-    AddNoteRequest, ToolFailure,
+    add_note_path, export_path, failure_json, inspect_path, validate_path, write_skeleton,
+    AddNoteGuid, AddNoteRequest, ToolFailure,
 };
 use serde_json::Value;
 
@@ -49,7 +50,7 @@ fn main() -> ExitCode {
             } else {
                 eprintln!("hatto-card: {message}");
                 eprintln!(
-                    "usage: hatto-card [--json] [-h|--help] new [--output FILE] [--deck-name NAME] | validate --deck FILE | export --deck FILE --output FILE | add-note --deck FILE --notetype NAME --field TEXT [--field TEXT ...] [--tag TEXT ...] [--output FILE] [--op-id UUID] [--k N] | [--job-id UUID --source-guid TEXT]"
+                    "usage: hatto-card [--json] [-h|--help] new [--output FILE] [--deck-name NAME] | validate --deck FILE | export --deck FILE --output FILE | add-note --deck FILE --notetype NAME --field TEXT [--field TEXT ...] [--tag TEXT ...] [--output FILE] [--op-id UUID] [--k N] | [--job-id UUID --source-guid TEXT] | inspect FILE"
                 );
             }
             ExitCode::from(2)
@@ -85,6 +86,10 @@ use CliError::{Failed, Usage};
 
 fn dispatch(words: &[String]) -> Result<Value, CliError> {
     let command = words.first().map(String::as_str).unwrap_or("");
+    // `inspect` takes a positional path. `pairs` only accepts `--flag value`.
+    if command == "inspect" {
+        return inspect_command(words);
+    }
     let pairs = pairs(words)?;
     match command {
         "new" => {
@@ -115,6 +120,21 @@ fn dispatch(words: &[String]) -> Result<Value, CliError> {
         "" => Err(Usage("missing command".into())),
         other => Err(Usage(format!("unknown command {other}"))),
     }
+}
+
+/// `inspect FILE`. The path is positional. `--json` is already stripped.
+fn inspect_command(words: &[String]) -> Result<Value, CliError> {
+    if words.len() < 2 {
+        return Err(Usage("missing apkg".into()));
+    }
+    if words.len() > 2 {
+        return Err(Usage(format!("unexpected argument {}", words[2])));
+    }
+    let path = words[1].as_str();
+    if path.starts_with('-') {
+        return Err(Usage(format!("unexpected argument {path}")));
+    }
+    inspect_path(Path::new(path)).map_err(Failed)
 }
 
 fn add_note(pairs: &[(&str, &str)]) -> Result<Value, CliError> {
@@ -253,7 +273,7 @@ fn help_requested(words: &[String]) -> bool {
 
 fn help_topic(words: &[String]) -> Option<&str> {
     words.iter().find_map(|word| match word.as_str() {
-        "new" | "validate" | "export" | "add-note" => Some(word.as_str()),
+        "new" | "validate" | "export" | "add-note" | "inspect" => Some(word.as_str()),
         _ => None,
     })
 }
@@ -264,6 +284,7 @@ fn print_help(topic: Option<&str>) {
         Some("validate") => VALIDATE_HELP,
         Some("export") => EXPORT_HELP,
         Some("add-note") => ADD_NOTE_HELP,
+        Some("inspect") => INSPECT_HELP,
         _ => TOP_HELP,
     };
     print!("{text}");
@@ -281,13 +302,14 @@ commands:
   validate   check a deck file
   export     write an apkg for one deck
   add-note   append one note to a deck file
+  inspect    print Stage E note facts for an apkg
 
 global flags:
   --json     print one JSON object on stdout
   -h, --help show this help and exit 0
 
-Collections are temporary. This tool does not import a package and does not
-open a user collection.
+Collections are temporary. inspect reads one apkg through Stage E and does
+not open a user collection. The other commands do not import a package.
 ";
 
 const NEW_HELP: &str = "\
@@ -362,6 +384,29 @@ flags:
 --job-id is stored on the note and is not used to derive the guid.
 With no guid flags, add-note makes a UUIDv4 op_id and sets k to 0.
 The file is written only after the same checks as validate.
+";
+
+const INSPECT_HELP: &str = "\
+hatto-card inspect — print Stage E note facts for one apkg
+
+usage:
+  hatto-card [--json] inspect FILE
+
+flags:
+  --json     print one JSON object on stdout
+  -h, --help show this help and exit 0
+
+FILE is read only. inspect copies it into a new temporary data directory
+and reads it with Stage E. It does not open a user collection. The
+temporary directory is removed before exit, including when Stage E fails.
+
+Default size limits are the v0 desktop product ceilings: 512 MiB
+compressed, and 2 GiB for the sum of uncompressed zip entries.
+
+Notes are printed in note-id order. Each note includes guid,
+content_hash (lowercase hex), and notetype_id. Without --json the
+object is pretty-printed. inspect outputs the same Stage E facts used
+by import.
 ";
 
 fn emit(json: bool, value: &Value) {

@@ -3,10 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! `hatto-card` library: validate a provisional deck file, append one note,
-//! and export one deck from a temporary collection.
+//! export one deck from a temporary collection, and inspect an apkg through
+//! Stage E without opening a user collection.
 
 mod collection;
 mod deck;
+mod inspect;
 mod seed;
 
 use std::fs;
@@ -22,6 +24,10 @@ use crate::deck::{derive_notes, parse_deck, skeleton, DeckFile, DerivedNote, Pro
 pub use crate::deck::Problem as DeckProblem;
 
 pub use crate::deck::skeleton as skeleton_deck;
+
+pub use crate::inspect::{
+    inspect_path, INSPECT_MAX_BYTES, INSPECT_MAX_UNCOMPRESSED_BYTES, INSPECT_TEMP_PREFIX,
+};
 
 #[derive(Debug)]
 pub struct ToolFailure {
