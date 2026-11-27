@@ -17,9 +17,11 @@ permissions:
 # so branch protection would see a green pull request. Require `gate` only.
 #
 # pull_request: the changes job runs dorny/paths-filter and heavy jobs are
-# skipped when their output is not the string true.
-# push to main, any tag, and workflow_dispatch: every job runs. The filter
-# is not consulted.
+# skipped when their output is not the string true. dco checks Signed-off-by
+# trailers on the pull request's non-merge commits.
+# push to main, any tag, and workflow_dispatch: every job runs except dco.
+# dco is skipped on those events. The filter is not consulted. gate treats
+# a skipped dco job as success and a failed or cancelled one as failure.
 #
 # Linux analyzes and tests the desktop app, the bridge, mobile, hatto_store,
 # and hatto_legal, then builds the Linux app and cargo-tests the bridge.
@@ -524,9 +526,122 @@ jobs:
           HATTO_REBUILD_DROP_HOST_TARGET: "1"
         run: tools/release/rebuild-from-archive.sh
 
+  # Developer Certificate of Origin. Pull requests only. A push, a tag,
+  # or a workflow_dispatch skips this job; gate counts that skip as success.
+  # A failure or cancellation on pull_request fails gate. No third-party
+  # action: checkout with full history, then git log over base..head.
+  dco:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history so both the PR base SHA and the PR head SHA exist.
+          fetch-depth: 0
+
+      - name: Check Signed-off-by trailers
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${BASE_SHA:-}" ] || [ -z "${HEAD_SHA:-}" ]; then
+            echo "dco: BASE_SHA and HEAD_SHA are required" >&2
+            exit 1
+          fi
+          if ! git rev-parse --verify --quiet "${BASE_SHA}^{commit}" >/dev/null; then
+            echo "dco: base SHA ${BASE_SHA} is not present in this checkout" >&2
+            exit 1
+          fi
+          if ! git rev-parse --verify --quiet "${HEAD_SHA}^{commit}" >/dev/null; then
+            echo "dco: head SHA ${HEAD_SHA} is not present in this checkout" >&2
+            exit 1
+          fi
+
+          lower() {
+            printf '%s' "$1" | LC_ALL=C tr '[:upper:]' '[:lower:]'
+          }
+
+          # %(trailers) value is "Name <email>". Print the email, or nothing
+          # when the value is not that form.
+          trailer_email() {
+            local value email
+            value="$(printf '%s' "$1" | LC_ALL=C tr -d '\r')"
+            value="$(printf '%s' "$value" | LC_ALL=C sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+            case "$value" in
+              *">") ;;
+              *) return 0 ;;
+            esac
+            email="${value##*<}"
+            email="${email%>}"
+            email="$(printf '%s' "$email" | LC_ALL=C sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+            case "$email" in
+              ""|*[[:space:]]*) return 0 ;;
+            esac
+            printf '%s' "$email"
+          }
+
+          fail=0
+          checked=0
+          # --no-merges: merge commits are not required to carry a trailer.
+          # base..head is every commit reachable from the PR head and not
+          # from the PR base.
+          commits="$(git --no-pager log --no-merges --format='%H' "${BASE_SHA}..${HEAD_SHA}")"
+
+          while IFS= read -r sha; do
+            [ -n "$sha" ] || continue
+            checked=$((checked + 1))
+            author="$(git --no-pager log -1 --format='%ae' "$sha")"
+            author_lc="$(lower "$author")"
+            trailers="$(git --no-pager log -1 --format='%(trailers:key=Signed-off-by,valueonly)' "$sha")"
+            matched=0
+            saw=0
+            seen=""
+
+            while IFS= read -r value; do
+              [ -n "$value" ] || continue
+              saw=1
+              email="$(trailer_email "$value")"
+              if [ -z "$email" ]; then
+                seen="${seen}"$'\n'"    (no <email>) ${value}"
+                continue
+              fi
+              seen="${seen}"$'\n'"    ${email}"
+              if [ "$(lower "$email")" = "$author_lc" ]; then
+                matched=1
+              fi
+            done < <(printf '%s\n' "$trailers")
+
+            if [ "$matched" -eq 1 ]; then
+              continue
+            fi
+
+            echo "dco: commit ${sha} failed" >&2
+            echo "  author email: ${author}" >&2
+            if [ "$saw" -eq 0 ]; then
+              echo "  reason: missing Signed-off-by trailer" >&2
+            else
+              echo "  reason: no Signed-off-by trailer email matches the author email" >&2
+              printf '  Signed-off-by emails:%s\n' "$seen" >&2
+            fi
+            fail=1
+          done < <(printf '%s\n' "$commits")
+
+          if [ "$fail" -ne 0 ]; then
+            echo "dco: checked ${checked} non-merge commit(s) in ${BASE_SHA}..${HEAD_SHA}; at least one failed" >&2
+            exit 1
+          fi
+          echo "dco: checked ${checked} non-merge commit(s) in ${BASE_SHA}..${HEAD_SHA}; each has a matching Signed-off-by trailer"
+
   # Skipped is success. failure and cancelled are not. A changes job that
   # did not succeed fails the gate even when every heavy job was skipped,
-  # so a broken filter cannot look green.
+  # so a broken filter cannot look green. dco is skipped off pull_request;
+  # that skipped result keeps the gate green. A failing or cancelled dco
+  # job fails the gate.
   gate:
     needs:
       - changes
@@ -536,6 +651,7 @@ jobs:
       - notices
       - guards-and-archive
       - rebuild
+      - dco
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -549,10 +665,11 @@ jobs:
           NOTICES: ${{ needs.notices.result }}
           GUARDS: ${{ needs['guards-and-archive'].result }}
           REBUILD: ${{ needs.rebuild.result }}
+          DCO: ${{ needs.dco.result }}
         run: |
           set -euo pipefail
           fail=0
-          echo "changes=$CHANGES linux=$LINUX macos=$MACOS reuse=$REUSE notices=$NOTICES guards=$GUARDS rebuild=$REBUILD"
+          echo "changes=$CHANGES linux=$LINUX macos=$MACOS reuse=$REUSE notices=$NOTICES guards=$GUARDS rebuild=$REBUILD dco=$DCO"
           if [ "$CHANGES" != "success" ]; then
             echo "changes did not succeed ($CHANGES); refusing a fail-open result" >&2
             fail=1
@@ -572,4 +689,5 @@ jobs:
           allow notices "$NOTICES"
           allow guards-and-archive "$GUARDS"
           allow rebuild "$REBUILD"
+          allow dco "$DCO"
           exit "$fail"
