@@ -65,8 +65,9 @@ class AppController extends ChangeNotifier {
     _changed();
   }
 
-  Future<void> go(Screen s) async {
-    if (s == Screen.decks || s == Screen.overview) await refreshDecks();
+  Future<void> go(Screen s, {bool refresh = true}) async {
+    // The import path already refreshed, and passes refresh: false.
+    if (refresh && _api != null && (s == Screen.decks || s == Screen.overview)) await refreshDecks();
     if (s == Screen.overview && overview == null) s = Screen.decks;
     screen = s; _changed();
   }

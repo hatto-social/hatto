@@ -60,6 +60,7 @@ void main() {
     required ApkgImportFile importFile,
     Future<String?> Function()? pickFile,
     void Function(File file)? onTempFile,
+    void Function(String line)? log,
   }) {
     return ApkgImportSession(
       importFile: importFile,
@@ -69,6 +70,7 @@ void main() {
       pickFile: pickFile ?? () async => null,
       onTempFile: onTempFile,
       tempDirectory: Directory(p.join(root.path, 'tmp')),
+      log: log,
     );
   }
 
@@ -272,4 +274,348 @@ void main() {
       expect(find.text(kAlreadyImported), findsOneWidget);
     },
   );
+
+  PreparedPlan addedPlan() {
+    return PreparedPlan(
+      batchId: '11111111-1111-4111-8111-111111111111',
+      stagedPath: '/tmp/staged.apkg',
+      stagedSha256: 'ab',
+      firstImport: true,
+      newGuids: const ['g'],
+      changed: const {},
+      deckNames: const ['한국어'],
+      counts: const ImportPlanCounts(
+        newNotes: 1,
+        same: 0,
+        changed: 0,
+        localNewer: 0,
+        blocked: 0,
+        dup: 0,
+        noResidentCall: false,
+      ),
+    );
+  }
+
+  Future<void> finishImport(
+    WidgetTester tester,
+    ApkgImportSession session,
+  ) async {
+    for (var i = 0; i < 30 && session.running; i++) {
+      await tester.pump();
+    }
+    await tester.pump();
+    expect(session.running, isFalse);
+  }
+
+  void dropApkg(WidgetTester tester, String name) {
+    final file = writeApkg(name);
+    final drop = tester.widget<DropTarget>(find.byType(DropTarget));
+    drop.onDragDone!(
+      DropDoneDetails(
+        files: [DropItemFile(file.path)],
+        localPosition: Offset.zero,
+        globalPosition: Offset.zero,
+      ),
+    );
+  }
+
+  testWidgets(
+    'a committed import from overview opens the deck list and is announced',
+    (tester) async {
+      final app = AppController.bare()
+        ..screen = Screen.overview
+        ..deckName = '문법';
+      final plan = addedPlan();
+      final session = sessionFor(
+        app: app,
+        importFile: ({required sourcePath, required limits, cancel, onPhase}) {
+          return Future.value(
+            ImportRunResult(outcome: ImportOutcome.committed, plan: plan),
+          );
+        },
+      );
+      await pumpShell(tester, app, session);
+      expect(find.byKey(const ValueKey('ov-title')), findsOneWidget);
+      expect(find.text('문법'), findsOneWidget);
+      tester.takeAnnouncements();
+
+      dropApkg(tester, 'added.apkg');
+      await finishImport(tester, session);
+
+      final summary = formatImportSummary(plan: plan, fileName: 'added.apkg');
+      expect(app.screen, Screen.decks);
+      expect(find.byKey(const ValueKey('ov-title')), findsNothing);
+      expect(find.byKey(const ValueKey('deck-panel')), findsOneWidget);
+      expect(find.byKey(const ValueKey('import-summary')), findsOneWidget);
+      expect(find.text(summary.title), findsOneWidget);
+      expect(
+        tester.takeAnnouncements(),
+        contains(
+          isAccessibilityAnnouncement(
+            spokenImportSummary(summary),
+            textDirection: TextDirection.ltr,
+          ),
+        ),
+      );
+
+      await tester.tap(find.byKey(const ValueKey('import-summary-close')));
+      await tester.pump();
+      await tester.pump();
+      expect(app.screen, Screen.decks);
+      expect(find.byKey(const ValueKey('deck-panel')), findsOneWidget);
+      expect(find.byKey(const ValueKey('import-summary')), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'a committed toast from overview opens the deck list and is announced',
+    (tester) async {
+      final app = AppController.bare()
+        ..screen = Screen.overview
+        ..deckName = '문법';
+      final session = sessionFor(
+        app: app,
+        importFile: ({required sourcePath, required limits, cancel, onPhase}) {
+          return Future.value(
+            const ImportRunResult(outcome: ImportOutcome.committed),
+          );
+        },
+      );
+      await pumpShell(tester, app, session);
+      tester.takeAnnouncements();
+      dropApkg(tester, 'plain.apkg');
+      await finishImport(tester, session);
+
+      expect(app.screen, Screen.decks);
+      expect(find.byKey(const ValueKey('deck-panel')), findsOneWidget);
+      expect(find.byKey(const ValueKey('import-summary')), findsNothing);
+      expect(find.text(importedFileMessage('plain.apkg')), findsOneWidget);
+      expect(
+        tester.takeAnnouncements(),
+        contains(
+          isAccessibilityAnnouncement(
+            importedFileMessage('plain.apkg'),
+            textDirection: TextDirection.ltr,
+          ),
+        ),
+      );
+    },
+  );
+
+  testWidgets(
+    'cancelled and failed imports stay on overview and errors are announced',
+    (tester) async {
+      final app = AppController.bare()
+        ..screen = Screen.overview
+        ..deckName = '문법';
+      var outcome = ImportOutcome.cancelled;
+      final session = sessionFor(
+        app: app,
+        log: (_) {},
+        importFile: ({required sourcePath, required limits, cancel, onPhase}) {
+          return Future.value(ImportRunResult(outcome: outcome));
+        },
+      );
+      await pumpShell(tester, app, session);
+      tester.takeAnnouncements();
+
+      Future<void> stay(String spoken) async {
+        await finishImport(tester, session);
+        expect(app.screen, Screen.overview);
+        expect(find.byKey(const ValueKey('ov-title')), findsOneWidget);
+        expect(find.byKey(const ValueKey('deck-panel')), findsNothing);
+        expect(
+          tester.takeAnnouncements(),
+          contains(
+            isAccessibilityAnnouncement(
+              spoken,
+              textDirection: TextDirection.ltr,
+            ),
+          ),
+        );
+      }
+
+      dropApkg(tester, 'notes.txt');
+      await stay(kFormatFailure);
+
+      outcome = ImportOutcome.cancelled;
+      dropApkg(tester, 'cancel.apkg');
+      await stay(kCancelToast);
+
+      outcome = ImportOutcome.failedBeforeCommit;
+      dropApkg(tester, 'before.apkg');
+      await stay(preCommitFailureMessage('before.apkg'));
+
+      outcome = ImportOutcome.noop;
+      dropApkg(tester, 'same.apkg');
+      await stay(kAlreadyImported);
+
+      outcome = ImportOutcome.failedUnknown;
+      dropApkg(tester, 'unknown.apkg');
+      await finishImport(tester, session);
+      expect(session.sessionLocked, isTrue);
+      expect(app.screen, Screen.decks);
+      expect(find.byKey(const ValueKey('ov-title')), findsNothing);
+      expect(find.byKey(const ValueKey('deck-panel')), findsOneWidget);
+      expect(find.text(unknownFailureMessage('unknown.apkg')), findsOneWidget);
+      expect(
+        tester.takeAnnouncements(),
+        contains(
+          isAccessibilityAnnouncement(
+            unknownFailureMessage('unknown.apkg'),
+            textDirection: TextDirection.ltr,
+          ),
+        ),
+      );
+    },
+  );
+
+  testWidgets('a post-commit failure opens the deck list and keeps the error', (
+    tester,
+  ) async {
+    final app = AppController.bare()
+      ..screen = Screen.overview
+      ..deckName = '문법';
+    final session = sessionFor(
+      app: app,
+      log: (_) {},
+      importFile: ({required sourcePath, required limits, cancel, onPhase}) {
+        return Future.value(
+          const ImportRunResult(outcome: ImportOutcome.failedAfterCommit),
+        );
+      },
+    );
+    await pumpShell(tester, app, session);
+    tester.takeAnnouncements();
+    dropApkg(tester, 'after.apkg');
+    await finishImport(tester, session);
+
+    expect(app.screen, Screen.decks);
+    expect(find.byKey(const ValueKey('ov-title')), findsNothing);
+    expect(find.byKey(const ValueKey('deck-panel')), findsOneWidget);
+    expect(find.text(adoptionFailureMessage('after.apkg')), findsOneWidget);
+    expect(find.byKey(const ValueKey('toast')), findsOneWidget);
+    expect(
+      tester.takeAnnouncements(),
+      contains(
+        isAccessibilityAnnouncement(
+          adoptionFailureMessage('after.apkg'),
+          textDirection: TextDirection.ltr,
+        ),
+      ),
+    );
+  });
+
+  testWidgets('a fast import announces the result and not the stages', (
+    tester,
+  ) async {
+    final app = AppController.bare();
+    final session = sessionFor(
+      app: app,
+      log: (_) {},
+      importFile:
+          ({required sourcePath, required limits, cancel, onPhase}) async {
+            onPhase?.call(ImportPhase.afterReconcile);
+            onPhase?.call(ImportPhase.afterStage);
+            onPhase?.call(ImportPhase.afterNoteMap);
+            onPhase?.call(ImportPhase.afterResidentLookup);
+            onPhase?.call(ImportPhase.afterIntent);
+            onPhase?.call(ImportPhase.duringAdoption);
+            return const ImportRunResult(outcome: ImportOutcome.cancelled);
+          },
+    );
+    await pumpShell(tester, app, session);
+    tester.takeAnnouncements();
+    dropApkg(tester, 'fast.apkg');
+    await finishImport(tester, session);
+    await tester.pump(kImportStageAnnounceDelay);
+
+    final messages = [
+      for (final announcement in tester.takeAnnouncements())
+        announcement.message,
+    ];
+    expect(messages, [kCancelToast]);
+    expect(find.text(kCancelToast), findsOneWidget);
+    expect(session.running, isFalse);
+  });
+
+  testWidgets('a stage that stays on screen is announced once, in order', (
+    tester,
+  ) async {
+    final app = AppController.bare();
+    final session = sessionFor(
+      app: app,
+      log: (_) {},
+      importFile:
+          ({required sourcePath, required limits, cancel, onPhase}) async {
+            onPhase?.call(ImportPhase.afterReconcile);
+            await Future<void>.delayed(kImportStageAnnounceDelay);
+            onPhase?.call(ImportPhase.afterStage);
+            onPhase?.call(ImportPhase.afterNoteMap);
+            onPhase?.call(ImportPhase.afterResidentLookup);
+            await Future<void>.delayed(kImportStageAnnounceDelay);
+            onPhase?.call(ImportPhase.afterIntent);
+            onPhase?.call(ImportPhase.duringAdoption);
+            await Future<void>.delayed(kImportStageAnnounceDelay);
+            return const ImportRunResult(outcome: ImportOutcome.cancelled);
+          },
+    );
+    await pumpShell(tester, app, session);
+    tester.takeAnnouncements();
+    dropApkg(tester, 'slow.apkg');
+    await tester.pump();
+    await tester.pump(kImportStageAnnounceDelay);
+    await tester.pump(kImportStageAnnounceDelay);
+    await tester.pump(kImportStageAnnounceDelay);
+    await finishImport(tester, session);
+
+    final messages = [
+      for (final announcement in tester.takeAnnouncements())
+        announcement.message,
+    ];
+    expect(messages, [
+      kStageChecking,
+      kStageComparing,
+      kStageApplying,
+      kCancelToast,
+    ]);
+  });
+
+  testWidgets('a deck-list failure is logged and the screen still changes', (
+    tester,
+  ) async {
+    final app = _GoFails()
+      ..screen = Screen.overview
+      ..deckName = '문법';
+    final log = <String>[];
+    final session = sessionFor(
+      app: app,
+      log: log.add,
+      importFile: ({required sourcePath, required limits, cancel, onPhase}) {
+        return Future.value(
+          const ImportRunResult(outcome: ImportOutcome.committed),
+        );
+      },
+    );
+    await pumpShell(tester, app, session);
+    dropApkg(tester, 'nav.apkg');
+    await finishImport(tester, session);
+
+    expect(app.screen, Screen.decks);
+    expect(find.byKey(const ValueKey('deck-panel')), findsOneWidget);
+    expect(find.text(importedFileMessage('nav.apkg')), findsOneWidget);
+    expect(find.textContaining('SECRET-GO'), findsNothing);
+    expect(log, hasLength(1));
+    expect(log.single, contains('SECRET-GO'));
+    expect(log.single.contains('\n'), isFalse);
+  });
+}
+
+class _GoFails extends AppController {
+  _GoFails() : super.bare();
+
+  @override
+  Future<void> go(Screen s, {bool refresh = true}) async {
+    throw StateError('SECRET-GO');
+  }
 }

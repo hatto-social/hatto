@@ -121,6 +121,12 @@ class ImportSummaryText {
   List<String> get lines => [...details, ?footer];
 }
 
+/// Screen-reader text for a multi-line summary. The title comes first.
+String spokenImportSummary(ImportSummaryText summary) {
+  if (summary.lines.isEmpty) return summary.title;
+  return '${summary.title} ${summary.lines.join(' ')}';
+}
+
 ImportSummaryText formatImportSummary({
   required PreparedPlan plan,
   required String fileName,

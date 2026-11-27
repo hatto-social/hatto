@@ -34,10 +34,14 @@ class _LenList extends ListBase<int> {
 class _Rec {
   final toasts = <String>[];
   final summaries = <ImportSummaryText>[];
+  final announcements = <String>[];
   var refreshes = 0;
   var flushes = 0;
+  var deckLists = 0;
+  var deckListError = false;
   ImportProgressModel? progress;
   var pickerCalls = 0;
+  Future<void> Function(String message)? announceImpl;
 
   ApkgImportUi get ui => ApkgImportUi(
     toast: toasts.add,
@@ -46,7 +50,25 @@ class _Rec {
       progress = model;
     },
     closeProgress: () {},
+    showDeckList: () async {
+      if (deckListError) throw StateError('SECRET-DECKS');
+      deckLists++;
+    },
+    announce: (message) {
+      final impl = announceImpl;
+      if (impl != null) return impl(message);
+      announcements.add(message);
+      return Future<void>.value();
+    },
   );
+}
+
+List<String> _withoutStages(Iterable<String> messages) {
+  const stages = {kStageChecking, kStageComparing, kStageApplying};
+  return [
+    for (final message in messages)
+      if (!stages.contains(message)) message,
+  ];
 }
 
 class _Call {
@@ -82,6 +104,8 @@ void main() {
     Future<void> Function()? flush,
     Future<void> Function()? refresh,
     List<String>? log,
+    Duration? stageAnnounceDelay,
+    ImportStageSchedule? scheduleStageAnnounce,
   }) {
     return ApkgImportSession(
       importFile: ({required sourcePath, required limits, cancel, onPhase}) {
@@ -111,6 +135,8 @@ void main() {
       tempDirectory: tempDirectory ?? Directory(p.join(root.path, 'tmp')),
       maxBytes: maxBytes ?? kImportMaxBytes,
       log: log?.add,
+      stageAnnounceDelay: stageAnnounceDelay ?? kImportStageAnnounceDelay,
+      scheduleStageAnnounce: scheduleStageAnnounce,
     );
   }
 
@@ -855,4 +881,344 @@ void main() {
     expect(log.single, contains('flushEditor'));
     expect(session.running, isFalse);
   });
+
+  test(
+    'only a committed import opens the deck list; other outcomes are announced',
+    () async {
+      final rec = _Rec();
+      final log = <String>[];
+      var outcome = ImportOutcome.cancelled;
+      Object? error;
+      ImportPhase? explode;
+      PreparedPlan? plan;
+      final session = open(
+        rec: rec,
+        log: log,
+        onImport: (call) async {
+          final phase = explode;
+          if (phase != null) {
+            call.onPhase?.call(phase);
+            throw StateError('SECRET-BOOM');
+          }
+          return ImportRunResult(outcome: outcome, error: error, plan: plan);
+        },
+      );
+      final file = writeFile('deck.apkg', zip);
+
+      Future<void> dropNamed(String name) {
+        return session.importDropped(rec.ui, [
+          ApkgDrop.file(name: name, localPath: file.path),
+        ]);
+      }
+
+      Future<void> expectStay(String spoken) async {
+        expect(rec.deckLists, 0);
+        expect(_withoutStages(rec.announcements), [spoken]);
+        expect(spoken.contains('SECRET'), isFalse);
+        rec.announcements.clear();
+        rec.toasts.clear();
+      }
+
+      await dropNamed('notes.txt');
+      await expectStay(kFormatFailure);
+
+      outcome = ImportOutcome.cancelled;
+      await dropNamed('deck.apkg');
+      await expectStay(kCancelToast);
+
+      outcome = ImportOutcome.failedBeforeCommit;
+      error = StateError('SECRET-BEFORE');
+      await dropNamed('deck.apkg');
+      await expectStay(preCommitFailureMessage('deck.apkg'));
+
+      outcome = ImportOutcome.noop;
+      error = null;
+      plan = sample(newNotes: 0, firstImport: false);
+      await dropNamed('deck.apkg');
+      await expectStay(kAlreadyImported);
+      plan = null;
+
+      explode = ImportPhase.afterFinish;
+      await dropNamed('deck.apkg');
+      await expectStay(preCommitFailureMessage('deck.apkg'));
+      explode = null;
+
+      outcome = ImportOutcome.failedAfterCommit;
+      error = StateError('SECRET-AFTER');
+      final refreshesBeforeAdopt = rec.refreshes;
+      await dropNamed('deck.apkg');
+      expect(rec.deckLists, 1);
+      expect(rec.refreshes, refreshesBeforeAdopt + 1);
+      expect(_withoutStages(rec.announcements), [
+        adoptionFailureMessage('deck.apkg'),
+      ]);
+      expect(rec.toasts, [adoptionFailureMessage('deck.apkg')]);
+      expect(rec.announcements.any((line) => line.contains('SECRET')), isFalse);
+      rec.announcements.clear();
+      rec.toasts.clear();
+      error = null;
+
+      outcome = ImportOutcome.committed;
+      final committed = sample();
+      plan = committed;
+      final summary = formatImportSummary(
+        plan: committed,
+        fileName: 'deck.apkg',
+      );
+      final refreshesBeforeCommit = rec.refreshes;
+      await dropNamed('deck.apkg');
+      expect(rec.deckLists, 2);
+      expect(rec.refreshes, refreshesBeforeCommit + 1);
+      expect(_withoutStages(rec.announcements), [spokenImportSummary(summary)]);
+      expect(rec.summaries, hasLength(1));
+      rec.announcements.clear();
+
+      plan = null;
+      await dropNamed('plain.apkg');
+      expect(rec.deckLists, 3);
+      expect(_withoutStages(rec.announcements), [
+        importedFileMessage('plain.apkg'),
+      ]);
+      rec.announcements.clear();
+
+      outcome = ImportOutcome.failedUnknown;
+      error = StateError('SECRET-UNKNOWN');
+      plan = null;
+      final refreshesBeforeUnknown = rec.refreshes;
+      await dropNamed('deck.apkg');
+      expect(rec.deckLists, 4);
+      expect(rec.refreshes, refreshesBeforeUnknown + 1);
+      expect(_withoutStages(rec.announcements), [
+        unknownFailureMessage('deck.apkg'),
+      ]);
+      expect(rec.announcements.any((line) => line.contains('SECRET')), isFalse);
+      expect(log.any((line) => line.contains('SECRET-UNKNOWN')), isTrue);
+      expect(log.every((line) => !line.contains('\n')), isTrue);
+      expect(session.sessionLocked, isTrue);
+      expect(session.running, isFalse);
+
+      final late = _Rec();
+      final lateLog = <String>[];
+      final later = open(
+        rec: late,
+        log: lateLog,
+        onImport: (call) async {
+          call.onPhase?.call(ImportPhase.afterIntent);
+          throw StateError('SECRET-BOOM');
+        },
+      );
+      await later.importDropped(late.ui, [
+        ApkgDrop.file(name: 'deck.apkg', localPath: file.path),
+      ]);
+      expect(late.deckLists, 1);
+      expect(late.refreshes, 1);
+      expect(_withoutStages(late.announcements), [
+        unknownFailureMessage('deck.apkg'),
+      ]);
+      expect(
+        late.announcements.any((line) => line.contains('SECRET')),
+        isFalse,
+      );
+      expect(lateLog.single, contains('SECRET-BOOM'));
+      expect(lateLog.single.contains('\n'), isFalse);
+      expect(later.sessionLocked, isTrue);
+    },
+  );
+
+  test('a stage that stays current is announced once, in order', () async {
+    final rec = _Rec();
+    final clock = _StageClock();
+    final session = open(
+      rec: rec,
+      scheduleStageAnnounce: clock.schedule,
+      onImport: (call) async {
+        clock.fire();
+        call.onPhase?.call(ImportPhase.afterReconcile);
+        call.onPhase?.call(ImportPhase.afterStage);
+        call.onPhase?.call(ImportPhase.afterNoteMap);
+        call.onPhase?.call(ImportPhase.afterResidentLookup);
+        call.onPhase?.call(ImportPhase.afterFinish);
+        call.onPhase?.call(ImportPhase.afterPre);
+        clock.fire();
+        call.onPhase?.call(ImportPhase.afterIntent);
+        call.onPhase?.call(ImportPhase.beforeResidentCommit);
+        call.onPhase?.call(ImportPhase.duringAdoption);
+        clock.fire();
+        return ImportRunResult(
+          outcome: ImportOutcome.committed,
+          plan: sample(),
+        );
+      },
+    );
+    final file = writeFile('stages.apkg', zip);
+    await session.importDropped(rec.ui, [
+      ApkgDrop.file(name: 'stages.apkg', localPath: file.path),
+    ]);
+    expect(clock.delays, [
+      kImportStageAnnounceDelay,
+      kImportStageAnnounceDelay,
+      kImportStageAnnounceDelay,
+    ]);
+    expect(rec.announcements, [
+      kStageChecking,
+      kStageComparing,
+      kStageApplying,
+      spokenImportSummary(
+        formatImportSummary(plan: sample(), fileName: 'stages.apkg'),
+      ),
+    ]);
+  });
+
+  test('the next import announces checking again', () async {
+    final rec = _Rec();
+    final clock = _StageClock();
+    final session = open(
+      rec: rec,
+      scheduleStageAnnounce: clock.schedule,
+      onImport: (call) async {
+        clock.fire();
+        call.onPhase?.call(ImportPhase.afterReconcile);
+        return const ImportRunResult(outcome: ImportOutcome.cancelled);
+      },
+    );
+    final file = writeFile('again.apkg', zip);
+    Future<void> drop() {
+      return session.importDropped(rec.ui, [
+        ApkgDrop.file(name: 'again.apkg', localPath: file.path),
+      ]);
+    }
+
+    await drop();
+    expect(rec.announcements, [kStageChecking, kCancelToast]);
+
+    rec.announcements.clear();
+    await drop();
+    expect(clock.delays, [
+      kImportStageAnnounceDelay,
+      kImportStageAnnounceDelay,
+    ]);
+    expect(rec.announcements, [kStageChecking, kCancelToast]);
+  });
+
+  test('a fast import speaks the result and drops stale stages', () async {
+    final rec = _Rec();
+    final clock = _StageClock();
+    final session = open(
+      rec: rec,
+      scheduleStageAnnounce: clock.schedule,
+      onImport: (call) async {
+        call.onPhase?.call(ImportPhase.afterReconcile);
+        call.onPhase?.call(ImportPhase.afterStage);
+        call.onPhase?.call(ImportPhase.afterNoteMap);
+        call.onPhase?.call(ImportPhase.afterIntent);
+        return const ImportRunResult(outcome: ImportOutcome.cancelled);
+      },
+    );
+    final file = writeFile('fast.apkg', zip);
+    await session.importDropped(rec.ui, [
+      ApkgDrop.file(name: 'fast.apkg', localPath: file.path),
+    ]);
+    clock.fire();
+    expect(rec.announcements, [kCancelToast]);
+    expect(session.running, isFalse);
+  });
+
+  test('a failing or hung announcement still presents the result', () async {
+    final hung = Completer<void>();
+    addTearDown(hung.complete);
+    final rec = _Rec();
+    final log = <String>[];
+    var mode = 'hang';
+    final session = open(
+      rec: rec,
+      log: log,
+      onImport: (call) async {
+        return ImportRunResult(
+          outcome: ImportOutcome.committed,
+          plan: sample(),
+        );
+      },
+    );
+    rec.announceImpl = (_) {
+      switch (mode) {
+        case 'hang':
+          return hung.future;
+        case 'sync':
+          throw StateError('SECRET-SYNC');
+        default:
+          return Future<void>.error(StateError('SECRET-ASYNC'));
+      }
+    };
+    final file = writeFile('speak.apkg', zip);
+    Future<void> drop() {
+      return session.importDropped(rec.ui, [
+        ApkgDrop.file(name: 'speak.apkg', localPath: file.path),
+      ]);
+    }
+
+    await drop();
+    expect(rec.summaries, hasLength(1));
+    expect(session.running, isFalse);
+    expect(rec.deckLists, 1);
+
+    mode = 'sync';
+    rec.summaries.clear();
+    await drop();
+    expect(rec.summaries, hasLength(1));
+    expect(session.running, isFalse);
+    expect(log.any((line) => line.contains('SECRET-SYNC')), isTrue);
+    expect(log.every((line) => !line.contains('\n')), isTrue);
+
+    mode = 'async';
+    rec.summaries.clear();
+    await drop();
+    await Future<void>.delayed(Duration.zero);
+    expect(rec.summaries, hasLength(1));
+    expect(session.running, isFalse);
+    expect(log.any((line) => line.contains('SECRET-ASYNC')), isTrue);
+    expect(rec.deckLists, 3);
+  });
+
+  test(
+    'showDeckList throwing still refreshes once and shows the summary',
+    () async {
+      final rec = _Rec()..deckListError = true;
+      final log = <String>[];
+      final session = open(
+        rec: rec,
+        log: log,
+        onImport: (call) async {
+          return ImportRunResult(
+            outcome: ImportOutcome.committed,
+            plan: sample(),
+          );
+        },
+      );
+      final file = writeFile('nav.apkg', zip);
+      await session.importDropped(rec.ui, [
+        ApkgDrop.file(name: 'nav.apkg', localPath: file.path),
+      ]);
+      expect(rec.refreshes, 1);
+      expect(rec.deckLists, 0);
+      expect(rec.summaries, hasLength(1));
+      expect(session.running, isFalse);
+      expect(log.any((line) => line.contains('SECRET-DECKS')), isTrue);
+    },
+  );
+}
+
+class _StageClock {
+  final delays = <Duration>[];
+  void Function()? _pending;
+
+  void schedule(Duration delay, void Function() callback) {
+    delays.add(delay);
+    _pending = callback;
+  }
+
+  void fire() {
+    final callback = _pending;
+    _pending = null;
+    callback?.call();
+  }
 }

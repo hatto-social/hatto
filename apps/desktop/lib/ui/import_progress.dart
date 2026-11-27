@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../editor/anki_ui.dart';
 import '../effect/import_progress_model.dart';
@@ -27,6 +28,18 @@ class ImportProgressDialog extends StatelessWidget {
       canPop: false,
       child: Focus(
         autofocus: true,
+        onKeyEvent: (node, event) {
+          if (event is! KeyDownEvent ||
+              event.logicalKey != LogicalKeyboardKey.escape) {
+            return KeyEventResult.ignored;
+          }
+          // Stages 1–2 accept Esc as cancel. The commit stage swallows Esc
+          // so it neither cancels nor dismisses the dialog.
+          if (model.view.cancelEnabled) {
+            onCancel();
+          }
+          return KeyEventResult.handled;
+        },
         child: ListenableBuilder(
           listenable: model,
           builder: (context, _) {

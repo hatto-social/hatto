@@ -7,6 +7,7 @@ import 'dart:async';
 
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 
 import '../about/about_page.dart';
 import '../editor/anki_ui.dart';
@@ -74,7 +75,34 @@ class _MainShellState extends State<MainShell> {
     showSummary: _showSummary,
     showProgress: _showProgress,
     closeProgress: _closeProgress,
+    showDeckList: _showImportedDecks,
+    announce: _announce,
   );
+
+  /// Decks were refreshed by the session. Switching screens must not
+  /// refresh them again. A failure still leaves the deck list on screen.
+  Future<void> _showImportedDecks() async {
+    try {
+      await app.go(Screen.decks, refresh: false);
+    } catch (err, stack) {
+      widget.imports?.log(
+        importDiagnosticLine(where: 'deckList', error: err, stack: stack),
+      );
+      app.screen = Screen.decks;
+      app.touch();
+    }
+  }
+
+  Future<void> _announce(String message) {
+    if (!mounted || message.isEmpty) return Future<void>.value();
+    // View.of can throw. sendAnnouncement can reject. The session catches
+    // both, logs them, and does not wait.
+    return SemanticsService.sendAnnouncement(
+      View.of(context),
+      message,
+      Directionality.of(context),
+    );
+  }
 
   void _import() {
     final imports = widget.imports;
