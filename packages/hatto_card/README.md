@@ -1,8 +1,8 @@
 # hatto-card
 
-Developer CLI that only generates data. It checks a deck file, appends one
-note, builds a temporary collection, and writes an apkg. It does not import
-a package and it does not open a user collection.
+Developer CLI that checks a deck file, appends one note, builds a temporary
+collection, and writes an apkg. `inspect` reads an existing apkg through
+Stage E in a temporary data directory. It does not open a user collection.
 
 Guid derivation and the guid format check come from `packages/hatto_card_contract`.
 Export flags come from `rslib_bridge::export_contract` (legacy false, media
@@ -53,11 +53,13 @@ hatto-card --json export --deck deck.json --output out.apkg
 hatto-card --json add-note --deck deck.json --notetype Basic --field front --field back
 hatto-card --json add-note --deck deck.json --notetype Basic --field front --field back --op-id UUID --k 0
 hatto-card --json add-note --deck deck.json --notetype Basic --field front --field back --tag example --job-id UUID --source-guid TEXT
+hatto-card inspect deck.apkg
+hatto-card --json inspect deck.apkg
 ```
 
 `-h` and `--help` print help on stdout and exit 0, for the top level and for
 each command (`hatto-card new --help`, and the same for `validate`, `export`,
-and `add-note`). A missing or unknown command still exits 2.
+`add-note`, and `inspect`). A missing or unknown command still exits 2.
 
 `export` validates, writes the notes into a temporary collection, and exports
 that one deck. `validate` runs the same notetype gate first: it opens a
@@ -95,6 +97,34 @@ Checks kept here are the deck JSON shape, `GUID_FORMAT`, `NOTE_GUID_DUPLICATE`
 inside this file, a missing media path, the notetype's field count, and
 `NOTETYPE_LEGACY` when the deck sets `notetype_legacy`. Media bytes are copied
 as-is.
+
+## Inspect
+
+`hatto-card inspect FILE` prints the notes Stage E read from one `.apkg`.
+The file is only read. inspect creates a temporary data directory, copies
+the package to `<temp_data_dir>/import/raw/...`, and calls
+`rslib_bridge::api::import_stage_e`. It does not call `resident_lookup` or
+`import_stage_finish`, and it does not open a user collection.
+
+`inspect` outputs the same Stage E facts used by import.
+
+Notes come from `PendingImport::file_notes()` and stay in that note-id
+order. Each note includes normalized `guid`, `content_hash`, and
+`notetype_id`. `content_hash` is the lowercase hex of the 32-byte hash.
+`mod` is Anki's note mod. The default output is pretty-printed JSON.
+`--json` prints the same object on one line.
+
+Size limits are the v0 desktop product ceilings, the same numbers the
+desktop importer uses:
+
+| Limit | Value |
+| --- | --- |
+| Compressed package (`max_bytes`) | 512 MiB (`512 * 1024 * 1024` bytes) |
+| Uncompressed zip entry sum (`max_uncompressed_bytes`) | 2 GiB (`2 * 1024 * 1024 * 1024` bytes) |
+
+A missing path, a file that is not an apkg, or a package over a limit
+exits non-zero. The temporary data directory is removed on success and
+on failure. `PendingImport` is dropped before that directory is removed.
 
 ## Notetypes and the seed
 
