@@ -75,12 +75,25 @@ class _MainShellState extends State<MainShell> {
     showSummary: _showSummary,
     showProgress: _showProgress,
     closeProgress: _closeProgress,
-    onCommitted: () => app.go(Screen.decks),
+    showDeckList: _showImportedDecks,
     announce: _announce,
   );
 
+  /// Decks were refreshed by the session. Switching screens must not
+  /// refresh them again. A failure still leaves the deck list on screen.
+  Future<void> _showImportedDecks() async {
+    try {
+      await app.go(Screen.decks, refresh: false);
+    } catch (_) {
+      app.screen = Screen.decks;
+      app.touch();
+    }
+  }
+
   Future<void> _announce(String message) {
     if (!mounted || message.isEmpty) return Future<void>.value();
+    // View.of can throw. sendAnnouncement can reject. The session catches
+    // both, logs them, and does not wait.
     return SemanticsService.sendAnnouncement(
       View.of(context),
       message,

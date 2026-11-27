@@ -5,12 +5,14 @@
 // Widget tests (real rslib through FFI inside runAsync) for the 2026-11-19 decisions: deck list, greyed controls, suspend, delete copy,
 // FSRS guidance, preview math, reviewer sound.
 import 'dart:io';
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hatto_desktop/editor/anki_ui.dart';
+import 'package:hatto_desktop/effect/apkg_import.dart';
 import 'package:hatto_desktop/engine/anki_api.dart';
 import 'package:hatto_desktop/engine/engine.dart';
 import 'package:hatto_desktop/src/gen/anki/collection.pb.dart';
@@ -24,7 +26,9 @@ import 'package:hatto_desktop/services/audio_service.dart';
 import 'package:hatto_desktop/state/app_controller.dart';
 import 'package:hatto_desktop/ui/common.dart';
 import 'package:hatto_desktop/ui/copy.dart';
+import 'package:hatto_desktop/ui/import_copy.dart';
 import 'package:hatto_desktop/ui/shell.dart';
+import 'package:hatto_store/hatto_store.dart';
 import 'test_fonts.dart';
 
 late Directory tmp; late Engine eng; late FlowApi api; late AppController app; late FakeAudioService fake;
@@ -81,18 +85,25 @@ Future<void> seedDefaultNotes(Directory dir, List<(String, String)> notes) async
   await invoke('BackendCollectionService', 'close_collection', CloseCollectionRequest());
 }
 
-Future<void> boot(WidgetTester t, Future<void> Function() seed, {List<(String, String)> seeded = const []}) async {
+Future<void> boot(
+  WidgetTester t,
+  Future<void> Function() seed, {
+  List<(String, String)> seeded = const [],
+  ApkgImportSession Function(AppController app)? imports,
+}) async {
   t.view.physicalSize = const Size(1200, 720); t.view.devicePixelRatio = 1;
   addTearDown(() { t.view.resetPhysicalSize(); t.view.resetDevicePixelRatio(); });
+  ApkgImportSession? session;
   await t.runAsync(() async {
     tmp = await Directory.systemTemp.createTemp('hf_ui_');
     if (seeded.isNotEmpty) await seedDefaultNotes(tmp, seeded);
     eng = await Engine.open(langs: ['ko', 'en'], dataDir: tmp.path); api = FlowApi(eng); await api.openCollection(tmp.path);
     fake = FakeAudioService(); app = AppController(api, audio: fake);
     await seed(); await app.refreshDecks();
+    session = imports?.call(app);
   });
   await t.pumpWidget(MaterialApp(debugShowCheckedModeBanner: false, theme: ThemeData(fontFamily: kUiFont, fontFamilyFallback: const ['NanumGothic']),
-    home: Material(child: MainShell(app: app, colors: AnkiColors.light))));
+    home: Material(child: MainShell(app: app, colors: AnkiColors.light, imports: session))));
   await settle(t);
   addTearDown(() async { try { await api.closeCollection(); } catch (_) {} eng.close(); try { await tmp.delete(recursive: true); } catch (_) {} });
 }
@@ -258,4 +269,107 @@ void main() {
     expect(find.byKey(const ValueKey('toast')), findsOneWidget);
     await t.pump(const Duration(seconds: 6));
   });
+
+  testWidgets(
+    'an import from the reviewer opens the deck list only after the collection changes',
+    (t) async {
+      var outcome = ImportOutcome.committed;
+      await boot(t, () async {}, seeded: [('q1', 'a1')], imports: (controller) {
+        return ApkgImportSession(
+          importFile: ({required sourcePath, required limits, cancel, onPhase}) {
+            return Future.value(ImportRunResult(outcome: outcome));
+          },
+          dataDir: tmp.path,
+          refreshDecks: controller.refreshDecks,
+          flushEditor: controller.flushPendingEdits,
+          pickFile: () async => null,
+          tempDirectory: Directory(p.join(tmp.path, 'drop-tmp')),
+          log: (_) {},
+        );
+      });
+
+      Future<void> study() async {
+        await tapKey(t, 'deck-Default');
+        await tapKey(t, 'study-now');
+        expect(find.byKey(const ValueKey('show-answer')), findsOneWidget);
+        expect(app.screen, Screen.review);
+        expect(t.takeException(), isNull);
+      }
+
+      void drop(String name) {
+        final file = File(p.join(tmp.path, name))
+          ..writeAsBytesSync(const [0x50, 0x4b, 0x03, 0x04, 0, 0]);
+        final target = t.widget<DropTarget>(find.byType(DropTarget));
+        target.onDragDone!(
+          DropDoneDetails(
+            files: [DropItemFile(file.path)],
+            localPosition: Offset.zero,
+            globalPosition: Offset.zero,
+          ),
+        );
+      }
+
+      await study();
+      final beforeCommit = app.refreshCount;
+      drop('added.apkg');
+      await settle(t);
+      expect(t.takeException(), isNull);
+      expect(app.screen, Screen.decks);
+      expect(find.byKey(const ValueKey('show-answer')), findsNothing);
+      expect(find.byKey(const ValueKey('deck-panel')), findsOneWidget);
+      expect(find.text(importedFileMessage('added.apkg')), findsOneWidget);
+      expect(app.refreshCount, beforeCommit + 1);
+
+      outcome = ImportOutcome.cancelled;
+      await study();
+      final beforeCancel = app.refreshCount;
+      drop('cancel.apkg');
+      await settle(t);
+      expect(t.takeException(), isNull);
+      expect(app.screen, Screen.review);
+      expect(find.byKey(const ValueKey('show-answer')), findsOneWidget);
+      expect(find.text(kCancelToast), findsOneWidget);
+      expect(app.refreshCount, beforeCancel);
+
+      outcome = ImportOutcome.failedBeforeCommit;
+      final beforeEarly = app.refreshCount;
+      drop('early.apkg');
+      await settle(t);
+      expect(t.takeException(), isNull);
+      expect(app.screen, Screen.review);
+      expect(find.byKey(const ValueKey('show-answer')), findsOneWidget);
+      expect(app.refreshCount, beforeEarly);
+
+      outcome = ImportOutcome.noop;
+      drop('same.apkg');
+      await settle(t);
+      expect(t.takeException(), isNull);
+      expect(app.screen, Screen.review);
+      expect(find.byKey(const ValueKey('show-answer')), findsOneWidget);
+      expect(find.text(kAlreadyImported), findsOneWidget);
+
+      outcome = ImportOutcome.failedAfterCommit;
+      final beforeAdopt = app.refreshCount;
+      drop('adopt.apkg');
+      await settle(t);
+      expect(t.takeException(), isNull);
+      expect(app.screen, Screen.decks);
+      expect(find.byKey(const ValueKey('show-answer')), findsNothing);
+      expect(find.byKey(const ValueKey('deck-panel')), findsOneWidget);
+      expect(find.text(adoptionFailureMessage('adopt.apkg')), findsOneWidget);
+      expect(find.byKey(const ValueKey('toast')), findsOneWidget);
+      expect(app.refreshCount, beforeAdopt + 1);
+
+      outcome = ImportOutcome.failedUnknown;
+      await study();
+      final beforeUnknown = app.refreshCount;
+      drop('unknown.apkg');
+      await settle(t);
+      expect(t.takeException(), isNull);
+      expect(app.screen, Screen.review);
+      expect(find.byKey(const ValueKey('show-answer')), findsOneWidget);
+      expect(find.text(unknownFailureMessage('unknown.apkg')), findsOneWidget);
+      expect(app.refreshCount, beforeUnknown + 1);
+    },
+  );
 }

@@ -446,10 +446,6 @@ void main() {
       dropApkg(tester, 'before.apkg');
       await stay(preCommitFailureMessage('before.apkg'));
 
-      outcome = ImportOutcome.failedAfterCommit;
-      dropApkg(tester, 'after.apkg');
-      await stay(adoptionFailureMessage('after.apkg'));
-
       outcome = ImportOutcome.noop;
       dropApkg(tester, 'same.apkg');
       await stay(kAlreadyImported);
@@ -460,4 +456,90 @@ void main() {
       expect(session.sessionLocked, isTrue);
     },
   );
+
+  testWidgets('a post-commit failure opens the deck list and keeps the error', (
+    tester,
+  ) async {
+    final app = AppController.bare()
+      ..screen = Screen.overview
+      ..deckName = '문법';
+    final session = sessionFor(
+      app: app,
+      log: (_) {},
+      importFile: ({required sourcePath, required limits, cancel, onPhase}) {
+        return Future.value(
+          const ImportRunResult(outcome: ImportOutcome.failedAfterCommit),
+        );
+      },
+    );
+    await pumpShell(tester, app, session);
+    tester.takeAnnouncements();
+    dropApkg(tester, 'after.apkg');
+    await finishImport(tester, session);
+
+    expect(app.screen, Screen.decks);
+    expect(find.byKey(const ValueKey('ov-title')), findsNothing);
+    expect(find.byKey(const ValueKey('deck-panel')), findsOneWidget);
+    expect(find.text(adoptionFailureMessage('after.apkg')), findsOneWidget);
+    expect(find.byKey(const ValueKey('toast')), findsOneWidget);
+    expect(
+      tester.takeAnnouncements(),
+      contains(
+        isAccessibilityAnnouncement(
+          adoptionFailureMessage('after.apkg'),
+          textDirection: TextDirection.ltr,
+        ),
+      ),
+    );
+  });
+
+  testWidgets('stage changes are announced once per label', (tester) async {
+    final app = AppController.bare();
+    final session = sessionFor(
+      app: app,
+      log: (_) {},
+      importFile:
+          ({required sourcePath, required limits, cancel, onPhase}) async {
+            onPhase?.call(ImportPhase.afterReconcile);
+            onPhase?.call(ImportPhase.afterStage);
+            onPhase?.call(ImportPhase.afterNoteMap);
+            onPhase?.call(ImportPhase.afterResidentLookup);
+            onPhase?.call(ImportPhase.afterFinish);
+            onPhase?.call(ImportPhase.afterPre);
+            onPhase?.call(ImportPhase.afterIntent);
+            onPhase?.call(ImportPhase.beforeResidentCommit);
+            onPhase?.call(ImportPhase.duringAdoption);
+            return const ImportRunResult(outcome: ImportOutcome.cancelled);
+          },
+    );
+    await pumpShell(tester, app, session);
+    tester.takeAnnouncements();
+    dropApkg(tester, 'stages.apkg');
+    await finishImport(tester, session);
+
+    final messages = [
+      for (final announcement in tester.takeAnnouncements())
+        announcement.message,
+    ];
+    expect(messages.where((message) => message == kStageChecking), [
+      kStageChecking,
+    ]);
+    expect(messages.where((message) => message == kStageComparing), [
+      kStageComparing,
+    ]);
+    expect(messages.where((message) => message == kStageApplying), [
+      kStageApplying,
+    ]);
+    expect(
+      messages.indexOf(kStageChecking),
+      lessThan(messages.indexOf(kStageComparing)),
+    );
+    expect(
+      messages.indexOf(kStageComparing),
+      lessThan(messages.indexOf(kStageApplying)),
+    );
+    expect(messages.last, kCancelToast);
+    expect(find.text(kCancelToast), findsOneWidget);
+    expect(session.running, isFalse);
+  });
 }

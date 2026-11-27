@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:desktop_drop/desktop_drop.dart';
@@ -28,7 +29,7 @@ class ApkgImportUi {
     required this.showSummary,
     required this.showProgress,
     required this.closeProgress,
-    required this.onCommitted,
+    required this.showDeckList,
     required this.announce,
   });
 
@@ -37,16 +38,18 @@ class ApkgImportUi {
   final Future<void> Function(ImportProgressModel model) showProgress;
   final void Function() closeProgress;
 
-  /// Deck list after [ImportOutcome.committed]. Other outcomes stay put.
-  final Future<void> Function() onCommitted;
+  /// Deck list after [ImportOutcome.committed] or
+  /// [ImportOutcome.failedAfterCommit]. Other outcomes stay put.
+  final Future<void> Function() showDeckList;
 
-  /// Speaks [message] for a screen reader. The session awaits it.
+  /// Speaks [message]. The session does not wait for it.
   final Future<void> Function(String message) announce;
 }
 
-Future<void> _tell(ApkgImportUi ui, String message) async {
-  ui.toast(message);
-  await ui.announce(message);
+/// The collection was written, so the deck list should replace a stale screen.
+bool _opensDeckList(ImportOutcome outcome) {
+  return outcome == ImportOutcome.committed ||
+      outcome == ImportOutcome.failedAfterCommit;
 }
 
 /// One dropped item, after the desktop drop plugin has been unwrapped.
@@ -208,7 +211,7 @@ class ApkgImportSession extends ChangeNotifier {
 
   Future<void> importFromPicker(ApkgImportUi ui) async {
     if (entryBlocked) {
-      await _tell(ui, kStartupBlocked);
+      _tell(ui, kStartupBlocked);
       return;
     }
     if (running) {
@@ -228,7 +231,7 @@ class ApkgImportSession extends ChangeNotifier {
 
   Future<void> importDropped(ApkgImportUi ui, List<ApkgDrop> items) async {
     if (entryBlocked) {
-      await _tell(ui, kStartupBlocked);
+      _tell(ui, kStartupBlocked);
       return;
     }
     if (running) {
@@ -238,12 +241,12 @@ class ApkgImportSession extends ChangeNotifier {
       return;
     }
     if (items.length > 1) {
-      await _tell(ui, kOneFileOnly);
+      _tell(ui, kOneFileOnly);
       return;
     }
     final item = items.single;
     if (!item.supported || item.isDirectory || _isDirectory(item.localPath)) {
-      await _tell(ui, kFormatFailure);
+      _tell(ui, kFormatFailure);
       return;
     }
     final local = _usableFile(item.localPath);
@@ -258,12 +261,12 @@ class ApkgImportSession extends ChangeNotifier {
     }
     final fileName = importLeafName(item.name);
     if (!isApkgFileName(fileName)) {
-      await _tell(ui, kFormatFailure);
+      _tell(ui, kFormatFailure);
       return;
     }
     final open = item.openRead;
     if (open == null) {
-      await _tell(ui, kFormatFailure);
+      _tell(ui, kFormatFailure);
       return;
     }
     _setRunning(true);
@@ -278,15 +281,15 @@ class ApkgImportSession extends ChangeNotifier {
           },
         );
         if (!fileLooksLikeZip(temp!.path)) {
-          await _tell(ui, kFormatFailure);
+          _tell(ui, kFormatFailure);
           return;
         }
       } on _TooLarge {
-        await _tell(ui, tooLargeCompressedMessage(fileName));
+        _tell(ui, tooLargeCompressedMessage(fileName));
         return;
       } on IOException catch (err, stack) {
         _logDiagnostic('materialize', err, stack);
-        await _tell(ui, preCommitFailureMessage(fileName));
+        _tell(ui, preCommitFailureMessage(fileName));
         return;
       }
       await _commit(ui, sourcePath: temp!.path, fileName: fileName);
@@ -303,7 +306,7 @@ class ApkgImportSession extends ChangeNotifier {
   ) async {
     final rejected = _rejectLocal(path, fileName);
     if (rejected != null) {
-      await _tell(ui, rejected);
+      _tell(ui, rejected);
       return;
     }
     await _commit(ui, sourcePath: path, fileName: fileName);
@@ -337,24 +340,36 @@ class ApkgImportSession extends ChangeNotifier {
       await flushEditor();
     } catch (err, stack) {
       _logDiagnostic('flushEditor', err, stack);
-      await _tell(ui, preCommitFailureMessage(fileName));
+      _tell(ui, preCommitFailureMessage(fileName));
       return;
     }
     final model = ImportProgressModel(ImportCancellationToken());
     ImportRunResult? result;
     Object? thrown;
     StackTrace? thrownStack;
+    String? spokenStage;
+    void noteStage() {
+      final label = model.view.label;
+      if (label == spokenStage) return;
+      spokenStage = label;
+      _speak(ui, label);
+    }
+
     try {
       await ui.showProgress(model);
+      noteStage();
       result = await importFile(
         sourcePath: sourcePath,
         limits: kImportLimitsV0,
         cancel: model.token,
-        onPhase: model.onPhase,
+        onPhase: (phase) {
+          model.onPhase(phase);
+          noteStage();
+        },
       );
     } on ImportStartupException catch (err, stack) {
       _logDiagnostic('startup', err, stack);
-      await _tell(ui, kStartupBlocked);
+      _tell(ui, kStartupBlocked);
       return;
     } catch (err, stack) {
       thrown = err;
@@ -384,9 +399,8 @@ class ApkgImportSession extends ChangeNotifier {
     ImportRunResult result,
     String fileName,
   ) async {
-    if (result.outcome == ImportOutcome.committed ||
-        result.outcome == ImportOutcome.failedAfterCommit ||
-        result.outcome == ImportOutcome.failedUnknown) {
+    final openDeckList = _opensDeckList(result.outcome);
+    if (openDeckList || result.outcome == ImportOutcome.failedUnknown) {
       try {
         await refreshDecks();
       } catch (err, stack) {
@@ -398,22 +412,22 @@ class ApkgImportSession extends ChangeNotifier {
       sessionLocked = true;
       notifyListeners();
     }
-    if (result.outcome == ImportOutcome.committed) {
+    if (openDeckList) {
       try {
-        await ui.onCommitted();
+        await ui.showDeckList();
       } catch (err, stack) {
         _logDiagnostic('deckList', err, stack);
       }
     }
     if (result.outcome == ImportOutcome.cancelled) {
-      await _tell(ui, kCancelToast);
+      _tell(ui, kCancelToast);
       return;
     }
     if (result.outcome == ImportOutcome.committed ||
         result.outcome == ImportOutcome.noop) {
       final plan = result.plan;
       if (plan == null) {
-        await _tell(
+        _tell(
           ui,
           result.outcome == ImportOutcome.committed
               ? importedFileMessage(fileName)
@@ -423,10 +437,10 @@ class ApkgImportSession extends ChangeNotifier {
       }
       final summary = formatImportSummary(plan: plan, fileName: fileName);
       if (summary.isSingleLine) {
-        await _tell(ui, summary.title);
+        _tell(ui, summary.title);
       } else {
-        await ui.announce(spokenImportSummary(summary));
         ui.showSummary(summary);
+        _speak(ui, spokenImportSummary(summary));
       }
       return;
     }
@@ -436,7 +450,7 @@ class ApkgImportSession extends ChangeNotifier {
       fileName: fileName,
     );
     if (message != null) {
-      await _tell(ui, message);
+      _tell(ui, message);
     }
   }
 
@@ -453,7 +467,7 @@ class ApkgImportSession extends ChangeNotifier {
       stack,
     );
     if (!pastIntent) {
-      await _tell(ui, preCommitFailureMessage(fileName));
+      _tell(ui, preCommitFailureMessage(fileName));
       return;
     }
     sessionLocked = true;
@@ -463,7 +477,7 @@ class ApkgImportSession extends ChangeNotifier {
     } catch (err, refreshStack) {
       _logDiagnostic('refreshDecks', err, refreshStack);
     }
-    await _tell(ui, unknownFailureMessage(fileName));
+    _tell(ui, unknownFailureMessage(fileName));
   }
 
   void _logResult(ImportRunResult result) {
@@ -487,6 +501,30 @@ class ApkgImportSession extends ChangeNotifier {
 
   void _logDiagnostic(String where, Object? error, StackTrace? stack) {
     log(importDiagnosticLine(where: where, error: error, stack: stack));
+  }
+
+  /// Shows [message], then speaks it. Announcement failures are logged
+  /// and do not delay the toast or the caller.
+  void _tell(ApkgImportUi ui, String message) {
+    ui.toast(message);
+    _speak(ui, message);
+  }
+
+  void _speak(ApkgImportUi ui, String message) {
+    if (message.isEmpty) return;
+    Future<void> pending;
+    try {
+      pending = ui.announce(message);
+    } catch (err, stack) {
+      _logDiagnostic('announce', err, stack);
+      return;
+    }
+    unawaited(
+      pending.catchError((Object err, StackTrace stack) {
+        _logDiagnostic('announce', err, stack);
+        return Future<void>.value();
+      }),
+    );
   }
 
   Future<File> _materialize({
