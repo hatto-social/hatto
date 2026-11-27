@@ -11,8 +11,8 @@ import 'package:flutter/foundation.dart';
 import 'package:hatto_store/hatto_store.dart' hide AnkiApi;
 import 'package:path/path.dart' as p;
 
+import '../state/import_copy.dart';
 import '../store/write_gateway.dart';
-import '../ui/import_copy.dart';
 import 'import_progress_model.dart';
 
 typedef ApkgImportFile = Future<ImportRunResult> Function({
@@ -144,8 +144,12 @@ Future<String?> pickApkgPath() async {
   return picked.path;
 }
 
+/// Frames kept from a diagnostic stack. Later frames become `...`.
+const int _kDiagnosticStackFrames = 8;
+
 /// One stderr line for an import failure. Newlines in the values are folded.
 ///
+/// A stack trace keeps the first [_kDiagnosticStackFrames] non-empty lines.
 /// This is a diagnostic. Callers must not put it in a toast or a dialog.
 String importDiagnosticLine({
   required String where,
@@ -181,7 +185,35 @@ String _diagnosticText(Object? value) {
   if (value == null) {
     return '';
   }
+  if (value is StackTrace) {
+    return _capStack(value);
+  }
   return value.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
+}
+
+/// One line, at most [_kDiagnosticStackFrames] non-empty frames.
+String _capStack(StackTrace stack) {
+  final lines = <String>[];
+  var truncated = false;
+  for (final raw in stack.toString().split('\n')) {
+    final line = raw.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (line.isEmpty) {
+      continue;
+    }
+    if (lines.length == _kDiagnosticStackFrames) {
+      truncated = true;
+      break;
+    }
+    lines.add(line);
+  }
+  if (lines.isEmpty) {
+    return '';
+  }
+  final text = lines.join(' ');
+  if (!truncated) {
+    return text;
+  }
+  return '$text ...';
 }
 
 void _defaultImportLog(String line) {
@@ -249,7 +281,7 @@ class ApkgImportSession extends ChangeNotifier {
     _setRunning(true);
     try {
       final path = await pickFile();
-      if (path == null) {
+      if (_disposed || path == null) {
         return;
       }
       await _importLocal(ui, path, importLeafName(path));
@@ -316,9 +348,14 @@ class ApkgImportSession extends ChangeNotifier {
       } on _TooLarge {
         _tell(ui, tooLargeCompressedMessage(fileName));
         return;
-      } on IOException catch (err, stack) {
+      } on Object catch (err, stack) {
+        // PlatformException and StateError are not IOExceptions. They still
+        // toast, log, delete the temp file, and clear `running`.
         _logDiagnostic('materialize', err, stack);
         _tell(ui, preCommitFailureMessage(fileName));
+        return;
+      }
+      if (_disposed) {
         return;
       }
       await _commit(ui, sourcePath: temp!.path, fileName: fileName);
@@ -372,6 +409,9 @@ class ApkgImportSession extends ChangeNotifier {
       _tell(ui, preCommitFailureMessage(fileName));
       return;
     }
+    if (_disposed) {
+      return;
+    }
     final model = ImportProgressModel(ImportCancellationToken());
     ImportRunResult? result;
     Object? thrown;
@@ -398,7 +438,12 @@ class ApkgImportSession extends ChangeNotifier {
     } finally {
       // Drop a stage that did not stay on screen. It must not follow the result.
       _cancelStageAnnounce();
-      ui.closeProgress();
+      if (!_disposed) {
+        ui.closeProgress();
+      }
+    }
+    if (_disposed) {
+      return;
     }
     if (thrown != null) {
       await _unknownOrPreCommit(
@@ -411,7 +456,7 @@ class ApkgImportSession extends ChangeNotifier {
       return;
     }
     final finished = result;
-    if (finished == null) {
+    if (_disposed || finished == null) {
       return;
     }
     await _present(ui, finished, fileName);
@@ -422,6 +467,9 @@ class ApkgImportSession extends ChangeNotifier {
     ImportRunResult result,
     String fileName,
   ) async {
+    if (_disposed) {
+      return;
+    }
     final openDeckList = _opensDeckList(result.outcome);
     if (openDeckList) {
       try {
@@ -430,10 +478,16 @@ class ApkgImportSession extends ChangeNotifier {
         _logDiagnostic('refreshDecks', err, stack);
       }
     }
+    if (_disposed) {
+      return;
+    }
     _logResult(result);
     if (result.outcome == ImportOutcome.failedUnknown) {
       sessionLocked = true;
-      notifyListeners();
+      _notify();
+    }
+    if (_disposed) {
+      return;
     }
     if (openDeckList) {
       try {
@@ -441,6 +495,9 @@ class ApkgImportSession extends ChangeNotifier {
       } catch (err, stack) {
         _logDiagnostic('deckList', err, stack);
       }
+    }
+    if (_disposed) {
+      return;
     }
     if (result.outcome == ImportOutcome.cancelled) {
       _tell(ui, kCancelToast);
@@ -489,21 +546,30 @@ class ApkgImportSession extends ChangeNotifier {
       error,
       stack,
     );
+    if (_disposed) {
+      return;
+    }
     if (!pastIntent) {
       _tell(ui, preCommitFailureMessage(fileName));
       return;
     }
     sessionLocked = true;
-    notifyListeners();
+    _notify();
+    if (_disposed) {
+      return;
+    }
     try {
       await refreshDecks();
     } catch (err, refreshStack) {
       _logDiagnostic('refreshDecks', err, refreshStack);
     }
+    if (_disposed) {
+      return;
+    }
     try {
       await ui.showDeckList();
-    } catch (err, stack) {
-      _logDiagnostic('deckList', err, stack);
+    } catch (err, deckStack) {
+      _logDiagnostic('deckList', err, deckStack);
     }
     _tell(ui, unknownFailureMessage(fileName));
   }
@@ -534,6 +600,9 @@ class ApkgImportSession extends ChangeNotifier {
   /// Shows [message], then speaks it. Announcement failures are logged
   /// and do not delay the toast or the caller.
   void _tell(ApkgImportUi ui, String message) {
+    if (_disposed) {
+      return;
+    }
     ui.toast(message);
     _speak(ui, message);
   }
@@ -580,7 +649,7 @@ class ApkgImportSession extends ChangeNotifier {
   }
 
   void _speak(ApkgImportUi ui, String message) {
-    if (message.isEmpty) return;
+    if (_disposed || message.isEmpty) return;
     Future<void> pending;
     try {
       pending = ui.announce(message);
@@ -642,7 +711,18 @@ class ApkgImportSession extends ChangeNotifier {
     }
   }
 
+  void _notify() {
+    if (_disposed) {
+      return;
+    }
+    notifyListeners();
+  }
+
   void _setRunning(bool value) {
+    if (_disposed) {
+      running = value;
+      return;
+    }
     if (running == value) {
       return;
     }

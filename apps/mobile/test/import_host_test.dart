@@ -78,13 +78,17 @@ void main() {
       collection,
       'select count(*), sum(length(val)) from config',
     );
-    // Same 04:00 rollover split as smoke_flow_host_test. expected.json is
-    // the Asia/Seoul baseline (33312). UTC returns 33109.
+    // `tools/arm64-smoke/run_smoke.sh:33-38`: expected.json is the UTC+9
+    // baseline (33312). UTC returns 33109. Parameters are stored to 6
+    // decimal places. `5e-7` sits on that rounding boundary; `judge.py`
+    // only reports max|Δ|. `1e-6` is one unit in the last stored digit.
     expect(first.params, hasLength(21));
     expect(fsrsValuesFinite(first.params), isTrue);
     final offset = DateTime.now().timeZoneOffset;
     if (offset == const Duration(hours: 9)) {
       expect(first.items, 33312);
+      expect(first.params, hasLength(21));
+      expect(fsrsValuesFinite(first.params), isTrue);
       final golden = (fsrs['params'] as List<dynamic>)
           .map((value) => (value as num).toDouble())
           .toList();
@@ -92,7 +96,7 @@ void main() {
       for (var i = 0; i < golden.length; i++) {
         expect(
           (first.params[i] - golden[i]).abs(),
-          lessThan(5e-7),
+          lessThan(1e-6),
           reason: 'param $i ${first.params[i]} vs ${golden[i]}',
         );
       }

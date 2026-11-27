@@ -698,6 +698,111 @@ void main() {
     },
   );
 
+  test('a drop stream StateError toasts, logs, deletes the temp file, and clears running', () async {
+    final rec = _Rec();
+    final log = <String>[];
+    final calls = <_Call>[];
+    File? temp;
+    final session = open(
+      rec: rec,
+      log: log,
+      onTempFile: (file) => temp = file,
+      onImport: (call) async {
+        calls.add(call);
+        return const ImportRunResult(outcome: ImportOutcome.noop);
+      },
+    );
+    await session.importDropped(rec.ui, [
+      ApkgDrop.file(
+        name: 'stream.apkg',
+        openRead: () => throw StateError('SECRET-STATE'),
+      ),
+    ]);
+    expect(calls, isEmpty);
+    expect(rec.toasts, [preCommitFailureMessage('stream.apkg')]);
+    expect(rec.toasts.single.contains('SECRET-STATE'), isFalse);
+    expect(rec.toasts.single.contains('StateError'), isFalse);
+    expect(log, hasLength(1));
+    expect(log.single, contains('SECRET-STATE'));
+    expect(log.single.contains('\n'), isFalse);
+    expect(temp, isNotNull);
+    expect(temp!.existsSync(), isFalse);
+    expect(session.running, isFalse);
+  });
+
+  test('importDiagnosticLine caps a long stack on one line', () {
+    final frames = <String>[
+      for (var i = 0; i < 12; i++) ...[
+        if (i == 3) '',
+        '#$i      SecretFrame$i (file.dart:$i:1)',
+      ],
+    ];
+    final longLine = importDiagnosticLine(
+      where: 'materialize',
+      error: StateError('SECRET-STATE'),
+      stack: StackTrace.fromString('${frames.join('\n')}\n'),
+    );
+    expect(longLine.contains('\n'), isFalse);
+    expect(longLine, contains('SECRET-STATE'));
+    expect(longLine, contains('SecretFrame0'));
+    expect(longLine, contains('SecretFrame7'));
+    expect(longLine.contains('SecretFrame8'), isFalse);
+    expect(longLine, endsWith('...'));
+
+    final exact = importDiagnosticLine(
+      where: 'materialize',
+      stack: StackTrace.fromString(
+        [for (var i = 0; i < 8; i++) '#$i      KeptFrame$i (file.dart:$i:1)']
+            .join('\n'),
+      ),
+    );
+    expect(exact.contains('\n'), isFalse);
+    expect(exact.contains('...'), isFalse);
+    expect(exact, contains('KeptFrame0'));
+    expect(exact, contains('KeptFrame7'));
+
+    final shortLine = importDiagnosticLine(
+      where: 'materialize',
+      stack: StackTrace.fromString('#0      OnlyFrame (file.dart:1:1)\n\n'),
+    );
+    expect(shortLine.contains('\n'), isFalse);
+    expect(shortLine.contains('...'), isFalse);
+    expect(shortLine, contains('OnlyFrame'));
+  });
+
+  test('disposing during a pending import does not notify', () async {
+    final rec = _Rec();
+    final gate = Completer<ImportRunResult>();
+    final session = open(
+      rec: rec,
+      onImport: (call) {
+        call.onPhase?.call(ImportPhase.afterIntent);
+        return gate.future;
+      },
+    );
+    var notifiedAfterDispose = false;
+    session.addListener(() {
+      notifiedAfterDispose = true;
+    });
+    final file = writeFile('inflight.apkg', zip);
+    final pending = session.importDropped(rec.ui, [
+      ApkgDrop.file(name: 'inflight.apkg', localPath: file.path),
+    ]);
+    while (rec.progress == null) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    expect(session.running, isTrue);
+    session.dispose();
+    notifiedAfterDispose = false;
+    gate.complete(const ImportRunResult(outcome: ImportOutcome.failedUnknown));
+    await pending;
+    expect(notifiedAfterDispose, isFalse);
+    expect(session.running, isFalse);
+    expect(session.sessionLocked, isFalse);
+    expect(rec.toasts, isEmpty);
+    expect(rec.summaries, isEmpty);
+  });
+
   test('a drop directory create failure toasts and clears running', () async {
     final rec = _Rec();
     final log = <String>[];

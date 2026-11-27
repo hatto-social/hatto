@@ -39,6 +39,22 @@ void main() {
     }
   });
 
+  test('effect does not import ui', () {
+    for (final file in sources) {
+      final path = file.path.replaceAll('\\', '/');
+      if (!path.contains('/effect/')) {
+        continue;
+      }
+      final text = file.readAsStringSync();
+      expect(_imports(text, '../ui/'), isFalse, reason: path);
+      expect(
+        _imports(text, 'package:hatto_desktop/ui/'),
+        isFalse,
+        reason: path,
+      );
+    }
+  });
+
   test('note_html stays free of Flutter', () {
     for (final file in sources) {
       final path = file.path.replaceAll('\\', '/');

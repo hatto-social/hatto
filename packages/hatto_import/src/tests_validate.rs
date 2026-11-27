@@ -139,6 +139,32 @@ fn uncompressed_limit_is_enforced_on_the_raw_copy() {
 }
 
 #[test]
+fn unsupported_compression_still_checks_the_uncompressed_sum() {
+    let root = tempfile::TempDir::new().unwrap();
+    // Method 12 is bzip2. This crate does not enable that decompressor, so
+    // `by_index` fails before it can read the central-directory size.
+    let path = root.path().join("bzip2.apkg");
+    fs::write(&path, zip_with_method(12, 80)).unwrap();
+    let over = ImportLimits {
+        max_bytes: 1_000_000,
+        max_uncompressed_bytes: 10,
+    };
+    let err = validate_source(&path, over).unwrap_err();
+    assert!(
+        err.to_string().starts_with(TOO_LARGE_UNCOMPRESSED_PREFIX),
+        "{err}"
+    );
+    assert!(err.to_string().contains("max_uncompressed_bytes"), "{err}");
+    assert!(!err.to_string().contains("Compression method"), "{err}");
+
+    let under = ImportLimits {
+        max_bytes: 1_000_000,
+        max_uncompressed_bytes: 80,
+    };
+    validate_source(&path, under).unwrap();
+}
+
+#[test]
 fn uncompressed_size_sum_overflow_is_too_large_uncompressed() {
     let root = tempfile::TempDir::new().unwrap();
     let path = root.path().join("overflow.apkg");
@@ -209,6 +235,63 @@ fn push_u32(buf: &mut Vec<u8>, value: u32) {
 
 fn push_u64(buf: &mut Vec<u8>, value: u64) {
     buf.extend_from_slice(&value.to_le_bytes());
+}
+
+/// One entry stored with [`method`] and a declared uncompressed size.
+///
+/// The payload is not valid compressed data. Callers that only read the
+/// central-directory size must not try to decompress it.
+fn zip_with_method(method: u16, uncompressed: u32) -> Vec<u8> {
+    let name = b"e0";
+    let payload = [0u8; 4];
+    let mut local = Vec::new();
+    push_u32(&mut local, 0x0403_4b50);
+    push_u16(&mut local, 20);
+    push_u16(&mut local, 0);
+    push_u16(&mut local, method);
+    push_u16(&mut local, 0);
+    push_u16(&mut local, 0);
+    push_u32(&mut local, 0);
+    push_u32(&mut local, payload.len() as u32);
+    push_u32(&mut local, uncompressed);
+    push_u16(&mut local, name.len() as u16);
+    push_u16(&mut local, 0);
+    local.extend_from_slice(name);
+    local.extend_from_slice(&payload);
+
+    let mut central = Vec::new();
+    push_u32(&mut central, 0x0201_4b50);
+    push_u16(&mut central, 20);
+    push_u16(&mut central, 20);
+    push_u16(&mut central, 0);
+    push_u16(&mut central, method);
+    push_u16(&mut central, 0);
+    push_u16(&mut central, 0);
+    push_u32(&mut central, 0);
+    push_u32(&mut central, payload.len() as u32);
+    push_u32(&mut central, uncompressed);
+    push_u16(&mut central, name.len() as u16);
+    push_u16(&mut central, 0);
+    push_u16(&mut central, 0);
+    push_u16(&mut central, 0);
+    push_u16(&mut central, 0);
+    push_u32(&mut central, 0);
+    push_u32(&mut central, 0);
+    central.extend_from_slice(name);
+
+    let cd_offset = local.len() as u32;
+    let cd_size = central.len() as u32;
+    let mut out = local;
+    out.extend_from_slice(&central);
+    push_u32(&mut out, 0x0605_4b50);
+    push_u16(&mut out, 0);
+    push_u16(&mut out, 0);
+    push_u16(&mut out, 1);
+    push_u16(&mut out, 1);
+    push_u32(&mut out, cd_size);
+    push_u32(&mut out, cd_offset);
+    push_u16(&mut out, 0);
+    out
 }
 
 /// Two stored entries whose central-directory uncompressed sizes are

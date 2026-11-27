@@ -404,7 +404,7 @@ Default size limits are the v0 desktop product ceilings: 512 MiB
 compressed, and 2 GiB for the sum of uncompressed zip entries.
 
 Notes are printed in note-id order. Each note includes guid,
-content_hash (lowercase hex), and notetype_id. Without --json the
+content_hash (lowercase hex), notetype_id, and mod. Without --json the
 object is pretty-printed. inspect outputs the same Stage E facts used
 by import.
 ";

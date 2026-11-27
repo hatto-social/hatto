@@ -40,39 +40,67 @@ pub const INSPECT_TEMP_PREFIX: &str = "hatto-card-inspect-";
 /// and on error. [`PendingImport`] is dropped first so the E collection is
 /// closed before the directory goes away.
 pub fn inspect_path(apkg: &Path) -> Result<Value, ToolFailure> {
-    // Declared first so it drops last: after `PendingImport`, and after the
-    // process temp dir is pointed back at whatever it was.
+    inspect_path_with_limits(apkg, INSPECT_MAX_BYTES, INSPECT_MAX_UNCOMPRESSED_BYTES)
+}
+
+/// Stage `apkg` with caller-supplied size ceilings.
+///
+/// [`inspect_path`] passes the v0 desktop ceilings
+/// ([`INSPECT_MAX_BYTES`], [`INSPECT_MAX_UNCOMPRESSED_BYTES`]). A lower
+/// ceiling lets a test hit Stage E's `too_large:` prefix without a huge file.
+///
+/// The temporary data directory is removed before this returns, on success
+/// and on error. [`PendingImport`] is dropped first so the E collection is
+/// closed before the directory goes away.
+pub(crate) fn inspect_path_with_limits(
+    apkg: &Path,
+    max_bytes: u64,
+    max_uncompressed_bytes: u64,
+) -> Result<Value, ToolFailure> {
+    // `_lock` is declared first so it drops last. `_tmp_env` restores the
+    // process temp dir after Stage E closes and before `data_dir` is removed.
+    let _lock = crate::collection::runtime_lock();
     let data_dir = tempfile::Builder::new()
         .prefix(INSPECT_TEMP_PREFIX)
         .tempdir()
         .map_err(|err| ToolFailure::message(format!("temp dir: {err}")))?;
-    let saved_tmp = TmpEnv::capture();
     let scratch = data_dir.path().join("tmp");
     fs::create_dir_all(&scratch).map_err(|err| ToolFailure::message(format!("temp dir: {err}")))?;
     // Stage E and rslib ask `temp_dir()` for scratch files. Keep those inside
     // this data directory so removing it leaves nothing behind.
-    rslib_bridge::api::prepare_runtime(path_string(&scratch, "temp dir")?);
-    let value = inspect_staged(data_dir.path(), apkg)?;
-    drop(saved_tmp);
+    let _tmp_env = crate::collection::TmpEnv::set(Path::new(&path_string(&scratch, "temp dir")?));
+    let value = inspect_staged(data_dir.path(), apkg, max_bytes, max_uncompressed_bytes)?;
+    drop(_tmp_env);
     drop(data_dir);
+    drop(_lock);
     Ok(value)
 }
 
-fn inspect_staged(data_dir: &Path, apkg: &Path) -> Result<Value, ToolFailure> {
-    let pending = open_stage_e(data_dir, apkg)?;
+fn inspect_staged(
+    data_dir: &Path,
+    apkg: &Path,
+    max_bytes: u64,
+    max_uncompressed_bytes: u64,
+) -> Result<Value, ToolFailure> {
+    let pending = open_stage_e(data_dir, apkg, max_bytes, max_uncompressed_bytes)?;
     let value = notes_json(&pending.file_notes());
     // Close E and delete the batch folder before the caller removes data_dir.
     drop(pending);
     Ok(value)
 }
 
-fn open_stage_e(data_dir: &Path, apkg: &Path) -> Result<PendingImport, ToolFailure> {
+fn open_stage_e(
+    data_dir: &Path,
+    apkg: &Path,
+    max_bytes: u64,
+    max_uncompressed_bytes: u64,
+) -> Result<PendingImport, ToolFailure> {
     let data_dir = absolute_data_dir(data_dir)?;
     import_stage_e(
         path_string(&data_dir, "temp dir")?,
         path_string(apkg, "apkg")?,
-        INSPECT_MAX_BYTES,
-        INSPECT_MAX_UNCOMPRESSED_BYTES,
+        max_bytes,
+        max_uncompressed_bytes,
     )
     .map_err(ToolFailure::message)
 }
@@ -119,35 +147,6 @@ fn hex_encode(bytes: &[u8]) -> String {
     out
 }
 
-/// Previous `TMPDIR` / `TMP` / `TEMP`. Restored when dropped so a caller that
-/// keeps running does not point temp files at a directory we are about to
-/// delete.
-struct TmpEnv {
-    saved: [(&'static str, Option<String>); 3],
-}
-
-impl TmpEnv {
-    fn capture() -> Self {
-        Self {
-            saved: ["TMPDIR", "TMP", "TEMP"].map(|key| (key, std::env::var(key).ok())),
-        }
-    }
-}
-
-impl Drop for TmpEnv {
-    fn drop(&mut self) {
-        for (key, value) in &self.saved {
-            // SAFETY: the environment is process-global. `inspect_path` is the
-            // only caller, it runs on the CLI thread, and it drops this value
-            // before it removes the temporary data directory.
-            match value {
-                Some(value) => unsafe { std::env::set_var(key, value) },
-                None => unsafe { std::env::remove_var(key) },
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -157,5 +156,37 @@ mod tests {
         assert_eq!(INSPECT_MAX_BYTES, 512 * 1024 * 1024);
         assert_eq!(INSPECT_MAX_UNCOMPRESSED_BYTES, 2 * 1024 * 1024 * 1024);
         assert!(INSPECT_TEMP_PREFIX.starts_with("hatto-card-inspect-"));
+    }
+
+    #[test]
+    fn exceeding_a_size_limit_reports_too_large_and_removes_the_temp_dir() {
+        let root = tempfile::tempdir().unwrap();
+        let apkg = root.path().join("over-limit.apkg");
+        fs::write(&apkg, b"PK\x03\x04too-big-for-a-one-byte-ceiling").unwrap();
+        let before = inspect_temp_names();
+        let err = inspect_path_with_limits(&apkg, 1, INSPECT_MAX_UNCOMPRESSED_BYTES)
+            .expect_err("compressed size is over the ceiling");
+        let message = err.message.expect("Stage E error message");
+        assert!(message.starts_with("too_large:"), "{message}");
+        assert_eq!(
+            inspect_temp_names(),
+            before,
+            "inspect left a {INSPECT_TEMP_PREFIX} directory behind"
+        );
+    }
+
+    fn inspect_temp_names() -> Vec<String> {
+        let mut names = Vec::new();
+        let Ok(entries) = fs::read_dir(std::env::temp_dir()) else {
+            return names;
+        };
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if name.starts_with(INSPECT_TEMP_PREFIX) {
+                names.push(name);
+            }
+        }
+        names.sort();
+        names
     }
 }
