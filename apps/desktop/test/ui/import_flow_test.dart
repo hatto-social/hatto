@@ -1069,6 +1069,37 @@ void main() {
     ]);
   });
 
+  test('the next import announces checking again', () async {
+    final rec = _Rec();
+    final clock = _StageClock();
+    final session = open(
+      rec: rec,
+      scheduleStageAnnounce: clock.schedule,
+      onImport: (call) async {
+        clock.fire();
+        call.onPhase?.call(ImportPhase.afterReconcile);
+        return const ImportRunResult(outcome: ImportOutcome.cancelled);
+      },
+    );
+    final file = writeFile('again.apkg', zip);
+    Future<void> drop() {
+      return session.importDropped(rec.ui, [
+        ApkgDrop.file(name: 'again.apkg', localPath: file.path),
+      ]);
+    }
+
+    await drop();
+    expect(rec.announcements, [kStageChecking, kCancelToast]);
+
+    rec.announcements.clear();
+    await drop();
+    expect(clock.delays, [
+      kImportStageAnnounceDelay,
+      kImportStageAnnounceDelay,
+    ]);
+    expect(rec.announcements, [kStageChecking, kCancelToast]);
+  });
+
   test('a fast import speaks the result and drops stale stages', () async {
     final rec = _Rec();
     final clock = _StageClock();

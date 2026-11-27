@@ -576,6 +576,7 @@ class ApkgImportSession extends ChangeNotifier {
     _stageTimer?.cancel();
     _stageTimer = null;
     _pendingStage = null;
+    _spokenStage = null;
   }
 
   void _speak(ApkgImportUi ui, String message) {
