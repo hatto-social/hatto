@@ -22,7 +22,7 @@ use serde_json::{json, Value};
 use crate::collection::{FieldCheckError, Session};
 use crate::deck::{
     derive_notes, notetype_unknown, parse_deck, skeleton, DeckFile, DerivedNote, Problem,
-    CLOZE_MISSING, FIELD_COUNT, MEDIA_MISSING,
+    CLOZE_MISSING, FIELD_COUNT, MEDIA_MISSING, OP_ID_REQUIRED, UNKNOWN_FIELD,
 };
 
 pub use crate::deck::Problem as DeckProblem;
@@ -267,6 +267,13 @@ pub fn add_note_path(
     output: Option<&Path>,
     request: &AddNoteRequest,
 ) -> Result<Value, ToolFailure> {
+    if let AddNoteGuid::Local {
+        op_id: None,
+        k: Some(_),
+    } = &request.guid
+    {
+        return Err(op_id_required("--k"));
+    }
     let text = read_deck_file(deck_path)?;
     let deck = parse_deck(&text).map_err(|problem| ToolFailure::problems(vec![problem]))?;
     if let Some(name) = deck.notetype.as_deref() {
@@ -365,6 +372,7 @@ pub fn parse_notes_input(text: &str) -> Result<Vec<BatchNote>, ToolFailure> {
         .into_iter()
         .enumerate()
         .map(|(index, value)| {
+            reject_unknown_fields(index, &value)?;
             let raw: BatchNoteJson = serde_json::from_value(value)
                 .map_err(|err| input_problem(index, format!("input json: {err}")))?;
             batch_from_json(index, raw)
@@ -411,9 +419,52 @@ fn parse_note_values(text: &str) -> Result<Vec<Value>, ToolFailure> {
 }
 
 fn input_problem(index: usize, message: String) -> ToolFailure {
+    coded_problem(&format!("input[{index}]"), "", message)
+}
+
+fn op_id_required(location: &str) -> ToolFailure {
+    coded_problem(
+        location,
+        OP_ID_REQUIRED,
+        "k without op_id needs --op-id".into(),
+    )
+}
+
+fn reject_unknown_fields(index: usize, value: &Value) -> Result<(), ToolFailure> {
+    let Some(object) = value.as_object() else {
+        return Ok(());
+    };
+    const KNOWN: &[&str] = &[
+        "deck_name",
+        "fields",
+        "job_id",
+        "k",
+        "notetype",
+        "op_id",
+        "source_guid",
+        "tags",
+    ];
+    let mut problems = Vec::new();
+    for key in object.keys() {
+        if !KNOWN.contains(&key.as_str()) {
+            problems.push(Problem {
+                code: UNKNOWN_FIELD.into(),
+                location: format!("input[{index}]"),
+                message: format!("unknown field \"{key}\""),
+            });
+        }
+    }
+    if problems.is_empty() {
+        Ok(())
+    } else {
+        Err(ToolFailure::problems(problems))
+    }
+}
+
+fn coded_problem(location: &str, code: &str, message: String) -> ToolFailure {
     ToolFailure::problems(vec![Problem {
-        code: String::new(),
-        location: format!("input[{index}]"),
+        code: code.into(),
+        location: location.into(),
         message,
     }])
 }
@@ -628,7 +679,7 @@ fn resolve_batch_guid(
         }
         BatchGuid::Specified(AddNoteGuid::Local { op_id: None, k }) => {
             let Some(op_id) = command_op.clone() else {
-                return Err(input_problem(index, "k without op_id needs --op-id".into()));
+                return Err(op_id_required(&format!("input[{index}]")));
             };
             *reported_op = Some(op_id.clone());
             Ok(AddedNote::Local {
@@ -1047,9 +1098,11 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let path = write_deck(root.path(), &bare_skeleton());
         let first = add_note_path(&path, None, &local(None, None)).unwrap();
-        let second = add_note_path(&path, None, &local(None, Some(4))).unwrap();
+        let second_id = "bbbbbbbb-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+        let second = add_note_path(&path, None, &local(Some(second_id), Some(4))).unwrap();
         let first_op = first["op_id"].as_str().unwrap();
         let second_op = second["op_id"].as_str().unwrap();
+        assert_eq!(second_op, second_id);
         assert_ne!(first_op, second_op);
         assert_ne!(first_op, "fedcba98-7654-4210-8fed-cba987654321");
         assert!(is_guid_format(first_op));
@@ -1461,7 +1514,7 @@ mod tests {
         cloze["notes"] = json!([{ "k": 0, "fields": ["{{c1::a}}", "extra"] }]);
         let cloze_path = write_deck(&cloze_dir, &cloze);
         let cloze_before = fs::read(&cloze_path).unwrap();
-        let mut bad = local(None, Some(1));
+        let mut bad = local(Some("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"), Some(1));
         bad.notetype = "Cloze".into();
         bad.fields = vec!["no deletion".into(), "extra".into()];
         let err = add_note_path(&cloze_path, None, &bad).unwrap_err();
@@ -1538,6 +1591,7 @@ mod tests {
             parse_notes_input(r#"[{"fields":["a","b"],"tag":["x"],"deckname":"Example::Sub"}]"#)
                 .unwrap_err();
         assert_eq!(typo.errors[0].location, "input[0]");
+        assert!(typo.errors.iter().all(|error| error.code == UNKNOWN_FIELD));
         assert!(typo.errors[0].message.contains("unknown field"), "{typo:?}");
 
         let root = tempfile::tempdir().unwrap();
@@ -1708,6 +1762,7 @@ mod tests {
             ..request
         };
         let err = add_notes_path(&bare_path, None, &missing).unwrap_err();
+        assert_eq!(err.errors[0].code, OP_ID_REQUIRED);
         assert_eq!(err.errors[0].location, "input[0]");
         assert!(err.errors[0].message.contains("needs --op-id"), "{err:?}");
         assert_eq!(fs::read(&bare_path).unwrap(), before);

@@ -307,3 +307,83 @@ fn add_notes_jsonl_and_stdin_deck_roundtrip_flags() {
         "{rendered}"
     );
 }
+
+#[test]
+fn k_without_op_id_and_unknown_fields_keep_the_deck() {
+    let root = tempfile::tempdir().unwrap();
+    let deck = root.path().join("deck.json");
+    let deck_arg = deck.to_str().unwrap();
+    let (code, stdout, stderr) = run(&[
+        "--json",
+        "new",
+        "--empty",
+        "--output",
+        deck_arg,
+        "--notetype",
+        "Hatto Basic",
+    ]);
+    assert_eq!(code, 0, "{stdout}\n{stderr}");
+    let before = fs::read(&deck).unwrap();
+
+    let (code, stdout, stderr) = run(&[
+        "--json",
+        "add-note",
+        "--deck",
+        deck_arg,
+        "--notetype",
+        "Hatto Basic",
+        "--field",
+        "front",
+        "--field",
+        "back",
+        "--k",
+        "7",
+    ]);
+    assert_eq!(code, 1, "{stdout}\n{stderr}");
+    let failure: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(failure["ok"], false);
+    assert_eq!(failure["errors"][0]["code"], "OP_ID_REQUIRED");
+    assert_eq!(failure["errors"][0]["location"], "--k");
+    assert_eq!(fs::read(&deck).unwrap(), before);
+
+    let input = root.path().join("k-only.json");
+    fs::write(&input, r#"[{"fields":["a","b"],"k":7}]"#).unwrap();
+    let (code, stdout, stderr) = run(&[
+        "--json",
+        "add-notes",
+        "--deck",
+        deck_arg,
+        "--input",
+        input.to_str().unwrap(),
+    ]);
+    assert_eq!(code, 1, "{stdout}\n{stderr}");
+    let failure: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(failure["errors"][0]["code"], "OP_ID_REQUIRED");
+    assert_eq!(failure["errors"][0]["location"], "input[0]");
+    assert_eq!(fs::read(&deck).unwrap(), before);
+
+    let unknown = root.path().join("unknown.json");
+    fs::write(
+        &unknown,
+        r#"[{"fields":["a","b"],"tag":["x"],"deckname":"Example::Sub"}]"#,
+    )
+    .unwrap();
+    let (code, stdout, stderr) = run(&[
+        "--json",
+        "add-notes",
+        "--deck",
+        deck_arg,
+        "--input",
+        unknown.to_str().unwrap(),
+    ]);
+    assert_eq!(code, 1, "{stdout}\n{stderr}");
+    let failure: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let codes: Vec<_> = failure["errors"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|error| error["code"].as_str().unwrap())
+        .collect();
+    assert_eq!(codes, ["UNKNOWN_FIELD", "UNKNOWN_FIELD"]);
+    assert_eq!(fs::read(&deck).unwrap(), before);
+}

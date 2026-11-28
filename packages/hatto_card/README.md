@@ -110,7 +110,9 @@ from the deck is stored on that note. Failures for notes added by this call
 are located at `input[N]`, not at the index in the whole deck.
 
 With no guid flags, `add-note` makes a UUIDv4 `op_id` and sets `k` to 0.
-`k` is the index of the note inside this write, not the index in the file.
+`--k` without `--op-id` is rejected (`OP_ID_REQUIRED`), the same rule as a
+batch item that sets `k` and omits `op_id`. `k` is the index of the note
+inside this write, not the index in the file.
 The guid is `local_note_guid(op_id, k)`. `--op-id` and `--k` set those
 values. `--source-guid` (with `--job-id`) uses `normalize_import_guid`.
 `--job-id` is stored on the new note and ignored for that guid. Those
@@ -142,6 +144,8 @@ as-is.
 | `CLOZE_MISSING` | A Cloze note's first field has no `{{cN::...}}` deletion. |
 | `MEDIA_MISSING` | A local media reference is not a file in `media_dir`. |
 | `DECK_NAME_INVALID` | A note deck name is empty, has an empty segment, or is outside the root. |
+| `OP_ID_REQUIRED` | `add-note --k` or a batch item `k` is set without an `op_id`. |
+| `UNKNOWN_FIELD` | A batch note object has a key other than `fields`, `tags`, `notetype`, `deck_name`, `op_id`, `k`, `job_id`, or `source_guid`. |
 
 ## Inspect
 

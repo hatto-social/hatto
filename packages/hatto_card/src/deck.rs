@@ -54,6 +54,12 @@ pub const MEDIA_MISSING: &str = "MEDIA_MISSING";
 /// A note `deck_name` is empty, has an empty segment, or is outside the root.
 pub const DECK_NAME_INVALID: &str = "DECK_NAME_INVALID";
 
+/// `k` was set and `op_id` was not. The guid would not be deterministic.
+pub const OP_ID_REQUIRED: &str = "OP_ID_REQUIRED";
+
+/// A batch note object has a key this command does not accept.
+pub const UNKNOWN_FIELD: &str = "UNKNOWN_FIELD";
+
 const NOTETYPE_LEGACY_MESSAGE: &str = "notetype_legacy is not supported";
 
 pub(crate) fn notetype_unknown(location: &str, name: &str) -> Problem {

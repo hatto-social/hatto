@@ -535,7 +535,7 @@ flags:
   --field TEXT         one field, repeatable, in notetype order
   --tag TEXT           tag, repeatable; the value may start with -
   --op-id UUID         local note op_id (default: new UUIDv4)
-  --k N                local note index (default: 0)
+  --k N                local note index; requires --op-id
   --job-id UUID        imported note job_id
   --source-guid TEXT   imported note source bytes
   -h, --help           show this help and exit 0
@@ -543,6 +543,7 @@ flags:
 --job-id and --source-guid cannot be combined with --op-id or --k.
 --job-id is stored on the note and is not used to derive the guid.
 With no guid flags, add-note makes a UUIDv4 op_id and sets k to 0.
+--k without --op-id is rejected. The guid would change on every run.
 --field and --tag values may start with - or --, and may be the words
 help, -h, --help, or --json. Those are field or tag text, not help and
 not the json flag. --field=--bar is the same as two arguments. The file
