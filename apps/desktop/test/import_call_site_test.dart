@@ -83,8 +83,8 @@ void main() {
         .writeAsStringSync('prepareRuntime(tmpDir: other.path);\n');
 
     expect(prepareRuntimeCallSites(root, 'apps/desktop'), [
-      'apps/desktop/lib/main.dart',
       'apps/desktop/lib/extra.dart',
+      'apps/desktop/lib/main.dart',
     ]);
   });
 }
@@ -151,6 +151,9 @@ List<String> prepareRuntimeCallSites(Directory repo, String app) {
       hits.add(relative);
     }
   }
+  // listSync order follows the directory, which is not stable across
+  // filesystems. Callers compare the list with ==.
+  hits.sort();
   return hits;
 }
 
