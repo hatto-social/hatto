@@ -14,3 +14,7 @@ rustflags = ["-C", "link-arg=-Wl,-z,max-page-size=16384"]
 
 [target.x86_64-linux-android]
 rustflags = ["-C", "link-arg=-Wl,-z,max-page-size=16384"]
+
+# Build only the hatto-card CLI (packages/hatto_card) from the repo root.
+[alias]
+build-cli = "build --release --locked -p hatto_card --bin hatto-card"

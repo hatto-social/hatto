@@ -43,6 +43,16 @@ The submodule is Anki commit `29bb700b951e3f0c0cb69b77c0180fc1fe33e6ba` (tag `26
 
 Corresponding source for a binary that is handed to anyone is the archive from `tools/release/make-source-archive.sh`. Rebuilding that archive with no git metadata is [`SOURCE.md`](SOURCE.md). Release order, the rule against deleting a shipped release, and the desktop-app follow-ups are [`docs/release/CHECKLIST.md`](docs/release/CHECKLIST.md).
 
+## hatto-card CLI
+
+After the prerequisites above, and with the Anki submodule present (`git clone --recursive`, or the submodule command in Prerequisites):
+
+```sh
+cargo build-cli
+```
+
+That builds only the `hatto-card` binary in `packages/hatto_card` and writes `target/release/hatto-card`. Flutter is not required.
+
 ## Host build and smoke
 
 From the repo root, with `protoc` and `flutter` on `PATH`:
