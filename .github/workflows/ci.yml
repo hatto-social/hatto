@@ -211,6 +211,8 @@ jobs:
         run: cargo build -p hatto_card --bin hatto-card
 
       - name: Test desktop, bridge, mobile, and the side database
+        env:
+          HATTO_CARD_BIN: ${{ github.workspace }}/target/debug/hatto-card
         run: |
           # Each package looks up native assets relative to its own directory.
           (cd apps/desktop && flutter test)

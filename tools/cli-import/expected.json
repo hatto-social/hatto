@@ -1,0 +1,231 @@
+{
+  "description": "Pinned ImportPipeline results for one hatto-card apkg on Desktop and Mobile. Both apps build these decks with HATTO_CARD_BIN and compare outcome, ImportPlanCounts, the note_map guid set, and the deck_map deck-name set. Mods and timestamps are not pinned. A note guid is local_note_guid(op_id, k), which is uuid5(op_id, \"note:{k}\"). Deck names use Anki's :: separator. Reconcile maps the empty stock deck Default before the package decks are adopted, so Default is part of every deck-name set. The reimport scenario exports v2 at least two unix seconds after v1, because an equal mod and a different content hash is LOCAL_NEWER.",
+  "scenarios": {
+    "basic": {
+      "deck_name": "Cli Basic",
+      "notetype": "Basic",
+      "op_id": "11111111-1111-4111-8111-111111111111",
+      "notes": [
+        {"k": 0, "fields": ["alpha", "beta"], "tags": ["basic"]},
+        {"k": 1, "fields": ["gamma", "delta"], "tags": ["basic"]}
+      ],
+      "expect": {
+        "outcome": "committed",
+        "counts": {
+          "newNotes": 2,
+          "same": 0,
+          "changed": 0,
+          "localNewer": 0,
+          "blocked": 0,
+          "dup": 0,
+          "noResidentCall": false
+        },
+        "noteGuids": [
+          "187830ad-2fdf-5166-b339-9a02af4be0a8",
+          "efc4bf82-7978-5b01-a50b-826eaada7f3f"
+        ],
+        "deckNames": ["Default", "Cli Basic"]
+      }
+    },
+    "cloze": {
+      "deck_name": "Cli Cloze",
+      "notetype": "Cloze",
+      "op_id": "22222222-2222-4222-8222-222222222222",
+      "notes": [
+        {
+          "k": 0,
+          "fields": ["The {{c1::answer}} sits here", "extra"],
+          "tags": ["cloze"]
+        }
+      ],
+      "expect": {
+        "outcome": "committed",
+        "counts": {
+          "newNotes": 1,
+          "same": 0,
+          "changed": 0,
+          "localNewer": 0,
+          "blocked": 0,
+          "dup": 0,
+          "noResidentCall": false
+        },
+        "noteGuids": ["9f9d12c3-0a29-5a2f-90ca-636af149fb1b"],
+        "deckNames": ["Default", "Cli Cloze"]
+      }
+    },
+    "media": {
+      "deck_name": "Cli Media",
+      "notetype": "Basic",
+      "op_id": "33333333-3333-4333-8333-333333333333",
+      "notes": [
+        {
+          "k": 0,
+          "fields": ["see <img src=\"dot.png\">", "caption"],
+          "tags": ["media"]
+        }
+      ],
+      "expect": {
+        "outcome": "committed",
+        "counts": {
+          "newNotes": 1,
+          "same": 0,
+          "changed": 0,
+          "localNewer": 0,
+          "blocked": 0,
+          "dup": 0,
+          "noResidentCall": false
+        },
+        "noteGuids": ["cd7ca685-c3c9-5af1-b0f0-5b0003712636"],
+        "deckNames": ["Default", "Cli Media"]
+      }
+    },
+    "subdeck": {
+      "deck_name": "Cli Root",
+      "notetype": "Basic",
+      "op_id": "44444444-4444-4444-8444-444444444444",
+      "notes": [
+        {
+          "k": 0,
+          "fields": ["root front", "root back"],
+          "tags": ["root"],
+          "deck_name": "Cli Root"
+        },
+        {
+          "k": 1,
+          "fields": ["sub front", "sub back"],
+          "tags": ["sub"],
+          "deck_name": "Cli Root::Sub"
+        },
+        {
+          "k": 2,
+          "fields": ["leaf front", "leaf back"],
+          "tags": ["leaf"],
+          "deck_name": "Cli Root::Sub::Leaf"
+        },
+        {
+          "k": 3,
+          "fields": ["other front", "other back"],
+          "tags": ["other"],
+          "deck_name": "Cli Root::Other"
+        },
+        {
+          "k": 4,
+          "fields": ["A {{c1::leaf}} B", "extra"],
+          "tags": ["cloze"],
+          "notetype": "Cloze",
+          "deck_name": "Cli Root::Sub::Leaf"
+        }
+      ],
+      "expect": {
+        "outcome": "committed",
+        "counts": {
+          "newNotes": 5,
+          "same": 0,
+          "changed": 0,
+          "localNewer": 0,
+          "blocked": 0,
+          "dup": 0,
+          "noResidentCall": false
+        },
+        "noteGuids": [
+          "48eb021e-0c17-5dba-9b8d-9823c90c63dd",
+          "1e31bf5e-2041-5a27-a99f-a7124e35fce2",
+          "11be8a90-b6a5-5378-9e4b-08a98ead4f6a",
+          "18889d59-ff11-5235-ad9f-361f467afb80",
+          "9b297d98-c755-5d87-b23d-25bc15154aba"
+        ],
+        "deckNames": [
+          "Default",
+          "Cli Root",
+          "Cli Root::Sub",
+          "Cli Root::Sub::Leaf",
+          "Cli Root::Other"
+        ]
+      },
+      "reimport": {
+        "outcome": "noop",
+        "counts": {
+          "newNotes": 0,
+          "same": 5,
+          "changed": 0,
+          "localNewer": 0,
+          "blocked": 0,
+          "dup": 0,
+          "noResidentCall": true
+        },
+        "noteGuids": [
+          "48eb021e-0c17-5dba-9b8d-9823c90c63dd",
+          "1e31bf5e-2041-5a27-a99f-a7124e35fce2",
+          "11be8a90-b6a5-5378-9e4b-08a98ead4f6a",
+          "18889d59-ff11-5235-ad9f-361f467afb80",
+          "9b297d98-c755-5d87-b23d-25bc15154aba"
+        ],
+        "deckNames": [
+          "Default",
+          "Cli Root",
+          "Cli Root::Sub",
+          "Cli Root::Sub::Leaf",
+          "Cli Root::Other"
+        ]
+      }
+    },
+    "reimport": {
+      "deck_name": "Cli Reimport",
+      "notetype": "Basic",
+      "op_id": "55555555-5555-4555-8555-555555555555",
+      "notes": [
+        {"k": 0, "fields": ["keep front", "keep back"], "tags": ["keep"]},
+        {"k": 1, "fields": ["tag front", "tag back"], "tags": ["old"]},
+        {"k": 2, "fields": ["same front", "same back"], "tags": ["same"]}
+      ],
+      "edits": [
+        {"k": 0, "fields": ["edited front", "keep back"]},
+        {"k": 1, "tags": ["old", "added"]}
+      ],
+      "add_note": {
+        "op_id": "66666666-6666-4666-8666-666666666666",
+        "k": 7,
+        "notetype": "Basic",
+        "fields": ["new front", "new back"],
+        "tags": ["new"]
+      },
+      "expect": {
+        "outcome": "committed",
+        "counts": {
+          "newNotes": 3,
+          "same": 0,
+          "changed": 0,
+          "localNewer": 0,
+          "blocked": 0,
+          "dup": 0,
+          "noResidentCall": false
+        },
+        "noteGuids": [
+          "6ee28b4e-7303-5888-ba66-45c57ed823ef",
+          "bcaefe91-048c-5d63-a04a-86210ecd1744",
+          "a5692878-9e55-58f5-8b43-1aabaa63dba4"
+        ],
+        "deckNames": ["Default", "Cli Reimport"]
+      },
+      "second": {
+        "outcome": "committed",
+        "counts": {
+          "newNotes": 1,
+          "same": 1,
+          "changed": 2,
+          "localNewer": 0,
+          "blocked": 0,
+          "dup": 0,
+          "noResidentCall": false
+        },
+        "noteGuids": [
+          "6ee28b4e-7303-5888-ba66-45c57ed823ef",
+          "bcaefe91-048c-5d63-a04a-86210ecd1744",
+          "a5692878-9e55-58f5-8b43-1aabaa63dba4",
+          "a2bc2d08-08c6-51ed-9be1-2db793ce6d2e"
+        ],
+        "deckNames": ["Default", "Cli Reimport"]
+      }
+    }
+  }
+}

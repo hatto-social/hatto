@@ -25,13 +25,13 @@ void main() {
     await initRslibBridge();
     _stableTmp = await Directory.systemTemp.createTemp('hatto-mobile-tmp');
     addTearDown(() => _stableTmp.delete(recursive: true));
-    prepareRuntime(tmpDir: _stableTmp.path);
+    await prepareRuntime(tmpDir: _stableTmp.path);
   });
 
   // smokeOpenCollection points TMPDIR at the collection. Put it back before
   // the next test creates a directory.
-  setUp(() {
-    prepareRuntime(tmpDir: _stableTmp.path);
+  setUp(() async {
+    await prepareRuntime(tmpDir: _stableTmp.path);
   });
 
   test(
