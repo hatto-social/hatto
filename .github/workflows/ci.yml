@@ -203,10 +203,11 @@ jobs:
           flutter analyze packages/hatto_store
           flutter analyze packages/hatto_legal
 
-      # Workspace Cargo.toml has no target-dir, and .cargo/config.toml does
-      # not set one. This writes target/debug/hatto-card under the checkout.
-      # The desktop and mobile flutter tests below read HATTO_CARD_BIN.
-      - name: Build hatto-card
+      # hatto_import's CLI tests spawn this binary. Build it before the
+      # Flutter tests so a later Dart step can reuse the same file.
+      # .cargo/config.toml does not set target-dir, so cargo writes
+      # target/debug/hatto-card in the workspace.
+      - name: Build the card CLI
         run: cargo build -p hatto_card --bin hatto-card
 
       - name: Test desktop, bridge, mobile, and the side database
@@ -228,6 +229,8 @@ jobs:
         run: cargo check -p hatto_card_contract --target wasm32-unknown-unknown
 
       - name: Test the card contract, the card CLI, and the bridge
+        env:
+          HATTO_CARD_BIN: ${{ github.workspace }}/target/debug/hatto-card
         run: |
           cargo test -p hatto_card_contract -- --test-threads=1
           cargo test -p hatto_card -- --test-threads=1
