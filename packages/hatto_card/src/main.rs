@@ -22,17 +22,11 @@ use hatto_card::{
 use serde_json::Value;
 
 fn main() -> ExitCode {
-    let mut args = env::args().skip(1);
-    let mut json = false;
-    let mut words = Vec::new();
-    for arg in args.by_ref() {
-        if arg == "--json" {
-            json = true;
-        } else {
-            words.push(arg);
-        }
-    }
-    if help_requested(&words) {
+    let args: Vec<String> = env::args().skip(1).collect();
+    // Values are consumed before `--json` and help are recognized, so
+    // `--field --json` and `--field -h` are field text.
+    let (json, help, words) = split_args(&args);
+    if help {
         print_help(help_topic(&words));
         return ExitCode::SUCCESS;
     }
@@ -387,10 +381,40 @@ fn optional<'a>(pairs: &[(&'a str, &'a str)], name: &str) -> Result<Option<&'a s
     Ok(found)
 }
 
-fn help_requested(words: &[String]) -> bool {
-    words
-        .iter()
-        .any(|word| word == "--help" || word == "-h" || word == "help")
+/// Splits argv into the json flag, a help request, and the words `dispatch` parses.
+///
+/// A token that belongs to a value flag is not `--json` and not help, even when
+/// the text is `--json`, `--help`, `-h`, or `help`.
+fn split_args(args: &[String]) -> (bool, bool, Vec<String>) {
+    let mut json = false;
+    let mut help = false;
+    let mut words = Vec::new();
+    let mut expect_value = false;
+    for arg in args {
+        if expect_value {
+            words.push(arg.clone());
+            expect_value = false;
+            continue;
+        }
+        if arg == "--json" {
+            json = true;
+            continue;
+        }
+        if arg == "--help" || arg == "-h" || arg == "help" {
+            help = true;
+            if arg == "help" {
+                words.push(arg.clone());
+            }
+            continue;
+        }
+        words.push(arg.clone());
+        expect_value = takes_separate_value(arg);
+    }
+    (json, help, words)
+}
+
+fn takes_separate_value(arg: &str) -> bool {
+    arg.starts_with("--") && arg != "--" && !arg.contains('=') && !BOOLEAN_FLAGS.contains(&arg)
 }
 
 fn help_topic(words: &[String]) -> Option<&str> {
@@ -519,9 +543,11 @@ flags:
 --job-id and --source-guid cannot be combined with --op-id or --k.
 --job-id is stored on the note and is not used to derive the guid.
 With no guid flags, add-note makes a UUIDv4 op_id and sets k to 0.
---field and --tag values may start with - or --. --field=--bar is the
-same as two arguments. The file is written only after the same checks
-as validate. A failure leaves the deck file unchanged.
+--field and --tag values may start with - or --, and may be the words
+help, -h, --help, or --json. Those are field or tag text, not help and
+not the json flag. --field=--bar is the same as two arguments. The file
+is written only after the same checks as validate. A failure leaves the
+deck file unchanged.
 ";
 
 const ADD_NOTES_HELP: &str = "\
@@ -541,10 +567,13 @@ flags:
   -h, --help        show this help and exit 0
 
 Each item has fields, and may set tags, notetype, deck_name, op_id and k,
-or job_id and source_guid. An item that sets none of op_id, k, and
-source_guid uses this command's op_id (one new UUIDv4 when --op-id is
-omitted) and k starting at --start-k, increasing by 1. The file is
-written only after every note passes the same checks as validate.
+or job_id and source_guid. Unknown keys are rejected. An item that sets
+none of op_id, k, and source_guid uses this command's op_id (one new
+UUIDv4 when --op-id is omitted) and k starting at --start-k, increasing
+by 1. An item with k and no op_id uses --op-id, and is rejected when
+that flag is omitted. Errors for the notes in this call use input[N].
+The file is written only after every note passes the same checks as
+validate.
 ";
 
 const INSPECT_HELP: &str = "\

@@ -39,7 +39,33 @@ pub struct Problem {
 /// This is a CLI code, not a `hatto_card_contract` id.
 pub const NOTETYPE_LEGACY: &str = "NOTETYPE_LEGACY";
 
+/// The notetype is not a seed name (stock or Hatto). CLI code, not a contract id.
+pub const NOTETYPE_UNKNOWN: &str = "NOTETYPE_UNKNOWN";
+
+/// A note's field count is not the seed notetype's field count.
+pub const FIELD_COUNT: &str = "FIELD_COUNT";
+
+/// A Cloze note's first field has no `{{cN::...}}` deletion.
+pub const CLOZE_MISSING: &str = "CLOZE_MISSING";
+
+/// A local media reference is not a file in `media_dir`.
+pub const MEDIA_MISSING: &str = "MEDIA_MISSING";
+
+/// A note `deck_name` is empty, has an empty segment, or is outside the root.
+pub const DECK_NAME_INVALID: &str = "DECK_NAME_INVALID";
+
 const NOTETYPE_LEGACY_MESSAGE: &str = "notetype_legacy is not supported";
+
+pub(crate) fn notetype_unknown(location: &str, name: &str) -> Problem {
+    Problem {
+        code: NOTETYPE_UNKNOWN.into(),
+        location: location.into(),
+        message: format!(
+            "notetype \"{name}\" is not a seed notetype; use one of: {}",
+            crate::seed::seed_notetype_names()
+        ),
+    }
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DerivedNote {
@@ -162,15 +188,21 @@ pub fn derive_notes(deck: &DeckFile) -> Result<Vec<DerivedNote>, Vec<Problem>> {
             message: "deck_name is empty".into(),
         }]);
     }
+    let mut problems = Vec::new();
+    if let Some(name) = deck.notetype.as_deref() {
+        if !crate::seed::is_seed_notetype(name) {
+            problems.push(notetype_unknown("notetype", name));
+        }
+    }
     if deck.notes.is_empty() {
-        return Err(vec![Problem {
+        problems.push(Problem {
             code: String::new(),
             location: "notes".into(),
             message: "notes is empty".into(),
-        }]);
+        });
+        return Err(problems);
     }
     let mut derived = Vec::new();
-    let mut problems = Vec::new();
     for (index, note) in deck.notes.iter().enumerate() {
         let location = format!("notes[{index}]");
         match derive_one(deck, note, &location) {
@@ -250,12 +282,8 @@ fn derive_one(deck: &DeckFile, note: &InputNote, location: &str) -> Result<Deriv
         });
     }
     let notetype = match note.notetype.as_deref() {
-        Some("") => {
-            return Err(Problem {
-                code: String::new(),
-                location: format!("{location}.notetype"),
-                message: "notetype is empty".into(),
-            });
+        Some(name) if !crate::seed::is_seed_notetype(name) => {
+            return Err(notetype_unknown(&format!("{location}.notetype"), name));
         }
         Some(name) => name.to_string(),
         None => deck.notetype_name().to_string(),
@@ -285,7 +313,7 @@ pub(crate) fn resolve_note_deck(
     };
     if name.is_empty() || name.split("::").any(|segment| segment.is_empty()) {
         return Err(Problem {
-            code: String::new(),
+            code: DECK_NAME_INVALID.into(),
             location: format!("{location}.deck_name"),
             message: format!("deck_name \"{name}\" has an empty segment"),
         });
@@ -294,7 +322,7 @@ pub(crate) fn resolve_note_deck(
         return Ok(name.to_string());
     }
     Err(Problem {
-        code: String::new(),
+        code: DECK_NAME_INVALID.into(),
         location: format!("{location}.deck_name"),
         message: format!("deck_name \"{name}\" is not under \"{root}\""),
     })

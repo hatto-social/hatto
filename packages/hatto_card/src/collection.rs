@@ -195,26 +195,42 @@ impl Session {
 
     /// Rejects notes whose field count is not the one rslib builds for that
     /// note's notetype. Each distinct notetype is resolved once.
-    pub(crate) fn check_note_fields(&self, notes: &[DerivedNote]) -> Result<(), String> {
+    ///
+    /// Callers must already have rejected non-seed notetype names. A lookup
+    /// failure is still a backend string. A count mismatch is [`FieldCountError`].
+    pub(crate) fn check_note_fields(&self, notes: &[DerivedNote]) -> Result<(), FieldCheckError> {
         let mut counts: HashMap<String, usize> = HashMap::new();
+        let mut mismatches = Vec::new();
         for note in notes {
             let name = crate::seed::canonical_notetype(&note.notetype);
             let count = if let Some(count) = counts.get(name) {
                 *count
             } else {
-                let ntid = self.notetype_id(name)?;
-                let fresh: anki_proto::notes::Note = self.call(
-                    "BackendNotesService",
-                    "new_note",
-                    &anki_proto::notetypes::NotetypeId { ntid },
-                )?;
+                let ntid = self.notetype_id(name).map_err(FieldCheckError::Backend)?;
+                let fresh: anki_proto::notes::Note = self
+                    .call(
+                        "BackendNotesService",
+                        "new_note",
+                        &anki_proto::notetypes::NotetypeId { ntid },
+                    )
+                    .map_err(FieldCheckError::Backend)?;
                 let count = fresh.fields.len();
                 counts.insert(name.to_string(), count);
                 count
             };
-            field_count_matches(note, count)?;
+            if note.fields.len() != count {
+                mismatches.push(FieldCountError {
+                    location: note.location.clone(),
+                    found: note.fields.len(),
+                    expected: count,
+                });
+            }
         }
-        Ok(())
+        if mismatches.is_empty() {
+            Ok(())
+        } else {
+            Err(FieldCheckError::Counts(mismatches))
+        }
     }
 
     pub(crate) fn add_media_file(&self, name: &str, data: &[u8]) -> Result<(), String> {
@@ -300,6 +316,17 @@ fn field_count_matches(note: &DerivedNote, count: usize) -> Result<(), String> {
         note.fields.len(),
         count
     ))
+}
+
+pub(crate) struct FieldCountError {
+    pub location: String,
+    pub found: usize,
+    pub expected: usize,
+}
+
+pub(crate) enum FieldCheckError {
+    Backend(String),
+    Counts(Vec<FieldCountError>),
 }
 
 fn decode_backend_error(bytes: &[u8]) -> String {

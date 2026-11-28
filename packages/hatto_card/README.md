@@ -71,7 +71,8 @@ hatto-card --json inspect deck.apkg
 each command (`hatto-card new --help`, and the same for `validate`, `export`,
 `add-note`, `add-notes`, and `inspect`). A missing or unknown command still
 exits 2. `--flag=value` is the same as `--flag value`. A value may start with
-`-` or `--`.
+`-` or `--`, including the tokens `help`, `-h`, `--help`, and `--json`. A
+token is help or the json flag only when it is not the value of a flag.
 
 `export` validates, writes the notes into a temporary collection, and exports
 the root deck. rslib's deck-id limit includes child decks (`DeckIdWithChildren`),
@@ -98,11 +99,15 @@ writes that path instead of the input file.
 `add-notes` appends every object from `--input`. The file is a JSON array or
 JSONL (one object per line, blank lines skipped). `--input -` reads stdin.
 Each object has `fields` and may set `tags`, `notetype`, `deck_name`, `op_id`
-and `k`, or `job_id` and `source_guid`. An object that sets none of `op_id`,
-`k`, and `source_guid` uses the command's `--op-id` (one new UUIDv4 when the
-flag is omitted) and `k` starting at `--start-k` (default 0), increasing by
-1 for each such object. `--notetype` is the default for objects that omit
-it. A notetype that differs from the deck is stored on that note.
+and `k`, or `job_id` and `source_guid`. Any other key is rejected. An object
+that sets none of `op_id`, `k`, and `source_guid` uses the command's `--op-id`
+(one new UUIDv4 when the flag is omitted) and `k` starting at `--start-k`
+(default 0), increasing by 1 for each such object. An object with `k` and no
+`op_id` uses `--op-id` and is rejected when that flag is omitted. The response
+includes the `op_id` that those notes used. `--notetype` is the default for
+objects that omit it, and it must be a seed notetype. A notetype that differs
+from the deck is stored on that note. Failures for notes added by this call
+are located at `input[N]`, not at the index in the whole deck.
 
 With no guid flags, `add-note` makes a UUIDv4 `op_id` and sets `k` to 0.
 `k` is the index of the note inside this write, not the index in the file.
@@ -119,13 +124,24 @@ deck that sets `notetype_legacy` before those checks. The error code is
 `NOTETYPE_LEGACY`. Any value is rejected, including `null` and an object
 whose `id` is 0.
 
-Checks kept here are the deck JSON shape, `GUID_FORMAT`, `NOTE_GUID_DUPLICATE`
-inside this file, a missing media path, a local `<img src>` or `[sound:...]`
-name that is not in `media_dir` (`http://`, `https://`, and `data:` are
-skipped), the notetype's field count, a Cloze first field with no
-`{{cN::...}}` deletion (`N` ≥ 1), a note `deck_name` outside the root, and
-`NOTETYPE_LEGACY` when the deck sets `notetype_legacy`. Media bytes are copied
+Checks kept here are the deck JSON shape, the codes below, and a missing
+media directory. Local `<img src>` and `[sound:...]` names must be files in
+`media_dir` (`http://`, `https://`, and `data:` are skipped). A Cloze first
+field needs `{{cN::...}}` with `N` ≥ 1. A note `deck_name` must be the root
+or `{root}::...` with no empty segment. The deck `notetype` and every note
+`notetype` must be a seed name from the table below. Media bytes are copied
 as-is.
+
+| Code | When |
+| --- | --- |
+| `GUID_FORMAT` | A guid string is not a lowercase hyphenated UUID version 4 or 5, or `source_guid` is empty. |
+| `NOTE_GUID_DUPLICATE` | The same derived guid appears twice in this file. |
+| `NOTETYPE_LEGACY` | The deck sets `notetype_legacy`. |
+| `NOTETYPE_UNKNOWN` | A deck or note notetype is not a seed name. The message lists the allowed names. |
+| `FIELD_COUNT` | A note's field count is not the notetype's field count. |
+| `CLOZE_MISSING` | A Cloze note's first field has no `{{cN::...}}` deletion. |
+| `MEDIA_MISSING` | A local media reference is not a file in `media_dir`. |
+| `DECK_NAME_INVALID` | A note deck name is empty, has an empty segment, or is outside the root. |
 
 ## Inspect
 
@@ -194,8 +210,9 @@ Limits:
 - **`notetype_legacy` is rejected.** The CLI only exports the seed notetypes
   in the table above. A deck JSON key `notetype_legacy` is `NOTETYPE_LEGACY`
   from `validate`, `export`, and `add-note`. It is not sent to rslib.
-  `Image Occlusion` and any other name the table does not list are looked up
-  in the temporary collection and are not fixed either.
+  `Image Occlusion` and any other name the table does not list are
+  `NOTETYPE_UNKNOWN` on the deck `notetype` and on a note `notetype`. They
+  are not looked up in the temporary collection.
 - **Apkg files from before the seed are not migrated.** They carry a `Basic`
   with a random id. A collection that already imported one and then imports the
   same deck from this version skips its notes as `conflicting` (BLOCKED in the

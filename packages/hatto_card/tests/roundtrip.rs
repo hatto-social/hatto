@@ -652,7 +652,8 @@ fn validate_exits_nonzero_when_a_note_has_too_many_fields() {
     assert_eq!(code, 1, "{stdout}\n{stderr}");
     let failure: serde_json::Value = serde_json::from_str(&stdout).unwrap();
     assert_eq!(failure["ok"], false);
-    assert_eq!(failure["message"], message);
+    assert_eq!(failure["errors"][0]["code"], "FIELD_COUNT");
+    assert_eq!(failure["errors"][0]["message"], message);
 
     let apkg = root.path().join("out.apkg");
     let (code, stdout, stderr) = run(&[
@@ -665,7 +666,8 @@ fn validate_exits_nonzero_when_a_note_has_too_many_fields() {
     ]);
     assert_eq!(code, 1, "{stdout}\n{stderr}");
     let failure: serde_json::Value = serde_json::from_str(&stdout).unwrap();
-    assert_eq!(failure["message"], message);
+    assert_eq!(failure["errors"][0]["code"], "FIELD_COUNT");
+    assert_eq!(failure["errors"][0]["message"], message);
     assert!(!format!("{stdout}{stderr}").contains("panic"));
     assert!(!apkg.exists());
 }

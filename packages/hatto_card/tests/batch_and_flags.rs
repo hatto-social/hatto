@@ -116,13 +116,80 @@ fn hyphen_values_and_equals_flags_parse() {
     let (code, stdout, stderr) = run(&["--json", "new", "--notetype", "Nope", "--empty"]);
     assert_eq!(code, 1, "{stdout}\n{stderr}");
     let failure: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(failure["errors"][0]["code"], "NOTETYPE_UNKNOWN");
     assert!(
-        failure["message"]
+        failure["errors"][0]["message"]
             .as_str()
             .unwrap()
             .contains("not a seed notetype"),
         "{stdout}"
     );
+}
+
+#[test]
+fn field_and_tag_values_are_not_help_or_json() {
+    let root = tempfile::tempdir().unwrap();
+    let deck = root.path().join("deck.json");
+    let deck_arg = deck.to_str().unwrap();
+    let (code, stdout, stderr) = run(&[
+        "--json",
+        "new",
+        "--empty",
+        "--output",
+        deck_arg,
+        "--notetype",
+        "Hatto Basic",
+    ]);
+    assert_eq!(code, 0, "{stdout}\n{stderr}");
+
+    let (code, stdout, stderr) = run(&[
+        "--json",
+        "add-note",
+        "--deck",
+        deck_arg,
+        "--notetype",
+        "Hatto Basic",
+        "--field",
+        "-h",
+        "--field",
+        "--json",
+        "--tag",
+        "--help",
+    ]);
+    assert_eq!(code, 0, "{stdout}\n{stderr}");
+    assert!(!stdout.contains("usage:"), "{stdout}");
+    let added: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(added["ok"], true);
+    let on_disk: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&deck).unwrap()).unwrap();
+    assert_eq!(
+        on_disk["notes"][0]["fields"],
+        serde_json::json!(["-h", "--json"])
+    );
+    assert_eq!(on_disk["notes"][0]["tags"], serde_json::json!(["--help"]));
+
+    let (code, stdout, stderr) = run(&[
+        "--json",
+        "add-note",
+        "--deck",
+        deck_arg,
+        "--notetype",
+        "Basic",
+        "--field",
+        "help",
+        "--field",
+        "back",
+        "--tag",
+        "-h",
+    ]);
+    assert_eq!(code, 0, "{stdout}\n{stderr}");
+    let on_disk: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&deck).unwrap()).unwrap();
+    assert_eq!(
+        on_disk["notes"][1]["fields"],
+        serde_json::json!(["help", "back"])
+    );
+    assert_eq!(on_disk["notes"][1]["tags"], serde_json::json!(["-h"]));
 }
 
 #[test]

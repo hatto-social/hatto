@@ -70,6 +70,16 @@ pub(crate) fn is_seed_notetype(name: &str) -> bool {
         .any(|(stock, hatto, _)| name == *stock || name == *hatto)
 }
 
+/// Stock and Hatto spellings, in table order. The CLI rejects every other name.
+pub(crate) fn seed_notetype_names() -> String {
+    let mut names: Vec<&str> = Vec::with_capacity(ALIASES.len() * 2);
+    for (stock, hatto, _) in ALIASES {
+        names.push(stock);
+        names.push(hatto);
+    }
+    names.join(", ")
+}
+
 /// Cloze is the only seed notetype whose first field must contain a deletion.
 pub(crate) fn is_cloze_notetype(name: &str) -> bool {
     canonical_notetype(name) == "Hatto Cloze"
