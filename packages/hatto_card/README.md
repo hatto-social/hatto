@@ -4,6 +4,8 @@ Developer CLI that checks a deck file, appends one note, builds a temporary
 collection, and writes an apkg. `inspect` reads an existing apkg through
 Stage E in a temporary data directory. It does not open a user collection.
 
+From the repository root, `cargo build-cli` writes `target/release/hatto-card`.
+
 Guid derivation and the guid format check come from `packages/hatto_card_contract`.
 Export flags come from `rslib_bridge::export_contract` (legacy false, media
 included, scheduling off, deck configs off, one deck).
