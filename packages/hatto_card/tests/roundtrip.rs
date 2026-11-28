@@ -10,7 +10,9 @@ use std::process::Command;
 use std::sync::{Mutex, MutexGuard};
 
 use anki_proto::generic;
-use hatto_card_contract::{local_note_guid, normalize_import_guid, parse_uuid, NoteGuid};
+use hatto_card_contract::{
+    local_note_guid, normalize_import_guid, note_content_hash, parse_uuid, NoteGuid,
+};
 use prost::Message;
 use rslib_bridge::api::{
     command, open_backend, prepare_runtime, service_method_index, AnkiBackend,
@@ -650,7 +652,8 @@ fn validate_exits_nonzero_when_a_note_has_too_many_fields() {
     assert_eq!(code, 1, "{stdout}\n{stderr}");
     let failure: serde_json::Value = serde_json::from_str(&stdout).unwrap();
     assert_eq!(failure["ok"], false);
-    assert_eq!(failure["message"], message);
+    assert_eq!(failure["errors"][0]["code"], "FIELD_COUNT");
+    assert_eq!(failure["errors"][0]["message"], message);
 
     let apkg = root.path().join("out.apkg");
     let (code, stdout, stderr) = run(&[
@@ -663,7 +666,8 @@ fn validate_exits_nonzero_when_a_note_has_too_many_fields() {
     ]);
     assert_eq!(code, 1, "{stdout}\n{stderr}");
     let failure: serde_json::Value = serde_json::from_str(&stdout).unwrap();
-    assert_eq!(failure["message"], message);
+    assert_eq!(failure["errors"][0]["code"], "FIELD_COUNT");
+    assert_eq!(failure["errors"][0]["message"], message);
     assert!(!format!("{stdout}{stderr}").contains("panic"));
     assert!(!apkg.exists());
 }
@@ -749,6 +753,141 @@ fn empty_notes_still_fail_validate() {
         .unwrap()
         .iter()
         .any(|error| error["message"] == "notes is empty"));
+}
+
+fn hex_hash(fields: &[&str], tags: &[&str]) -> String {
+    note_content_hash(fields, tags)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+fn inspect_notes(apkg: &Path) -> Vec<serde_json::Value> {
+    let (code, stdout, stderr) = run(&["--json", "inspect", apkg.to_str().unwrap()]);
+    assert_eq!(code, 0, "{stdout}\n{stderr}");
+    let value: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(value["ok"], true, "{stdout}");
+    value["notes"].as_array().unwrap().clone()
+}
+
+/// Basic and Cloze in one deck survive export, re-import, and inspect.
+#[test]
+fn basic_and_cloze_roundtrip_through_export_import_and_inspect() {
+    let _serial = serial();
+    let root = tempfile::tempdir().unwrap();
+    let op = "fedcba98-7654-4210-8fed-cba987654321";
+    let deck = write_json(
+        root.path(),
+        &serde_json::json!({
+            "deck_name": "Mixed",
+            "op_id": op,
+            "notetype": "Basic",
+            "notes": [
+                {"k": 0, "fields": ["front", "back"], "tags": ["basic"]},
+                {
+                    "k": 1,
+                    "notetype": "Hatto Cloze",
+                    "fields": ["A {{c1::hole}} B", "extra"],
+                    "tags": ["cloze"]
+                }
+            ]
+        }),
+    );
+    let apkg = root.path().join("mixed.apkg");
+    export_to(&deck, &apkg);
+
+    let op_id = parse_uuid(op).unwrap();
+    let basic_guid = NoteGuid::from_uuid(local_note_guid(op_id, 0)).into_string();
+    let cloze_guid = NoteGuid::from_uuid(local_note_guid(op_id, 1)).into_string();
+    let seq = import_sequence(&[&apkg]);
+    assert_eq!(seq.counts[0].new, 2, "{:?}", seq.counts);
+    assert_eq!(seq.counts[0].conflicting, 0);
+    let mut expect_mids = [
+        (basic_guid.clone(), 1_767_225_600_001_i64),
+        (cloze_guid.clone(), 1_767_225_600_005_i64),
+    ];
+    expect_mids.sort_by(|left, right| left.0.cmp(&right.0));
+    assert_eq!(
+        seq.note_mids,
+        expect_mids.iter().map(|(_, id)| *id).collect::<Vec<_>>()
+    );
+    assert_eq!(seq.content["card_decks"], serde_json::json!([["Mixed"]]));
+    assert_no_plus_notetype(&seq.notetypes);
+
+    let notes = inspect_notes(&apkg);
+    assert_eq!(notes.len(), 2, "{notes:?}");
+    let basic_hash = hex_hash(&["front", "back"], &["basic"]);
+    let cloze_hash = hex_hash(&["A {{c1::hole}} B", "extra"], &["cloze"]);
+    for (guid, hash, notetype_id) in [
+        (basic_guid, basic_hash, 1_767_225_600_001_i64),
+        (cloze_guid, cloze_hash, 1_767_225_600_005_i64),
+    ] {
+        let found = notes
+            .iter()
+            .find(|note| note["guid"] == guid)
+            .unwrap_or_else(|| panic!("inspect has no {guid}: {notes:?}"));
+        assert_eq!(found["content_hash"], hash, "{guid}");
+        assert_eq!(found["notetype_id"], notetype_id, "{guid}");
+    }
+}
+
+/// Root and Root::Sub both come back. rslib's deck-id export limit is
+/// DeckIdWithChildren, so the child is not dropped when the limit is the root.
+#[test]
+fn root_and_subdeck_roundtrip_through_export_import_and_inspect() {
+    let _serial = serial();
+    let root = tempfile::tempdir().unwrap();
+    let op = "fedcba98-7654-4210-8fed-cba987654321";
+    let deck = write_json(
+        root.path(),
+        &serde_json::json!({
+            "deck_name": "Root",
+            "op_id": op,
+            "notetype": "Basic",
+            "notes": [
+                {"k": 0, "fields": ["root front", "root back"], "tags": ["root"]},
+                {
+                    "k": 1,
+                    "deck_name": "Root::Sub",
+                    "fields": ["sub front", "sub back"],
+                    "tags": ["sub"]
+                }
+            ]
+        }),
+    );
+    let apkg = root.path().join("sub.apkg");
+    export_to(&deck, &apkg);
+
+    let seq = import_sequence(&[&apkg]);
+    assert_eq!(seq.counts[0].new, 2, "{:?}", seq.counts);
+    assert_eq!(seq.counts[0].conflicting, 0);
+    // decks.name stores Anki's unit separator. `Root\x1fSub` is `Root::Sub`,
+    // so the root deck_id export included the child deck.
+    let decks: Vec<String> = seq.content["card_decks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|row| row[0].as_str().unwrap().replace('\u{1f}', "::"))
+        .collect();
+    assert_eq!(decks, ["Root".to_string(), "Root::Sub".to_string()]);
+    assert_eq!(seq.note_mids, vec![1_767_225_600_001, 1_767_225_600_001]);
+
+    let op_id = parse_uuid(op).unwrap();
+    let root_guid = NoteGuid::from_uuid(local_note_guid(op_id, 0)).into_string();
+    let sub_guid = NoteGuid::from_uuid(local_note_guid(op_id, 1)).into_string();
+    let notes = inspect_notes(&apkg);
+    assert_eq!(notes.len(), 2, "{notes:?}");
+    for (guid, fields, tags) in [
+        (root_guid, ["root front", "root back"], ["root"]),
+        (sub_guid, ["sub front", "sub back"], ["sub"]),
+    ] {
+        let found = notes
+            .iter()
+            .find(|note| note["guid"] == guid)
+            .unwrap_or_else(|| panic!("inspect has no {guid}: {notes:?}"));
+        assert_eq!(found["content_hash"], hex_hash(&fields, &tags), "{guid}");
+        assert_eq!(found["notetype_id"], 1_767_225_600_001_i64, "{guid}");
+    }
 }
 
 fn deck_fields(path: &Path) -> Vec<Vec<String>> {

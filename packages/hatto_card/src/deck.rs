@@ -7,8 +7,9 @@
 //! No document defines this JSON. It is the thinnest map onto Anki: a deck
 //! name, a notetype name, notes that carry either `source_guid` (imported,
 //! [`normalize_import_guid`]) or `op_id`/`k` (local), fields, tags, and an
-//! optional media directory. A `notetype_legacy` key is rejected. See the
-//! package README.
+//! optional media directory. A note may set its own `notetype` and
+//! `deck_name` (the deck root, or `{root}::...`). A `notetype_legacy` key is
+//! rejected. See the package README.
 
 use hatto_card_contract::{
     is_guid_format, local_note_guid, normalize_import_guid, parse_uuid, validate_deck_file,
@@ -38,7 +39,39 @@ pub struct Problem {
 /// This is a CLI code, not a `hatto_card_contract` id.
 pub const NOTETYPE_LEGACY: &str = "NOTETYPE_LEGACY";
 
+/// The notetype is not a seed name (stock or Hatto). CLI code, not a contract id.
+pub const NOTETYPE_UNKNOWN: &str = "NOTETYPE_UNKNOWN";
+
+/// A note's field count is not the seed notetype's field count.
+pub const FIELD_COUNT: &str = "FIELD_COUNT";
+
+/// A Cloze note's first field has no `{{cN::...}}` deletion.
+pub const CLOZE_MISSING: &str = "CLOZE_MISSING";
+
+/// A local media reference is not a file in `media_dir`.
+pub const MEDIA_MISSING: &str = "MEDIA_MISSING";
+
+/// A note `deck_name` is empty, has an empty segment, or is outside the root.
+pub const DECK_NAME_INVALID: &str = "DECK_NAME_INVALID";
+
+/// `k` was set and `op_id` was not. The guid would not be deterministic.
+pub const OP_ID_REQUIRED: &str = "OP_ID_REQUIRED";
+
+/// A batch note object has a key this command does not accept.
+pub const UNKNOWN_FIELD: &str = "UNKNOWN_FIELD";
+
 const NOTETYPE_LEGACY_MESSAGE: &str = "notetype_legacy is not supported";
+
+pub(crate) fn notetype_unknown(location: &str, name: &str) -> Problem {
+    Problem {
+        code: NOTETYPE_UNKNOWN.into(),
+        location: location.into(),
+        message: format!(
+            "notetype \"{name}\" is not a seed notetype; use one of: {}",
+            crate::seed::seed_notetype_names()
+        ),
+    }
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DerivedNote {
@@ -46,6 +79,10 @@ pub struct DerivedNote {
     pub guid: String,
     pub fields: Vec<String>,
     pub tags: Vec<String>,
+    /// Effective notetype: the note's override, or the deck default.
+    pub notetype: String,
+    /// Effective deck: the note's override, or the deck's `deck_name`.
+    pub deck_name: String,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -79,6 +116,12 @@ pub struct InputNote {
     pub fields: Vec<String>,
     #[serde(default)]
     pub tags: Vec<String>,
+    /// Overrides the deck's `notetype` for this note. Absent means the deck default.
+    #[serde(default)]
+    pub notetype: Option<String>,
+    /// `deck_name`, or `{deck_name}::...` with no empty segment. Absent means the deck default.
+    #[serde(default)]
+    pub deck_name: Option<String>,
 }
 
 impl DeckFile {
@@ -151,15 +194,21 @@ pub fn derive_notes(deck: &DeckFile) -> Result<Vec<DerivedNote>, Vec<Problem>> {
             message: "deck_name is empty".into(),
         }]);
     }
+    let mut problems = Vec::new();
+    if let Some(name) = deck.notetype.as_deref() {
+        if !crate::seed::is_seed_notetype(name) {
+            problems.push(notetype_unknown("notetype", name));
+        }
+    }
     if deck.notes.is_empty() {
-        return Err(vec![Problem {
+        problems.push(Problem {
             code: String::new(),
             location: "notes".into(),
             message: "notes is empty".into(),
-        }]);
+        });
+        return Err(problems);
     }
     let mut derived = Vec::new();
-    let mut problems = Vec::new();
     for (index, note) in deck.notes.iter().enumerate() {
         let location = format!("notes[{index}]");
         match derive_one(deck, note, &location) {
@@ -238,12 +287,205 @@ fn derive_one(deck: &DeckFile, note: &InputNote, location: &str) -> Result<Deriv
             message: "fields is empty".into(),
         });
     }
+    let notetype = match note.notetype.as_deref() {
+        Some(name) if !crate::seed::is_seed_notetype(name) => {
+            return Err(notetype_unknown(&format!("{location}.notetype"), name));
+        }
+        Some(name) => name.to_string(),
+        None => deck.notetype_name().to_string(),
+    };
+    let deck_name = resolve_note_deck(&deck.deck_name, note.deck_name.as_deref(), location)?;
     Ok(DerivedNote {
         location: format!("{location}.guid"),
         guid,
         fields: note.fields.clone(),
         tags: note.tags.clone(),
+        notetype,
+        deck_name,
     })
+}
+
+/// A note deck is the root, or `{root}::...` with no empty segment.
+///
+/// `Parent` does not accept `ParentExtra` or `Other`. `Root::` and `::Sub`
+/// are empty segments. The root itself is not rechecked here.
+pub(crate) fn resolve_note_deck(
+    root: &str,
+    note_deck: Option<&str>,
+    location: &str,
+) -> Result<String, Problem> {
+    let Some(name) = note_deck else {
+        return Ok(root.to_string());
+    };
+    if name.is_empty() || name.split("::").any(|segment| segment.is_empty()) {
+        return Err(Problem {
+            code: DECK_NAME_INVALID.into(),
+            location: format!("{location}.deck_name"),
+            message: format!("deck_name \"{name}\" has an empty segment"),
+        });
+    }
+    if name == root || name.starts_with(&format!("{root}::")) {
+        return Ok(name.to_string());
+    }
+    Err(Problem {
+        code: DECK_NAME_INVALID.into(),
+        location: format!("{location}.deck_name"),
+        message: format!("deck_name \"{name}\" is not under \"{root}\""),
+    })
+}
+
+/// Anki cloze: `{{cN::...}}` where `N` parses as a `u16` greater than 0.
+///
+/// `{{c1::text}}` and `{{c1::text::hint}}` match. `{{c0::text}}` does not.
+/// The scan follows the first `}}`, the same close Anki's cloze regex uses.
+pub(crate) fn has_valid_cloze(text: &str) -> bool {
+    let mut rest = text;
+    while let Some(start) = rest.find("{{c") {
+        rest = &rest[start + 3..];
+        let digits_end = rest
+            .find(|ch: char| !ch.is_ascii_digit())
+            .unwrap_or(rest.len());
+        if digits_end == 0 {
+            continue;
+        }
+        let digits = &rest[..digits_end];
+        let Ok(n) = digits.parse::<u16>() else {
+            continue;
+        };
+        if n < 1 {
+            continue;
+        }
+        if let Some(body) = rest[digits_end..].strip_prefix("::") {
+            if body.contains("}}") {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Local media names referenced by one field.
+///
+/// `<img>` `src` uses either quote. `[sound:name]` runs to the next `]`.
+/// Remote `http://`, `https://`, and `data:` values are omitted. Matching
+/// is case-insensitive for the tag, the attribute, and the URI scheme.
+pub(crate) fn media_references(field: &str) -> Vec<String> {
+    let mut names = img_srcs(field);
+    names.extend(sound_refs(field));
+    names.retain(|name| !is_remote_media(name));
+    names
+}
+
+pub(crate) fn is_remote_media(name: &str) -> bool {
+    let lower = name.trim().to_ascii_lowercase();
+    lower.starts_with("http://") || lower.starts_with("https://") || lower.starts_with("data:")
+}
+
+fn img_srcs(html: &str) -> Vec<String> {
+    let lower = html.to_ascii_lowercase();
+    let mut names = Vec::new();
+    let mut search_from = 0;
+    while let Some(rel) = lower[search_from..].find("<img") {
+        let start = search_from + rel;
+        let Some(end_rel) = tag_end(&lower[start..]) else {
+            break;
+        };
+        let tag = &html[start..start + end_rel];
+        let tag_lower = &lower[start..start + end_rel];
+        if let Some(value) = attr_value(tag, tag_lower, "src") {
+            let value = value.trim();
+            if !value.is_empty() {
+                names.push(value.to_string());
+            }
+        }
+        search_from = start + end_rel;
+    }
+    names
+}
+
+/// Byte index just past the tag's `>`, respecting quoted `>`.
+fn tag_end(lower: &str) -> Option<usize> {
+    let bytes = lower.as_bytes();
+    let mut quote: Option<u8> = None;
+    for (index, byte) in bytes.iter().copied().enumerate() {
+        if let Some(open) = quote {
+            if byte == open {
+                quote = None;
+            }
+        } else if byte == b'"' || byte == b'\'' {
+            quote = Some(byte);
+        } else if byte == b'>' {
+            return Some(index + 1);
+        }
+    }
+    None
+}
+
+fn attr_value<'a>(tag: &'a str, tag_lower: &str, attr: &str) -> Option<&'a str> {
+    let mut rest = tag;
+    let mut rest_lower = tag_lower;
+    while let Some(rel) = rest_lower.find(attr) {
+        let before_ok = rel == 0
+            || rest_lower.as_bytes().get(rel - 1).is_some_and(|byte| {
+                !byte.is_ascii_alphanumeric() && *byte != b'-' && *byte != b'_' && *byte != b':'
+            });
+        let after = rel + attr.len();
+        if !before_ok || after > rest_lower.len() {
+            let next = rel + 1;
+            rest = &rest[next..];
+            rest_lower = &rest_lower[next..];
+            continue;
+        }
+        let bytes = rest_lower.as_bytes();
+        let mut index = after;
+        while index < bytes.len() && bytes[index].is_ascii_whitespace() {
+            index += 1;
+        }
+        if index >= bytes.len() || bytes[index] != b'=' {
+            let next = rel + 1;
+            rest = &rest[next..];
+            rest_lower = &rest_lower[next..];
+            continue;
+        }
+        index += 1;
+        while index < bytes.len() && bytes[index].is_ascii_whitespace() {
+            index += 1;
+        }
+        if index >= bytes.len() {
+            return None;
+        }
+        let quote = bytes[index];
+        if quote != b'"' && quote != b'\'' {
+            return None;
+        }
+        index += 1;
+        let value_start = index;
+        while index < bytes.len() && bytes[index] != quote {
+            index += 1;
+        }
+        if index >= bytes.len() {
+            return None;
+        }
+        return Some(&rest[value_start..index]);
+    }
+    None
+}
+
+fn sound_refs(field: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut rest = field;
+    while let Some(start) = rest.find("[sound:") {
+        rest = &rest[start + "[sound:".len()..];
+        let Some(end) = rest.find(']') else {
+            break;
+        };
+        let name = rest[..end].trim();
+        if !name.is_empty() {
+            names.push(name.to_string());
+        }
+        rest = &rest[end + 1..];
+    }
+    names
 }
 
 fn require_uuid(text: &str, location: &str) -> Result<Uuid, Problem> {
@@ -421,5 +663,90 @@ mod tests {
             .iter()
             .all(|error| error.code == "NOTE_GUID_DUPLICATE"));
         assert_eq!(errors.len(), 2);
+    }
+
+    #[test]
+    fn note_deck_name_must_be_the_root_or_a_child() {
+        let ok = deck(json!([{
+            "k": 0,
+            "fields": ["a", "b"],
+            "deck_name": "Example::Sub"
+        }]));
+        let notes = derive_notes(&ok).unwrap();
+        assert_eq!(notes[0].deck_name, "Example::Sub");
+        assert_eq!(notes[0].notetype, "Basic");
+
+        let same = deck(json!([{
+            "k": 0,
+            "fields": ["a", "b"],
+            "deck_name": "Example",
+            "notetype": "Hatto Basic"
+        }]));
+        let notes = derive_notes(&same).unwrap();
+        assert_eq!(notes[0].deck_name, "Example");
+        assert_eq!(notes[0].notetype, "Hatto Basic");
+
+        let nested = deck(json!([{
+            "k": 0,
+            "fields": ["a", "b"],
+            "deck_name": "Example::Sub::Leaf"
+        }]));
+        assert_eq!(
+            derive_notes(&nested).unwrap()[0].deck_name,
+            "Example::Sub::Leaf"
+        );
+
+        let foreign = deck(json!([{
+            "k": 0,
+            "fields": ["a", "b"],
+            "deck_name": "Other"
+        }]));
+        let errors = derive_notes(&foreign).unwrap_err();
+        assert_eq!(errors[0].location, "notes[0].deck_name");
+        assert!(
+            errors[0].message.contains("not under"),
+            "{}",
+            errors[0].message
+        );
+
+        for bad in ["Example::", "Example::::Sub", "::Sub", ""] {
+            let file = deck(json!([{
+                "k": 0,
+                "fields": ["a", "b"],
+                "deck_name": bad
+            }]));
+            let errors = derive_notes(&file).unwrap_err();
+            assert!(
+                errors[0].message.contains("empty segment"),
+                "{bad}: {}",
+                errors[0].message
+            );
+        }
+    }
+
+    #[test]
+    fn cloze_and_media_scanners_match_the_field_text() {
+        assert!(has_valid_cloze("{{c1::hole}}"));
+        assert!(has_valid_cloze("A {{c12::hole::hint}} B"));
+        assert!(has_valid_cloze("{{c01::hole}}"));
+        assert!(!has_valid_cloze("{{c0::hole}}"));
+        assert!(!has_valid_cloze("{{c1:hole}}"));
+        assert!(!has_valid_cloze("{{c1::hole}"));
+        assert!(!has_valid_cloze("plain"));
+        assert!(!has_valid_cloze("{{C1::hole}}"));
+
+        let field = r#"<img src="dot.png"> <IMG SRC='beep.mp3'> <img src="https://example.com/a.png"> <img src="data:image/png;base64,aa"> <img class="src" src="quoted.png"> [sound:beep.mp3] [sound:https://example.com/a.mp3]"#;
+        assert_eq!(
+            media_references(field),
+            vec![
+                "dot.png".to_string(),
+                "beep.mp3".to_string(),
+                "quoted.png".to_string(),
+                "beep.mp3".to_string(),
+            ]
+        );
+        assert!(is_remote_media("HTTP://example.com/a.png"));
+        assert!(is_remote_media("data:image/png;base64,aa"));
+        assert!(!is_remote_media("dot.png"));
     }
 }

@@ -63,6 +63,28 @@ pub(crate) fn canonical_notetype(name: &str) -> &str {
     name
 }
 
+/// True when `name` is a stock or Hatto spelling in [`ALIASES`].
+pub(crate) fn is_seed_notetype(name: &str) -> bool {
+    ALIASES
+        .iter()
+        .any(|(stock, hatto, _)| name == *stock || name == *hatto)
+}
+
+/// Stock and Hatto spellings, in table order. The CLI rejects every other name.
+pub(crate) fn seed_notetype_names() -> String {
+    let mut names: Vec<&str> = Vec::with_capacity(ALIASES.len() * 2);
+    for (stock, hatto, _) in ALIASES {
+        names.push(stock);
+        names.push(hatto);
+    }
+    names.join(", ")
+}
+
+/// Cloze is the only seed notetype whose first field must contain a deletion.
+pub(crate) fn is_cloze_notetype(name: &str) -> bool {
+    canonical_notetype(name) == "Hatto Cloze"
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
@@ -96,6 +118,17 @@ mod tests {
         assert_eq!(canonical_notetype("Image Occlusion"), "Image Occlusion");
         assert_eq!(canonical_notetype("basic"), "basic");
         assert_eq!(canonical_notetype(""), "");
+        assert!(is_seed_notetype("Basic"));
+        assert!(is_seed_notetype("Hatto Basic"));
+        assert!(is_seed_notetype("Cloze"));
+        assert!(is_seed_notetype("Hatto Cloze"));
+        assert!(!is_seed_notetype("Image Occlusion"));
+        assert!(!is_seed_notetype("basic"));
+        assert!(!is_seed_notetype(""));
+        assert!(is_cloze_notetype("Cloze"));
+        assert!(is_cloze_notetype("Hatto Cloze"));
+        assert!(!is_cloze_notetype("Basic"));
+        assert!(!is_cloze_notetype("Hatto Basic"));
     }
 
     #[test]
