@@ -36,6 +36,8 @@ pub use pipeline::{
 #[cfg(test)]
 mod harness;
 #[cfg(test)]
+mod tests_cli;
+#[cfg(test)]
 mod tests_import;
 #[cfg(test)]
 mod tests_lint;
