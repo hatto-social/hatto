@@ -31,12 +31,22 @@ String? get _bin {
 /// GitHub Actions sets `CI`. An empty value does not count as set.
 bool get _ci => (Platform.environment['CI'] ?? '').isNotEmpty;
 
-/// Skip locally when the CLI is not configured. CI must fail instead.
+/// Skip when `hatto-card` is not configured.
+///
+/// Linux CI sets `HATTO_CARD_BIN` and fails this suite when that variable
+/// is missing. The macOS job runs this file with `CI` set and does not
+/// build the CLI. That job is unchanged, so an unset binary skips there.
 String? get _skipReason {
-  if (_bin == null && !_ci) {
-    return 'HATTO_CARD_BIN is unset';
+  if (_bin != null) {
+    return null;
   }
-  return null;
+  if (_ci && !Platform.isMacOS) {
+    return null;
+  }
+  if (_ci) {
+    return 'HATTO_CARD_BIN is unset; the macOS CI job does not build hatto-card';
+  }
+  return 'HATTO_CARD_BIN is unset';
 }
 
 Map<String, dynamic>? _expected;
